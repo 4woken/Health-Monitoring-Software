@@ -19,7 +19,7 @@ The code is in `src/camera/pulse/`, and its tests are in `rppg.test.ts` and `ski
 
 ### Comparing POS and CHROM
 
-On the Camera page, in **Pulse camera**, tick **Compare POS and CHROM**. Both methods analyse the same forehead and cheek samples at the same moment. Each value appears once the window holds at least eight seconds and the signal passes that method's quality threshold. The large display, the heart animation and the CSV always use the smoothed POS value; the two comparison values use the current window, before smoothing.
+In the camera tools, in **Pulse camera**, tick **Compare POS and CHROM**. Both methods analyse the same forehead and cheek samples at the same moment. Each value appears once the window holds at least eight seconds and the signal passes that method's quality threshold. The large display, the heart animation and the CSV always use the smoothed POS value; the two comparison values use the current window, before smoothing.
 
 For CHROM, each colour channel is normalised over a 1.6-second window. The two chrominance projections are filtered between 0.7 and 3 Hz and combined in the ratio of their standard deviations. The windows overlap by 50% with a Hann weighting ([de Haan and Jeanne, 2013](https://doi.org/10.1109/TBME.2013.2266196)).
 

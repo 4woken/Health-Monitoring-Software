@@ -1,6 +1,6 @@
 # Pulsar
 
-Pulsar shows each crew member's body in space. Pick a person and their 3D body appears in the place they live, with what their health signals say, what the mission is doing to them day after day, and their pulse read from the camera. Each morning it plans their check-up.
+Pulsar shows each crew member's body in space, in the place they live. What they should do today points at the body, a click on any part says what it shows, and everything else opens over the same screen: the check-up of the day, the camera tools, what the mission does to the body, and NASA's own medical requirements for astronauts.
 
 A pulsar is a star whose beam sweeps past at a perfectly regular rhythm, the most regular pulse in the sky. The name fits an app built around a heartbeat.
 
@@ -19,11 +19,11 @@ npm ci
 npm run dev
 ```
 
-Open <http://localhost:5173> and pick someone on board: **Lucas**, **Enzo**, **Nassim** or **Youssef**. Nobody signs in and every profile is open to everyone: switch between them at any time from the top bar.
+Open <http://localhost:5173>. Pulsar opens on the body of the last person shown, Lucas the first time. The small menu with their name at the top left switches to **Enzo**, **Nassim** or **Youssef**. Nobody signs in and every profile is open to everyone.
 
-Choose **Add a crew member** to set up a profile. You can enter a call sign, specialty, completed spaceflights and total days in space before the current mission. Leave unknown values blank. You can create a member directly or add a face with the camera.
+Choose **Add a crew member** in that menu to set up a profile. You can enter a call sign, specialty, completed spaceflights and total days in space before the current mission. Leave unknown values blank. You can create a member directly or add a face with the camera.
 
-Enter height, weight, chest circumference and waist circumference during creation, or open **Body dimensions** under the member’s name later. Each value is optional. Height sets the model’s scale. Weight approximates overall width, while the two circumferences adjust the torso. Measurements stay in the session unless you choose to remember them on this device.
+Enter height, weight, chest circumference and waist circumference during creation, or later with **Edit body dimensions** in the same menu. Each value is optional. Height sets the model’s scale. Weight approximates overall width, while the two circumferences adjust the torso. Measurements stay in the session unless you choose to remember them on this device.
 
 You can also enter your resting pulse measured before the mission. In **Camera → Pulse camera**, a sufficiently clear live reading shows the difference from that personal reference in beats per minute. The reference is optional and is only saved across visits when you choose to remember it. NASA has used resting heart rate before flight as a reference for comparisons. [Biomedical Results of Apollo](https://ntrs.nasa.gov/api/citations/19760005580/downloads/19760005580.pdf).
 
@@ -38,21 +38,26 @@ NASA’s astronaut health surveillance tracks spaceflight exposure over time, in
 
 ## What you can do
 
-**Body.** The person stands in the room where they live, as a reference anatomical body with a marker for every signal. Amber means look again soon, red means act today, everything else stays white.
+**One screen.** The body stays on screen. The check-up, the camera tools and every detail open over it and close back to it.
 
-- Point at the body to look under the skin.
+- **What to do today**, at the top left, lists the recommendations of the day: exercise, stretching in the first weeks of weightlessness, the heart, fatigue, stress, hydration, the eyes, the air, radiation, food and infection. The three most urgent also point at the body, red to act now and amber for today.
+- Click a recommendation or a place on the body. The camera moves there and a pop-up shows the value, its trend over 30 days, what to do and why, and the exam NASA does in flight on the same question. **Details** opens everything about it beside the body.
+- Markers on the body are white, amber or red. Point at the body to look under the skin.
 - Choose **Skin**, **Vessels**, **Organs** or **Skeleton** to show that layer alone. Dragging the **Depth** slider blends adjacent layers. Vessels moves the camera to the heart and shows the blood pulsing through the vessels.
 - Click an organ to see it on its own: what it does, what spaceflight changes, and the signals followed there.
-- Click a marker, a vital sign or a body region to open its signal: the value, what it is, what it means here, how it is taken, what to do, its trend since launch and the sources behind the rule. **Add to today's check-up** puts the follow-up on the person's list.
+- The details of a signal give the value, what it is, what it means here, how it is taken, what to do, its trend since launch, what NASA examines on the same question and the sources behind the rule. A vital sign along the bottom opens them directly. **Add to today's check-up** puts the follow-up on the person's list.
+- **See all signals** lists the 15 signals, with **Trends** for every value since launch.
 - The heart beats at the person's pulse. Start the camera and it beats at yours.
 
-**Mission effects.** Four known effects of spaceflight, computed day by day: fluid moving toward the head, loss of hip and spine bone, loss of calf muscle, and radiation dose. Change the gravity, the share of the exercise programme done and the dose rate, or load six months in orbit or a full Mars mission. Choose **Mission effects** beside the body to see the result on it. Every number has a source, and the [model description](docs/PHYSIOLOGY.md) explains each equation.
+**NASA reference.** For the chosen destination, what gravity, radiation, light and UV, the closed cabin and the distance from Earth do to the body, and what NASA does about each on its flights. Below come the 47 requirements: what NASA examines on the ISS before, during and after a long-duration flight, with the in-flight schedule, and the yearly exam of former astronauts. The check-up adds the NASA tasks of the mission day. [How the reference is built](docs/NASA_REFERENCE.md).
 
-**Personal mini-missions.** Open **Check-up → Find a mini-mission**, or follow a hand, leg, sleep or mood link from the body view. A personal check-in can suggest a camera-guided solar-panel assembly game, seated knee extensions on Earth, a five-signal reaction game or a one-minute breathing break when the person reports stress. An optional camera sample shows breaths per minute alongside the person's own answer. The video and breathing rate stay in memory. After the break, the person can say whether their stress feels lower, about the same or higher. Each suggestion explains its source and the reason it was offered. Completed activities and optional difficulty feedback are separate for each crew member. Result saving on this device is optional.
+**Mission effects.** Four known effects of spaceflight, computed day by day: fluid moving toward the head, loss of hip and spine bone, loss of calf muscle, and radiation dose. Choose **Mission effects** beside the body: the simulator opens in a panel and the body shows the result. Change the gravity, the share of the exercise programme done and the dose rate, or load six months in orbit or a full Mars mission. Every number has a source, and the [model description](docs/PHYSIOLOGY.md) explains each equation.
 
-**Check-up.** The tasks of the day for the person shown: exams that are due or out of date, a follow-up for each signal that needs one, and the daily routine (blood pressure, urine volume, mood, exercise, pulse with the camera). Tick them, remove them, add your own. The plan comes from simple rules on the signals, so every task can be traced to a value; the planner is built so that an AI model can take its place later without changing the screen.
+**Personal mini-missions.** Open **Check-up → Find a mini-mission**, or follow a hand, leg, sleep or mood link from the body: the panels of the arm and leg bones, and the pop-ups of sleep and mood. A personal check-in can suggest a camera-guided solar-panel assembly game, seated knee extensions on Earth, a five-signal reaction game or a one-minute breathing break when the person reports stress. An optional camera sample shows breaths per minute alongside the person's own answer. The video and breathing rate stay in memory. After the break, the person can say whether their stress feels lower, about the same or higher. Each suggestion explains its source and the reason it was offered. Completed activities and optional difficulty feedback are separate for each crew member. Result saving on this device is optional.
 
-**Camera.** Two uses of the webcam, both processed on your computer. **Face on the body** frames your face, shows it live on the 3D head and lays the captured portrait on the body ([how the fit works](docs/FACE_FITTING.md)). **Pulse** estimates your pulse from small colour changes in the skin of your face; you can download the numbers as a CSV file and compare them with a finger pulse oximeter, as in [the validation protocol](docs/VALIDATION.md).
+**Check-up.** **Check-up** in the top bar opens the tasks of the day beside the body: exams that are due or out of date and NASA's tasks of the mission day, a follow-up for each signal that needs one, and the daily routine (blood pressure, urine volume, mood, exercise, pulse with the camera). Tick them, remove them, add your own. **See it on the body** points at the part a task is about. The plan comes from simple rules on the signals, so every task can be traced to a value; the planner is built so that an AI model can take its place later without changing the screen.
+
+**Camera.** **Camera** in the top bar opens the camera tools over the body, all processed on your computer. **Face & body** frames your face, shows it live on the 3D head and lays the captured portrait on the body ([how the fit works](docs/FACE_FITTING.md)). **Pulse camera** estimates your pulse from small colour changes in the skin of your face; you can download the numbers as a CSV file and compare them with a finger pulse oximeter, as in [the validation protocol](docs/VALIDATION.md). **Breathing** and **Avatar comparison** are described above. **Back to the body** closes them.
 
 ### Destination and habitat
 
@@ -87,12 +92,13 @@ npm run build          # type check and production build
 
 ```text
 src/
-  app/        the shell: top bar, screens, navigation
-  crew/       the people on board: roster, crew picker, adding someone, profile menu
-  body/       the 3D body and its page: anatomy loading, organs, portrait on the skin
-  health/     signals, simulated readings, metrics, sources, and their components
-  mission/    destinations, habitats, the physiology engine and its lab
-  checkup/    the daily check-up: planner and page
+  app/        the shell: top bar and the panels over the body
+  crew/       the people on board: roster, adding someone, crew menu
+  body/       the 3D body and the one screen: anatomy loading, organs, pins, portrait on the skin
+  health/     signals, simulated readings, recommendations, the NASA reference, metrics, sources
+  mission/    destinations, habitats, the physiology engine and its simulator
+  checkup/    the daily check-up: planner and panel
+  exercises/  personal check-in and mini-missions
   camera/     face fitting, VRM expressions, pulse and breathing estimates
   ui/         shared interface components
 scripts/      setup, the anatomy build (BodyParts3D bones and vessels), the fake webcam, pulse comparison
@@ -100,7 +106,7 @@ public/       anatomy models, habitat pictures and the face-tracking model, serv
 docs/         architecture, research notes, physiology model, face fitting, validation
 ```
 
-Further reading: [architecture](docs/ARCHITECTURE.md), [research and rule sources](docs/RESEARCH.md), [physiology model](docs/PHYSIOLOGY.md), [pulse validation](docs/VALIDATION.md), [third-party components and licences](docs/CREDITS.md).
+Further reading: [architecture](docs/ARCHITECTURE.md), [NASA reference](docs/NASA_REFERENCE.md), [research and rule sources](docs/RESEARCH.md), [physiology model](docs/PHYSIOLOGY.md), [pulse validation](docs/VALIDATION.md), [third-party components and licences](docs/CREDITS.md).
 
 ## Credits
 

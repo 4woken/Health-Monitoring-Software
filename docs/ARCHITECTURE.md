@@ -5,15 +5,17 @@ Pulsar runs entirely in the browser: no server, no account, no database. The cod
 ```text
 src/
   main.tsx    entry point: fonts, styles and motion settings
-  app/        the shell: top bar, screens, navigation
-  crew/       the crew: the list (roster.ts), choosing a person, adding someone, the profile menu, shared state
-  body/       the 3D body (BodyViewer), its page (BodyScreen) and the map of where signals are measured
+  app/        the shell: top bar and the panels over the body (check-up, camera, adding someone)
+  crew/       the crew: the list (roster.ts), adding someone, the crew menu, shared state
+  body/       the 3D body (BodyViewer) and the one screen around it (BodyScreen): pins, pop-ups, side panels
     anatomy/  loading the models, organs and depth layers, where each signal sits on the body
     portrait/ laying the face on the skin of the reference head
-  health/     signals (signals.ts), simulated readings, how fresh each value is, metrics, sources, plain-language guide
-    ui/       signal row, signal panel, charts, vital signs, live pulse
+  health/     signals (signals.ts), simulated readings, how fresh each value is, recommendations (advice.ts),
+              the NASA reference (exams.ts, environment.ts), metrics, sources, plain-language guide
+    ui/       signal row, signal panel, NASA reference panel, charts, vital signs, live pulse
   mission/    destinations, habitats, the physiology engine and its panel
-  checkup/    the daily check-up: planner and page
+  checkup/    the daily check-up: planner and panel
+  exercises/  personal check-in and mini-missions
   camera/     webcam features: face fitting (face/) and pulse measurement (pulse/)
   ui/         shared components
   styles/     global styles
@@ -29,13 +31,17 @@ Someone added gets typical values for their reference body and no storyline. The
 
 ## Daily check-up
 
-`checkup/planner.ts` defines a planner: an object whose `plan` function receives a person's day (`DayReport`) and the destination, and returns a list of tasks. The planner provided follows simple rules: exams due or out of date, a follow-up for each signal that needs one, and the daily routine. Another planner, for example one based on a language model, can replace it by following the same interface; the screen does not change. `checkup/useCheckup.ts` keeps the list for each person, destination and day in the browser, with the tasks ticked, removed or added by hand.
+`checkup/planner.ts` defines a planner: an object whose `plan` function receives a person's day (`DayReport`) and the destination, and returns a list of tasks. The planner provided follows simple rules: exams due or out of date, the NASA tasks that fall on the mission day (`dueOn` in `health/exams.ts`), a follow-up for each signal that needs one, and the daily routine. Another planner, for example one based on a language model, can replace it by following the same interface; the screen does not change. `checkup/useCheckup.ts` keeps the list for each person, destination and day in the browser, with the tasks ticked, removed or added by hand.
+
+## Recommendations and the NASA reference
+
+`health/advice.ts` turns each signal that needs attention into one short action with a kind (exercise, stretching, heart, fatigue, stress and so on), and adds the mission's own, such as stretching the back in the first three weeks of weightlessness. The body screen pins the three most urgent to the body. `health/exams.ts` holds NASA's medical requirements for astronauts with their schedule, and `health/environment.ts` what each destination does to the body and what NASA does about it. [NASA_REFERENCE.md](NASA_REFERENCE.md) gives the sources and the limits.
 
 ## Webcam
 
 The camera starts only when someone asks for it, and never uses the microphone. Frames are used while they are analysed, then dropped.
 
-- `camera/pulse/` measures the pulse (POS method, see [VALIDATION.md](VALIDATION.md)) in one session shared by the whole app, so the 3D heart on the Body screen keeps beating with the measured pulse. The session stops on request (the camera button in the top bar, **Stop camera** on the heart-rate card, **Stop the camera** on the Pulse view), on an error, and when the page is hidden. Its tracks and the MediaPipe model are released when it stops.
+- `camera/pulse/` measures the pulse (POS method, see [VALIDATION.md](VALIDATION.md)) in one session shared by the whole app, so the 3D heart keeps beating with the measured pulse. The session stops on request (the camera button in the top bar, **Stop camera** on the heart-rate card, **Stop the camera** on the Pulse view), on an error, and when the page is hidden. Its tracks and the MediaPipe model are released when it stops.
 - `camera/face/` frames the face and prepares the portrait, which `body/portrait/` lays on the reference head ([FACE_FITTING.md](FACE_FITTING.md)). Its camera stops when the portrait is captured, when the face view closes and when the page is hidden.
 
 The two never film at the same time: the face view stops the pulse session before it starts its own camera or the sample.
