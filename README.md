@@ -1,6 +1,6 @@
 # Pulsar
 
-Pulsar shows each crew member's body in space. Pick a person and their 3D body appears in the place they live, with what their health signals say, what the mission is doing to them day after day, and their pulse read from the camera. Each morning it plans their check-up.
+Pulsar shows each crew member's body in space. Pick a person and their 3D body appears in the place they live with what their health signals say, what the mission is doing to them day after day, and their pulse read from the camera. Each morning it plans their check-up.
 
 A pulsar is a star whose beam sweeps past at a perfectly regular rhythm, the most regular pulse in the sky. The name fits an app built around a heartbeat.
 
