@@ -4,7 +4,7 @@
 
 Reference given: https://www.metahuman.com/
 
-The interface shows the body with opaque skin in front of a picture of the habitat, with dark, see-through panels over it. The body stays an anatomical reference; a portrait the person approves can be fitted to its head for the session. No MetaHuman portrait, logo or model was copied.
+The interface shows the body with opaque skin in front of a picture of the habitat, with dark, see-through panels over it. The body uses a reference anatomy. A crew member can fit a portrait to its head and keep it on their profile in this browser. No MetaHuman portrait, logo or model was copied.
 
 ## Free options
 
@@ -26,14 +26,14 @@ Technical sources:
 
 The **Face & body** view of the camera tools opens the same Three.js body as the Body screen. MediaPipe's 468 surface landmarks align the portrait with the head and the eyes of the reference model, with soft edges and a skin colour blend. The live face shows on the body in the studio; the Body screen then gets the still portrait the person chose. The tracking never produces a health value.
 
-1. Pick a crew member, open **Camera** and choose **Face & body**, then a frontal portrait or the guided three-angle fit. **Put my face on the body** (or **Change the face on the body**) in the crew menu opens the same view, and so does **Next: the face** when adding a crew member.
+1. Pick a crew member, open **Camera** and choose **Face & body**, then a frontal portrait or the guided three-angle fit.
 2. Click **Start my webcam** and allow the camera in the browser.
 3. Look straight ahead in even light, and wait until the guidance says "Ready. Capture and check the fit." The checks of framing, head angle, light and stability are rules of thumb for the display.
 4. Click **Capture & review** (or capture the three angles), then adjust **Face size**, **Left / right**, **Height**, **3D face fit** and **Skin colour blend**. Drag the body to turn it, and use **Head**, **Chest** or **Whole body** to check the join from another view.
 5. Click **Use this face** to keep the still portrait. **Stop preview**, leaving the view or hiding the page also stops the camera.
 6. Without a webcam, **Try a sample person** runs the detection on a generated portrait of a fictional person. The sample stays labelled as fictional once used (its button reads **Use the sample face**).
 
-Once chosen, the portrait and its settings stay in the memory of the tab until the page reloads. No video or image is uploaded: there is no server. The projection follows the surface of the model instead of adding a floating mask. The body, the head and the organs stay generic; the hair and the back of the head are not rebuilt. The detection and the hand-over from the studio to the Body screen were checked with the fictional face; a capture with a physical camera still has to be tried by the user on their own hardware.
+When the person returns to the same site in this browser, the profile loads its portrait and settings without opening the webcam. **Remove portrait** erases the fit. Pulsar keeps all processing and storage on this device. The projection follows the surface of the model. The body, the head and the organs stay generic; the hair and the back of the head are not rebuilt. The detection and the hand-over from the studio to the Body screen were checked with the fictional face; a capture with a physical camera still has to be tried by the user on their own hardware.
 
 A more faithful full head would need a separate capture step, a dedicated reconstruction, a check of the model licences and an import of the result into the viewer. A webcam alone cannot reach the photorealism of the MetaHuman reference.
 

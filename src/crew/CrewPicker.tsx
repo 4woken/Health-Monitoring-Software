@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { CaretRight, Plus, X } from '@phosphor-icons/react'
 import { dayReport } from '../health/readings'
 import { worstLevel } from '../health/signals'
@@ -25,6 +25,19 @@ export default function CrewPicker({
   onAdd: () => void
 }) {
   const crew = useCrew()
+  const [removingId, setRemovingId] = useState<string | null>(null)
+  const [removeError, setRemoveError] = useState('')
+  const remove = async (id: string, name: string) => {
+    setRemovingId(id)
+    setRemoveError('')
+    try {
+      await crew.remove(id)
+    } catch {
+      setRemoveError(`This browser could not remove ${name}'s profile. Use the remove button to try again.`)
+    } finally {
+      setRemovingId(null)
+    }
+  }
   return (
     <div className="scene flex min-h-[100dvh] flex-col">
       <img
@@ -63,6 +76,11 @@ export default function CrewPicker({
           <p className="px-3 pt-2 pb-2 font-cond text-[14px] text-white/60">
             {MISSIONS[mission].name}, day {day}
           </p>
+          {removeError && (
+            <p role="alert" className="px-3 py-2 text-sm text-urgent">
+              {removeError}
+            </p>
+          )}
           <ul>
             {crew.members.map((m) => {
               const signals = dayReport(m, day, mission).signals
@@ -71,6 +89,7 @@ export default function CrewPicker({
                 <li key={m.id} className="group flex items-center gap-1">
                   <button
                     type="button"
+                    disabled={removingId === m.id}
                     onClick={() => onPick(m.id)}
                     className="press flex min-w-0 flex-1 items-center gap-4 rounded-xl px-3 py-3 text-left hover:bg-white/[0.07]"
                   >
@@ -91,7 +110,9 @@ export default function CrewPicker({
                   {m.added && (
                     <button
                       type="button"
-                      onClick={() => crew.remove(m.id)}
+                      disabled={removingId !== null}
+                      aria-busy={removingId === m.id}
+                      onClick={() => remove(m.id, m.name)}
                       aria-label={`Remove ${m.name}`}
                       title={`Remove ${m.name}`}
                       className="press flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-dim hover:bg-white/10 hover:text-white"

@@ -2,9 +2,8 @@ import { capturePortrait } from '../face/portraitCapture'
 // The camera pulse session: one webcam capture shared by the whole app, so the 3D heart can
 // beat with the measured pulse while the user looks at another screen.
 //
-// Privacy: frames are read in memory to average the skin colour and are then dropped. No
-// image, landmark or colour sample is stored or sent. Only the numbers shown to the user
-// (time, pulse rate, quality) are kept in memory, so the user can download them as a CSV.
+// Pulse analysis averages skin colour in memory and drops the frames. Only numeric readings
+// enter the CSV. Users can separately capture a still and confirm it in the portrait studio.
 // The camera stops on stopPulse(), on an error and whenever the page is hidden.
 
 import { useSyncExternalStore } from 'react'
@@ -45,7 +44,7 @@ export interface PulseLogEntry {
 const OFF: PulseState = {
   phase: 'off',
   comparison: null,
-  message: 'Camera off · no image stored',
+  message: 'Pulse camera off',
   bpm: null,
   quality: 0,
   wave: [],

@@ -1,19 +1,23 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Build } from '../body/anatomy/bodyShape'
 import type { AvatarCapture, PersonalAvatar } from '../camera/face/portrait'
 import { EMPTY_SIZE, loadSize, saveSize, type BodyDimensions, type SizeSetting } from './bodyDimensions'
 import { clearExerciseHistory } from '../exercises/exercisePlan'
 import { ROLES, TEAM, memberForStorage, readProfileDetails, type Member } from './roster'
+import { loadPortraits, storePortrait } from './portraitStorage'
 
-/** Added people (name, role, body) are kept in this browser. Faces are not: they stay in memory. */
+/** Lightweight crew profiles live in localStorage. Fitted portraits live in IndexedDB. */
 const STORAGE_KEY = 'pulsar.crew.added'
 /** The person shown last, so the app opens on them again. */
 const CURRENT_KEY = 'pulsar.crew.current'
+
+const portraitKey = (member: Member) => member.portraitKey ?? `crew:${member.id}`
 
 const isMember = (value: unknown): value is Member => {
   const m = value as Member
   return (
     typeof m?.id === 'string' &&
+    (m.portraitKey === undefined || typeof m.portraitKey === 'string') &&
     typeof m.name === 'string' &&
     typeof m.short === 'string' &&
     (ROLES as readonly string[]).includes(m.role) &&
@@ -23,12 +27,16 @@ const isMember = (value: unknown): value is Member => {
   )
 }
 
+function readAdded(): Member[] {
+  const list: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]')
+  return Array.isArray(list)
+    ? list.filter(isMember).map((m) => memberForStorage({ ...m, ...readProfileDetails(m), added: true }))
+    : []
+}
+
 function loadAdded(): Member[] {
   try {
-    const list: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]')
-    return Array.isArray(list)
-      ? list.filter(isMember).map((m) => memberForStorage({ ...m, ...readProfileDetails(m), added: true }))
-      : []
+    return readAdded()
   } catch {
     return []
   }
@@ -64,12 +72,12 @@ export interface Crew {
   current: Member
   select: (id: string) => void
   add: (member: Member) => void
-  remove: (id: string) => void
+  remove: (id: string) => Promise<void>
   sizeOf: (id: string) => SizeSetting
   setSize: (id: string, values: BodyDimensions, remember: boolean) => SizeSetting
   setBuild: (id: string, build: Build) => void
   faceOf: (id: string) => PersonalAvatar | null
-  setFace: (id: string, face: AvatarCapture | null) => void
+  setFace: (id: string, face: AvatarCapture | null) => Promise<void>
 }
 
 const CrewContext = createContext<Crew | null>(null)
@@ -82,7 +90,25 @@ export function MannequinPreview({ id, children }: { id: string; children: React
 export function CrewProvider({ children }: { children: ReactNode }) {
   const [added, setAdded] = useState<Member[]>(loadAdded)
   const [currentId, setCurrentId] = useState<string | null>(loadCurrent)
-  const [faces, setFaces] = useState<Record<string, PersonalAvatar>>({})
+  const [faces, setFaces] = useState<Map<string, PersonalAvatar> | null>(null)
+  const [portraitReadFailed, setPortraitReadFailed] = useState(false)
+  useEffect(() => {
+    let active = true
+    loadPortraits().then(
+      (saved) => {
+        if (active) setFaces(saved)
+      },
+      () => {
+        if (active) {
+          setFaces(new Map())
+          setPortraitReadFailed(true)
+        }
+      },
+    )
+    return () => {
+      active = false
+    }
+  }, [])
 
   const [sizes, setSizes] = useState<Record<string, SizeSetting>>(() =>
     Object.fromEntries([...TEAM, ...added].map((m) => [m.id, loadSize(m.id)])),
@@ -140,22 +166,46 @@ export function CrewProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
-  const remove = useCallback((id: string) => {
-    setAdded((list) => {
-      const next = list.filter((m) => m.id !== id)
-      saveAdded(next)
-      return next
-    })
-    saveSize(id, {}, false)
-    clearExerciseHistory(id)
-    setSizes(({ [id]: _size, ...rest }) => rest)
-    setFaces(({ [id]: _gone, ...rest }) => rest)
-    setCurrentId((selected) => (selected === id ? null : selected))
-  }, [])
+  const setFace = useCallback(
+    async (id: string, capture: AvatarCapture | null) => {
+      const member = members.find((m) => m.id === id)
+      if (!member) throw new Error('Crew profile no longer exists.')
+      const key = portraitKey(member)
+      // A failed roster save or an old tab must not attach a face to an unpersisted or recreated profile.
+      if (capture && member.added && !loadAdded().some((m) => m.id === id && portraitKey(m) === key))
+        throw new Error('The crew profile is unavailable in browser storage.')
+      const face = capture ? { ...capture, ownerId: id } : null
+      await storePortrait(key, face)
+      setFaces((previous) => {
+        const next = new Map(previous)
+        if (face) next.set(key, face)
+        else next.delete(key)
+        return next
+      })
+    },
+    [members],
+  )
 
-  const setFace = useCallback((id: string, face: AvatarCapture | null) => {
-    setFaces(({ [id]: _old, ...rest }) => (face ? { ...rest, [id]: { ...face, ownerId: id } } : rest))
-  }, [])
+  const remove = useCallback(
+    async (id: string) => {
+      const member = added.find((m) => m.id === id)
+      if (!member) return
+      await setFace(id, null)
+      const key = portraitKey(member)
+      const stored = readAdded()
+      const remaining = stored.filter((m) => portraitKey(m) !== key)
+      if (remaining.length !== stored.length)
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(remaining.map(memberForStorage)))
+      setAdded((list) => list.filter((m) => portraitKey(m) !== key))
+      // An old tab can still show a deleted member while a namesake now owns the slug.
+      if (remaining.some((m) => m.id === id)) return
+      saveSize(id, {}, false)
+      clearExerciseHistory(id)
+      setSizes(({ [id]: _size, ...rest }) => rest)
+      setCurrentId((selected) => (selected === id ? null : selected))
+    },
+    [added, setFace],
+  )
 
   const value = useMemo<Crew>(
     () => ({
@@ -167,12 +217,31 @@ export function CrewProvider({ children }: { children: ReactNode }) {
       sizeOf,
       setSize,
       setBuild,
-      faceOf: (id) => faces[id] ?? null,
+      faceOf: (id) => {
+        const member = members.find((m) => m.id === id)
+        const face = member && faces?.get(portraitKey(member))
+        return face?.ownerId === id ? face : null
+      },
       setFace,
     }),
     [members, current, select, add, remove, faces, setFace, sizeOf, setSize, setBuild],
   )
-  return <CrewContext.Provider value={value}>{children}</CrewContext.Provider>
+  if (!faces)
+    return (
+      <p role="status" className="p-4 text-sm text-muted">
+        Loading crew profiles…
+      </p>
+    )
+  return (
+    <CrewContext.Provider value={value}>
+      {portraitReadFailed && (
+        <p role="status" className="p-2 text-sm text-muted">
+          Saved faces could not be loaded. Allow site storage and reload to restore them.
+        </p>
+      )}
+      {children}
+    </CrewContext.Provider>
+  )
 }
 
 export function useCrew(): Crew {

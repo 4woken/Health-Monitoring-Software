@@ -284,11 +284,10 @@ function Shell() {
                 person={member.short}
                 build={member.build}
                 avatar={crew.faceOf(member.id)}
-                onRemove={() => crew.setFace(member.id, null)}
-                onCapture={(capture) => {
-                  crew.setFace(member.id, capture)
+                onSavePortrait={(capture) => crew.setFace(member.id, capture)}
+                onApplied={() => {
                   close()
-                  setToast(`${member.short}'s face is now on the body.`)
+                  setToast(`Portrait saved to ${member.short}'s profile in this browser.`)
                 }}
               />
             </Suspense>

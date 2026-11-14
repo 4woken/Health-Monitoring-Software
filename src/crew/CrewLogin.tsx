@@ -38,7 +38,11 @@ function ProfileSetup({
   const [weight, setWeight] = useState(size.values.weightKg?.toString() ?? '')
   const [remember, setRemember] = useState(size.remembered)
   const [build, setBuild] = useState<Build>(member.build)
-  const [portrait, setPortrait] = useState<AvatarCapture | null>(() => crew.faceOf(member.id))
+  const savedPortrait = crew.faceOf(member.id)
+  const [draft, setDraft] = useState<AvatarCapture | null>()
+  const portrait = draft === undefined ? savedPortrait : draft
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
   const [captureHint, setCaptureHint] = useState('')
   const input = useRef<HTMLVideoElement>(null)
   const camera = useFaceTracking(input)
@@ -48,7 +52,8 @@ function ProfileSetup({
     if (!enabled || !quality.ready) return
     try {
       const next = capture()
-      setPortrait(next)
+      setDraft(next)
+      setSaveError('')
       setCaptureHint('')
       stop()
     } catch {
@@ -56,17 +61,44 @@ function ProfileSetup({
     }
   }, [enabled, quality, capture, stop])
 
-  const next = (event: FormEvent) => {
+  const next = async (event: FormEvent) => {
     event.preventDefault()
-    if (!valid || enabled) return
+    if (!valid || enabled || saving) return
+    if (portrait !== savedPortrait) {
+      setSaving(true)
+      setSaveError('')
+      try {
+        await crew.setFace(member.id, portrait)
+      } catch {
+        setSaving(false)
+        setSaveError(
+          portrait
+            ? 'This browser could not save your face. Check your browser storage and choose Next to retry.'
+            : 'This browser could not remove your saved face. Choose Next to retry.',
+        )
+        return
+      }
+    }
     if (build !== member.build) crew.setBuild(member.id, build)
     crew.setSize(
       member.id,
       { ...size.values, heightCm: values.heightCm, weightKg: values.weightKg },
       remember,
     )
-    crew.setFace(member.id, portrait)
     onEnter(member.id)
+  }
+
+  let faceHint = 'Face the camera and hold still. Choose Next to keep your fitted face in this browser.'
+  if (portrait && portrait === savedPortrait) {
+    faceHint = 'Your saved face is ready. You can continue without the webcam.'
+  } else if (portrait) {
+    faceHint = 'Choose Next to save this fitted face to your profile in this browser.'
+  } else if (savedPortrait) {
+    faceHint = 'Choose Next to remove your saved face and use the reference head.'
+  }
+  if (enabled) {
+    const preparing = camera.status.includes('Loading') || camera.status.includes('Allow')
+    faceHint = captureHint || (preparing ? camera.status : quality.message)
   }
 
   const measure = (
@@ -105,7 +137,7 @@ function ProfileSetup({
     <main className="crew-login">
       <header className="crew-login__header">
         <Logo variant="full" size={29} />
-        <button type="button" className="crew-login__back" onClick={onBack}>
+        <button type="button" className="crew-login__back" onClick={onBack} disabled={saving}>
           <ArrowLeft size={16} /> Back to crew
         </button>
       </header>
@@ -136,25 +168,17 @@ function ProfileSetup({
           </div>
           <video ref={input} autoPlay playsInline muted hidden aria-hidden="true" />
         </div>
-        <form onSubmit={next} className="crew-login__form">
+        <form onSubmit={next} className="crew-login__form" aria-busy={saving}>
           <h1>Avatar setup</h1>
           <p className="crew-login__member">
             {member.name}
             <span> · {member.role}</span>
           </p>
-          <fieldset className="crew-login__section">
+          <fieldset className="crew-login__section" disabled={saving}>
             <legend>Your 3D face</legend>
             <p aria-live="polite" className="crew-login__hint">
-              {enabled
-                ? captureHint ||
-                  (camera.status.includes('Loading') || camera.status.includes('Allow')
-                    ? camera.status
-                    : quality.message)
-                : camera.error
-                  ? 'Camera unavailable. Try again or continue with the reference head.'
-                  : portrait
-                    ? 'Your face is fitted to this profile for this visit.'
-                    : 'Face the camera and hold still. Your portrait is fitted on this device.'}
+              {camera.error && !enabled && 'Camera unavailable. You can try again. '}
+              {faceHint}
             </p>
             {enabled ? (
               <Button
@@ -179,14 +203,21 @@ function ProfileSetup({
                   {portrait ? 'Retake face' : 'Connect webcam'}
                 </Button>
                 {portrait && (
-                  <button type="button" className="crew-login__clear" onClick={() => setPortrait(null)}>
+                  <button
+                    type="button"
+                    className="crew-login__clear"
+                    onClick={() => {
+                      setDraft(null)
+                      setSaveError('')
+                    }}
+                  >
                     Use reference head
                   </button>
                 )}
               </div>
             )}
           </fieldset>
-          <fieldset className="crew-login__section">
+          <fieldset className="crew-login__section" disabled={saving}>
             <legend>Body dimensions</legend>
             <span className="crew-login__label">Reference body</span>
             <Segmented
@@ -211,14 +242,19 @@ function ProfileSetup({
               Remember measurements on this device
             </label>
           </fieldset>
+          {saveError && (
+            <p role="alert" className="text-sm text-urgent">
+              {saveError}
+            </p>
+          )}
           <Button
             type="submit"
             kind="primary"
             size="lg"
-            disabled={!valid || enabled}
+            disabled={!valid || enabled || saving}
             className="crew-login__next"
           >
-            Next <ArrowRight size={18} />
+            {saving ? 'Saving…' : 'Next'} <ArrowRight size={18} />
           </Button>
         </form>
       </div>

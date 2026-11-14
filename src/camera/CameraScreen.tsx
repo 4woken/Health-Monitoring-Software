@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, type ComponentProps } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState, type ComponentProps } from 'react'
 import { Segmented } from '../ui'
 import type { AvatarCapture } from './face/portrait'
 import type { BreathReading } from './breathReading'
@@ -15,7 +15,9 @@ const AvatarComparison = lazy(() =>
 
 export type CameraView = 'portrait' | 'pulse' | 'respiration' | 'comparison'
 
-type Props = ComponentProps<typeof FaceFitter> & {
+type Props = Pick<ComponentProps<typeof FaceFitter>, 'person' | 'build' | 'avatar'> & {
+  onSavePortrait: (portrait: AvatarCapture | null) => Promise<void>
+  onApplied: () => void
   initialView: CameraView
   preflightRestingPulseBpm?: number
   onBreathReading: (reading: BreathReading) => void
@@ -27,12 +29,44 @@ export default function CameraScreen({
   preflightRestingPulseBpm,
   onBreathReading,
   onBreathUnavailable,
+  onSavePortrait,
+  onApplied,
   ...props
 }: Props) {
   const [view, setView] = useState<CameraView>(initialView)
   const [capture, setCapture] = useState<AvatarCapture | null>(null)
+  const [writing, setWriting] = useState(false)
+  const [storageError, setStorageError] = useState('')
+  const mounted = useRef(false)
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+    }
+  }, [])
+
+  const updatePortrait = async (portrait: AvatarCapture | null) => {
+    setStorageError('')
+    setWriting(true)
+    try {
+      if (portrait || props.avatar) await onSavePortrait(portrait)
+    } catch {
+      setStorageError(
+        portrait
+          ? 'This browser could not save your portrait. Check your browser storage and try applying it again.'
+          : 'This browser could not remove your saved portrait. Try removing it again.',
+      )
+      return false
+    } finally {
+      setWriting(false)
+    }
+    setCapture(null)
+    if (portrait && mounted.current) onApplied()
+    return true
+  }
+
   return (
-    <div>
+    <fieldset className="min-w-0" disabled={writing} aria-busy={writing} aria-label="Camera tools">
       <div className="mx-auto max-w-[1480px] px-4 pt-5 sm:px-6">
         <Segmented
           label="Camera workspace"
@@ -46,6 +80,7 @@ export default function CameraScreen({
           ]}
           onChange={(next) => {
             if (next !== 'pulse') stopPulse()
+            setStorageError('')
             setView(next)
           }}
         />
@@ -57,7 +92,14 @@ export default function CameraScreen({
           </p>
         }
       >
-        {view === 'portrait' && <FaceFitter {...props} initialCapture={capture} />}
+        {view === 'portrait' && (
+          <FaceFitter
+            {...props}
+            initialCapture={capture}
+            onPortrait={updatePortrait}
+            storageError={storageError}
+          />
+        )}
         {view === 'respiration' && (
           <RespirationCamera onReading={onBreathReading} onUnavailable={onBreathUnavailable} />
         )}
@@ -66,7 +108,8 @@ export default function CameraScreen({
           <PulseCamera
             preflightRestingPulseBpm={preflightRestingPulseBpm}
             hasPortrait={props.avatar !== null}
-            onRemove={props.onRemove}
+            onRemove={() => updatePortrait(null)}
+            storageError={storageError}
             onCapture={(portrait) => {
               setCapture(portrait)
               setView('portrait')
@@ -74,6 +117,6 @@ export default function CameraScreen({
           />
         )}
       </Suspense>
-    </div>
+    </fieldset>
   )
 }

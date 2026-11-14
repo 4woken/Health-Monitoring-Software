@@ -19,7 +19,7 @@ npm ci
 npm run dev
 ```
 
-Open <http://localhost:5173>. Select an existing crew member in **Who's on board?** to open their dashboard directly. When adding a member, **Create profile** opens the dashboard and **Continue to face setup** lets you personalise the 3D head first. You can also open avatar setup from the crew menu. **Connect webcam** fits the portrait locally and stops the camera after capture. **Next** opens the dashboard with the fitted face.
+Open <http://localhost:5173>. Select an existing crew member in **Who's on board?** to open their dashboard directly. When adding a member, **Create profile** opens the dashboard and **Continue to face setup** lets you personalise the 3D head first. You can also open avatar setup from the crew menu. **Connect webcam** fits the portrait locally and stops the camera after capture. **Next** saves the fitted face to that profile and opens the dashboard. The next time you open the same site in this browser, the avatar loads with the camera off.
 
 New profiles can include a call sign, specialty, flight history, chest and waist measurements. Beside the dashboard avatar, **Avatar dimensions** updates height and weight. The crew menu also opens the full measurement editor. Height scales the model, weight approximates overall width, and chest and waist refine the torso. Measurements stay in the session unless you choose to remember them on this device.
 
@@ -68,7 +68,7 @@ The **destination** sets what the body lives with: gravity and radiation dose ra
 ## Privacy
 
 - The camera starts only when you ask, never records sound, and stops when you leave the page or press stop. Frames stay in memory just long enough to be used, then are dropped.
-- A captured face stays in memory for the session. It is never uploaded or saved, and a reload clears it.
+- **Next** in avatar setup or **Use this face** in the face studio saves the cropped portrait images, landmarks and fit settings for that crew member in this browser. Pulsar does not upload or sync portraits. To erase yours, choose **Remove portrait** in the studio, or **Use reference head** followed by **Next** in avatar setup. Deleting an added crew member also erases their portrait. Clearing the site's data erases all local portraits.
 - People you add and the state of their check-up are kept in your browser only.
 - Nothing is sent to the internet. There is no server: the app runs entirely in your browser.
 

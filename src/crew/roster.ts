@@ -88,6 +88,8 @@ export function memberForStorage(member: Member): Member {
 
 export interface Member extends ProfileDetails {
   id: string
+  /** Unique to this creation of an added profile, even when its name and slug are reused. */
+  portraitKey?: string
   /** Full name. */
   name: string
   /** What the interface calls them, usually the first name. */
@@ -217,6 +219,7 @@ export function newMember(
   for (let n = 2; takenIds.includes(id); n++) id = `${slug}-${n}`
   return {
     id,
+    portraitKey: `member:${crypto.getRandomValues(new Uint32Array(4)).join('-')}`,
     name: clean,
     short: details.callSign ?? clean.split(' ')[0],
     ...details,

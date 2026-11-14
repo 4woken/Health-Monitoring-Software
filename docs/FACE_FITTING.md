@@ -38,6 +38,8 @@ Each video frame is copied to a canvas **before** inference. Landmarks, the canv
 
 Both capture paths use one ordinary camera. Frontal-only captures use monocular estimated shape; the three-angle option adds independent observations of the face. Hair, ears, scalp and the back of the head remain those of the reference. Lighting, changes of expression, glasses, occlusion and limited resolution still affect the result.
 
-The browser keeps images and points in the current tab's memory. Reloading the page clears every applied portrait. The physical webcam still needs a test on the user's hardware; sample video testing cannot validate its permissions, focus or exposure.
+Live frames and unconfirmed captures stay in memory. Confirming with **Next** in avatar setup or **Use this face** in the studio saves the cropped views, their landmarks and skin tone, and any fitted surface and calibration in this browser. Reopening the profile rebuilds the same fit from those data with the camera off. Pulsar never uploads the portrait. **Remove portrait** erases the saved fit for that member.
+
+The physical webcam still needs a test on the user's hardware to verify its permissions, focus and exposure.
 
 Technical reference: [MediaPipe Face Landmarker](https://developers.google.com/edge/mediapipe/solutions/vision/face_landmarker?tab=Web).

@@ -437,8 +437,8 @@ export default function BodyScreen({
         {face && (
           <p className="on-photo mt-3 text-[12px] text-white/60">
             {face.sample
-              ? 'Fictional sample face, this session only.'
-              : 'Face from the camera, this session only.'}
+              ? 'Fictional sample face saved to this profile.'
+              : 'Fitted face saved to this profile.'}
           </p>
         )}
       </div>

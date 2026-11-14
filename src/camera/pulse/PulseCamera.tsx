@@ -45,12 +45,14 @@ const WAVE_POINTS = RPPG.waveSeconds * RPPG.sampleRateHz
 export default function PulseCamera({
   onCapture,
   onRemove,
+  storageError,
   hasPortrait = false,
   preflightRestingPulseBpm,
 }: {
-  /** Hands the captured face to the fit step, for the person shown (kept in memory for this session). */
+  /** Hands a still frame to the fitting studio for review before saving it. */
   onCapture?: (capture: AvatarCapture) => void
   onRemove?: () => void
+  storageError?: string
   hasPortrait?: boolean
   preflightRestingPulseBpm?: number
 } = {}) {
@@ -286,8 +288,8 @@ export default function PulseCamera({
                 <p className="font-semibold">Your face on the 3D body</p>
                 <p className="mt-1 text-[14px] leading-relaxed text-muted">
                   Look straight at the camera, then capture and check the fit. The face is blended into the
-                  reference head and the body takes your skin tone. The picture stays in memory for this
-                  session only.
+                  reference head and the body takes your skin tone. Applying the portrait in the fitting
+                  studio saves it to your profile in this browser.
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button kind="primary" size="sm" onClick={capture} disabled={!streaming || !faceFound}>
@@ -300,9 +302,9 @@ export default function PulseCamera({
                     </Button>
                   )}
                 </div>
-                {captureError && (
+                {(storageError || captureError) && (
                   <p role="alert" className="mt-2 text-[13px] text-urgent">
-                    {captureError}
+                    {storageError || captureError}
                   </p>
                 )}
               </div>
@@ -320,8 +322,9 @@ export default function PulseCamera({
           <p className="flex gap-2.5 text-[13px] leading-relaxed text-muted">
             <ShieldCheck size={16} className="mt-0.5 shrink-0" />
             <span>
-              No image, face point or colour sample is stored or sent. The camera stops when you press stop or
-              leave the page. While it runs, the heart of the 3D body beats with this pulse.
+              Pulse frames and colour samples are processed locally and discarded after use. The camera stops
+              when you press stop or leave the page. While it runs, the heart of the 3D body beats with this
+              pulse.
             </span>
           </p>
         </div>

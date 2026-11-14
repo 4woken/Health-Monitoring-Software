@@ -1,6 +1,6 @@
 import { faceCamera, intrinsicPoints, midpoint } from './faceFrame'
 
-/** Visual personalisation only. Images and points remain in this tab's memory. */
+/** A facial landmark used to fit the visual avatar. */
 export interface AvatarPoint {
   x: number
   y: number

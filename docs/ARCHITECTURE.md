@@ -1,6 +1,6 @@
 # Architecture
 
-Pulsar runs entirely in the browser: no server, no account, no database. The code is organised by product area. Each folder keeps its logic (pure functions, with tests) and its components together.
+Pulsar runs entirely in the browser without a server or an account. The code is organised by product area. Each folder keeps its logic (pure functions, with tests) and its components together.
 
 ```text
 src/
@@ -27,7 +27,9 @@ The four demo profiles and their values are simulated. `crew/roster.ts` describe
 
 The destination (`mission/missions.ts`) sets the gravity, the share of the weightless fluid shift and the radiation dose rate that the simulation uses. The habitat (`mission/habitats.ts`) sets the picture behind the body and helps select an exercise demonstration at the current gravity.
 
-Someone added gets typical values for their reference body and no storyline. Their identity, role, optional call sign, speciality, flight history and choice of body stay in the browser. Height, weight and chest and waist circumferences adjust the mannequin (`crew/bodyDimensions.ts`, `crew/torsoFit.ts`). These measurements and the resting pulse before launch are optional and stay in memory, unless the person chooses to keep them on this device. The face is gone after a reload. Only a pulse measured live with a good enough signal is compared with the resting pulse before launch, separately from the simulated data.
+Someone added gets typical values for their reference body and no storyline. Their identity, role, optional call sign, speciality, flight history and choice of body stay in the browser. Height, weight and chest and waist circumferences adjust the mannequin (`crew/bodyDimensions.ts`, `crew/torsoFit.ts`). These measurements and the resting pulse before launch are optional and stay in memory, unless the person chooses to keep them on this device. Only a pulse measured live with a good enough signal is compared with the resting pulse before launch, separately from the simulated data.
+
+A confirmed avatar is stored in IndexedDB under a per-profile key. New crew profiles receive a fresh key even when they reuse a deleted member's name. The renderer rebuilds the fitted head from the cropped portrait views, landmarks, optional reconstructed surface and calibration. Returning to a profile restores the face without camera access. Replacing or removing the portrait updates the same record. Deleting an added member also removes their portrait.
 
 ## Daily check-up
 

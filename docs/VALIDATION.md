@@ -52,7 +52,7 @@ timestamp_ms,time_s,bpm,quality
 - `bpm`: the value shown
 - `quality`: the quality at the same moment
 
-The file is named `pulse-session-` followed by the date and time. No image, face point or colour sample is stored or sent.
+The file is named `pulse-session-` followed by the date and time. The pulse log contains no images, facial landmarks or colour samples. Saving a portrait to a profile is a separate action in avatar setup or the face studio.
 
 ## Check with a simulated camera
 

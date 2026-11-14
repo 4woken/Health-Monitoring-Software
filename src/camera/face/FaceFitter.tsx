@@ -15,8 +15,8 @@ import { useFaceTracking } from './useFaceTracking'
 /** Frame a face with the camera, check how it sits on the 3D head, then use it on the body. */
 export default function FaceFitter({
   person,
-  onCapture,
-  onRemove,
+  onPortrait,
+  storageError,
   avatar,
   build,
   onSkip,
@@ -25,8 +25,8 @@ export default function FaceFitter({
 }: {
   /** Whose face this is, as the interface calls them. */
   person: string
-  onCapture: (capture: AvatarCapture) => void
-  onRemove: () => void
+  onPortrait: (capture: AvatarCapture | null) => Promise<boolean>
+  storageError: string
   avatar: PersonalAvatar | null
   build: Build
   /** A way out, such as skipping this step; none inside the camera panel, which has its own. */
@@ -163,7 +163,7 @@ export default function FaceFitter({
             {!camera.enabled && !three.session && draft && !draft.sideViews && (
               <img
                 src={draft.imageUrl}
-                alt={draft.sample ? 'Fictional sample portrait' : 'Captured portrait for this session'}
+                alt={draft.sample ? 'Fictional sample portrait' : 'Captured face'}
                 className="mt-3 mx-auto h-28 w-28 rounded-2xl border border-line object-cover"
                 style={{ transform: 'scaleX(-1)' }}
               />
@@ -176,7 +176,7 @@ export default function FaceFitter({
                   : 'Look straight ahead, then turn your head about 30° each way. Keep your expression, lighting and camera distance steady.'}
             </p>
             <p role="status" className="mt-3 text-xs text-muted">
-              {camera.enabled ? camera.status : 'Camera off · portrait kept only in this session'}
+              {camera.enabled ? camera.status : 'Camera off'}
             </p>
             {camera.enabled && (
               <div className="mt-3">
@@ -295,30 +295,32 @@ export default function FaceFitter({
               className="mt-3 w-full"
               kind="primary"
               disabled={!portrait || camera.enabled || !!three.session || busy || three.busy}
-              onClick={() => portrait && onCapture(portrait)}
+              onClick={() => portrait && onPortrait(portrait)}
             >
               {draft?.sample ? 'Use the sample face' : 'Use this face'}
             </Button>
             {(avatar || draft) && (
               <Button
                 className="mt-2 w-full"
-                onClick={() => {
+                onClick={async () => {
                   cancel()
-                  setDraft(null)
-                  onRemove()
-                  setCalibration(DEFAULT_FACE_CALIBRATION)
+                  if (await onPortrait(null)) {
+                    setDraft(null)
+                    setCalibration(DEFAULT_FACE_CALIBRATION)
+                  }
                 }}
               >
                 Remove portrait
               </Button>
             )}
             <p className="mt-3 text-xs leading-relaxed text-muted">
-              Your photos and face shape stay in this tab. Reloading the page clears them.
+              Applying the portrait saves its photos, 3D shape and fit to this crew profile in this browser.
+              You can remove it here at any time.
             </p>
           </section>
-          {(captureError || three.error || camera.error) && (
+          {(storageError || captureError || three.error || camera.error) && (
             <p role="alert" className="rounded-xl bg-urgent-bg p-3 text-sm text-urgent">
-              {captureError || three.error || camera.error}
+              {storageError || captureError || three.error || camera.error}
             </p>
           )}
           <details className="border-t border-line pt-4 text-xs text-muted">

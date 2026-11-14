@@ -31,6 +31,15 @@ describe('crew roster', () => {
     expect(initialsOf('Lucas Baurianne')).toBe('LB')
     expect(initialsOf('Youssef')).toBe('Y')
   })
+  it('preserves the portrait key on reload and gives a recreated profile a fresh one', () => {
+    const original = newMember('Sam Doe', 'Pilot', 'male', [])
+    const reloaded = JSON.parse(JSON.stringify(memberForStorage(original)))
+    const recreated = newMember('Sam Doe', 'Pilot', 'male', [])
+    expect(reloaded.portraitKey).toBeTruthy()
+    expect(reloaded.portraitKey).toBe(original.portraitKey)
+    expect(recreated.id).toBe(original.id)
+    expect(recreated.portraitKey).not.toBe(original.portraitKey)
+  })
   it('keeps the stable member identity while using the optional call sign in the crew interface', () => {
     const member = newMember('Élise Martin', 'Scientist', 'female', [], {
       callSign: '  Echo  7 ',
