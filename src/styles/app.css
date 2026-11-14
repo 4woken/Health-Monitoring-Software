@@ -1,0 +1,445 @@
+@import 'tailwindcss';
+
+/* MISSION BODY
+   Visual first: every screen opens on a full-bleed picture of where the crew lives (NASA
+   photographs and illustrated habitats) or on the 3D body itself. The interface sits on the
+   picture as type, not as boxes. Monochrome on purpose: colour comes from the photographs and
+   the anatomy, and amber and red are kept for health alerts only. Barlow throughout, with its
+   semi-condensed width for numbers and small labels. */
+@theme {
+  --font-sans: 'Barlow', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'Barlow Semi Condensed', 'Barlow', system-ui, sans-serif;
+  --font-serif: 'Barlow', system-ui, sans-serif;
+  --font-cond: 'Barlow Semi Condensed', 'Barlow', system-ui, sans-serif;
+
+  --color-ground: #0d0f12;
+  --color-bar: #121519;
+  --color-panel: #15181c;
+  --color-raised: #1f2329;
+  --color-line: #2a2f36;
+  --color-line-soft: #20242a;
+  --color-line-strong: #3d444d;
+  --color-ink: #f4f5f6;
+  --color-muted: #aab1ba;
+  --color-dim: #8b939d;
+  /* Selection is white: the interface stays monochrome. */
+  --color-accent: #ffffff;
+  --color-accent-strong: #ffffff;
+  /* Live data traces, like the pleth wave of a monitor. */
+  --color-holo: #6fd0ec;
+  --color-violet: #ffffff;
+  --color-ok: #aab1ba;
+  --color-ok-bg: rgb(170 177 186 / 0.12);
+  --color-check: #f2ab3c;
+  --color-check-bg: rgb(242 171 60 / 0.16);
+  --color-urgent: #ff5a5a;
+  --color-urgent-bg: rgb(255 90 90 / 0.16);
+  --color-sim: #aab1ba;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+:root {
+  color-scheme: dark;
+  --env: 120 170 220;
+  --env-2: 90 110 160;
+}
+
+html,
+body {
+  background: var(--color-ground);
+}
+body {
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-variant-numeric: tabular-nums;
+  overflow-x: hidden;
+}
+::selection {
+  background: rgb(224 112 214 / 0.35);
+}
+button {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: default;
+}
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.mission-app {
+  position: relative;
+  isolation: isolate;
+}
+.mission-app[data-mission='iss'] {
+  --env: 110 170 230;
+  --env-2: 70 110 190;
+}
+.mission-app[data-mission='moon'] {
+  --env: 190 198 210;
+  --env-2: 120 130 150;
+}
+.mission-app[data-mission='mars'] {
+  --env: 140 150 200;
+  --env-2: 200 120 90;
+}
+.mission-app[data-mission='mars-surface'] {
+  --env: 220 150 105;
+  --env-2: 170 90 60;
+}
+
+/* ---------- Surfaces ---------- */
+
+/* Names kept from the first version; they are now solid instrument panels. */
+/* A section of content: separated by a rule, not boxed. */
+.glass {
+  position: relative;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid rgb(255 255 255 / 0.08);
+  border-radius: 0;
+}
+.glass-soft {
+  background: rgb(255 255 255 / 0.04);
+  border: 1px solid rgb(255 255 255 / 0.06);
+  border-radius: 12px;
+}
+.glass-strong {
+  background: #16191d;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  border-radius: 18px;
+  box-shadow: 0 30px 80px rgb(0 0 0 / 0.55);
+}
+.glass-glow::before {
+  content: none;
+}
+.hud-frame {
+  position: relative;
+}
+
+/* ---------- Type ---------- */
+
+/* Instrument label: semi-condensed, sentence case. */
+.label {
+  font-family: var(--font-cond);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1.35;
+  color: var(--color-muted);
+}
+.label-accent {
+  color: var(--color-muted);
+}
+/* Large numerals, as on a patient monitor. */
+.display {
+  font-family: var(--font-cond);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.headline {
+  font-size: clamp(26px, 2.6vw, 34px);
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  line-height: 1.15;
+}
+/* Retired accent style: renders exactly like the surrounding text. */
+.serif {
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit !important;
+}
+.text-holo,
+.text-env {
+  color: var(--color-ink);
+}
+.studio-step {
+  font-family: var(--font-cond);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+.studio-title {
+  font-size: clamp(26px, 2.6vw, 34px);
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  line-height: 1.15;
+}
+.studio-title span {
+  color: inherit;
+}
+
+/* ---------- Controls ---------- */
+
+.press {
+  transition:
+    background-color 120ms,
+    border-color 120ms,
+    color 120ms,
+    opacity 120ms;
+}
+.press:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.btn-primary {
+  background: #ffffff;
+  color: #0d0f12;
+}
+.btn-primary:hover:not(:disabled) {
+  background: #ffffff;
+}
+.btn-secondary {
+  background: rgb(255 255 255 / 0.08);
+  border: 1px solid rgb(255 255 255 / 0.12);
+  color: var(--color-ink);
+}
+.btn-secondary:hover:not(:disabled) {
+  background: rgb(255 255 255 / 0.14);
+}
+.btn-danger {
+  background: #e5484d;
+  color: #ffffff;
+}
+.btn-danger:hover:not(:disabled) {
+  background: #f05a5f;
+}
+.btn-ghost {
+  color: var(--color-muted);
+}
+.btn-ghost:hover:not(:disabled) {
+  color: var(--color-ink);
+  background: var(--color-raised);
+}
+
+/* Range input. Use the class "range" (or the older "day-range"). The fill is magenta: a target value. */
+input[type='range'].range,
+input[type='range'].day-range {
+  appearance: none;
+  height: 28px;
+  background: transparent;
+  cursor: ew-resize;
+  --fill: 50%;
+}
+input[type='range'].range::-webkit-slider-runnable-track,
+input[type='range'].day-range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #ffffff 0 var(--fill), rgb(255 255 255 / 0.18) var(--fill) 100%);
+}
+input[type='range'].range::-webkit-slider-thumb,
+input[type='range'].day-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  margin-top: -7px;
+  border-radius: 99px;
+  background: #ffffff;
+  border: 0;
+  box-shadow: 0 1px 6px rgb(0 0 0 / 0.5);
+}
+input[type='range'].range::-moz-range-track,
+input[type='range'].day-range::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: #3a424d;
+}
+input[type='range'].range::-moz-range-progress,
+input[type='range'].day-range::-moz-range-progress {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-accent);
+}
+input[type='range'].range::-moz-range-thumb,
+input[type='range'].day-range::-moz-range-thumb {
+  width: 12px;
+  height: 14px;
+  border-radius: 99px;
+  background: #ffffff;
+  border: 0;
+}
+
+.field {
+  width: 100%;
+  min-height: 44px;
+  border-radius: 6px;
+  border: 1px solid var(--color-line-strong);
+  background: #1e242a;
+  padding: 10px 12px;
+  color: var(--color-ink);
+}
+.field::placeholder {
+  color: var(--color-dim);
+}
+.field:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+/* ---------- Motion details ---------- */
+
+.marker-ring {
+  animation: marker-pulse 1.8s var(--ease-out-expo) infinite;
+}
+@keyframes marker-pulse {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+/* Data arriving by itself. */
+.live-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 99px;
+  background: var(--color-holo);
+  animation: live 2s ease-in-out infinite;
+}
+@keyframes live {
+  50% {
+    opacity: 0.35;
+  }
+}
+.shimmer {
+  background: rgb(255 255 255 / 0.04);
+}
+.scan-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--color-holo);
+  opacity: 0.6;
+  animation: scan 3.2s linear infinite;
+}
+@keyframes scan {
+  from {
+    top: 0%;
+  }
+  to {
+    top: 100%;
+  }
+}
+.grid-bg {
+  background-image:
+    linear-gradient(rgb(166 175 186 / 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(166 175 186 / 0.06) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marker-ring,
+  .live-dot,
+  .scan-line {
+    animation: none;
+  }
+  .marker-ring {
+    opacity: 0.5;
+    transform: scale(1.6);
+  }
+}
+
+/* ---------- Misc ---------- */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #46505c transparent;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+.avatar-canvas canvas,
+.body-stage canvas {
+  display: block;
+}
+
+/* ---------- Scenes ----------
+   A full-bleed picture with a slow drift, darkened where text sits. */
+.scene {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: #07080a;
+}
+.scene-photo {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  animation: drift 26s ease-in-out infinite alternate;
+  transform-origin: 60% 40%;
+}
+@keyframes drift {
+  from {
+    transform: scale(1.04) translate3d(0, 0, 0);
+  }
+  to {
+    transform: scale(1.12) translate3d(-1.5%, -1%, 0);
+  }
+}
+.scene-shade {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(90deg, rgb(7 8 10 / 0.86) 0%, rgb(7 8 10 / 0.55) 38%, rgb(7 8 10 / 0.05) 70%),
+    linear-gradient(0deg, rgb(13 15 18 / 1) 0%, rgb(13 15 18 / 0) 32%),
+    linear-gradient(180deg, rgb(7 8 10 / 0.55) 0%, rgb(7 8 10 / 0) 18%);
+}
+/* Text that sits directly on a photograph. */
+.on-photo {
+  text-shadow: 0 1px 18px rgb(0 0 0 / 0.55);
+}
+/* Floating surface over a picture: dark and blurred, no border glow. */
+.veil {
+  background: rgb(10 12 15 / 0.62);
+  backdrop-filter: blur(18px) saturate(130%);
+  -webkit-backdrop-filter: blur(18px) saturate(130%);
+  border: 1px solid rgb(255 255 255 / 0.08);
+  border-radius: 14px;
+}
+/* One orchestrated entrance per page: lines rise in turn. */
+.rise {
+  animation: rise 0.9s var(--ease-out-expo) both;
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 28px, 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scene-photo,
+  .rise {
+    animation: none;
+  }
+}

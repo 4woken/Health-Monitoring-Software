@@ -1,0 +1,2 @@
+# Same line endings on every system, so Prettier and Git agree.
+* text=auto eol=lf
