@@ -1,0 +1,129 @@
+<!doctype html><meta charset="utf-8" /><title>Render a three-view face fixture</title>
+<style>
+  body {
+    margin: 2rem;
+    font: 16px system-ui;
+    background: #e7e8e5;
+  }
+  #views {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+  figure {
+    margin: 0;
+  }
+  img {
+    width: min(28vw, 320px);
+    height: auto;
+  }
+</style>
+<h1>Three views of one reference head</h1>
+<p>Local development fixture. The same textured mesh and lens are used for each view.</p>
+<p id="status">Rendering…</p>
+<div id="views"></div>
+<script type="module">
+  import * as THREE from 'three'
+  import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision'
+  import { loadAnatomy } from '../src/body/anatomy/loadAnatomy'
+  import { createPersonalFace } from '../src/body/portrait/skinPortrait'
+
+  const loadImage = async (url) => {
+    const image = new Image()
+    image.src = url
+    await image.decode()
+    return image
+  }
+  async function renderViews() {
+    const [bodies, image, files] = await Promise.all([
+      loadAnatomy(),
+      loadImage('/face/sample-portrait.png'),
+      FilesetResolver.forVisionTasks('/face/wasm'),
+    ])
+    if (!bodies) throw new Error('Reference mesh missing')
+    const tracker = await FaceLandmarker.createFromOptions(files, {
+      baseOptions: { modelAssetPath: '/face/face_landmarker.task', delegate: 'CPU' },
+      runningMode: 'IMAGE',
+      numFaces: 1,
+    })
+    const body = bodies.male
+    const input = document.createElement('canvas')
+    input.width = image.naturalWidth
+    input.height = image.naturalHeight
+    input.getContext('2d').drawImage(image, 0, 0)
+    const points = tracker.detect(input).faceLandmarks[0]
+    if (!points) throw new Error('Sample portrait not detected')
+    const portrait = createPersonalFace(body)
+    portrait.updateLive({
+      id: 1,
+      source: input,
+      width: input.width,
+      height: input.height,
+      points,
+      skinTone: [164, 119, 93],
+    })
+    const subject = new THREE.Mesh(portrait.geometry, portrait.material)
+    const pivot = new THREE.Group()
+    const eyes = body.organs.filter((o) => o.name.includes('eyeball'))
+    const center = new THREE.Vector3(...eyes[0].center).lerp(new THREE.Vector3(...eyes[1].center), 0.5)
+    center.y -= 0.01
+    center.z -= 0.06
+    subject.position.copy(center).multiplyScalar(-1)
+    pivot.add(subject)
+    const scene = new THREE.Scene()
+    scene.background = new THREE.Color('#c4c9c8')
+    scene.add(pivot, new THREE.HemisphereLight('#fff7ef', '#d3bdb5', 1.5))
+    const light = new THREE.DirectionalLight('#fff1e6', 1.45)
+    light.position.set(-2, 3, 4)
+    scene.add(light)
+    const camera = new THREE.PerspectiveCamera(27, 1, 0.05, 3)
+    camera.position.z = 0.69
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true })
+    renderer.setSize(576, 576)
+    try {
+      for (const [name, yaw] of [
+        ['front', 0],
+        ['left', 28],
+        ['right', -28],
+      ]) {
+        pivot.rotation.y = THREE.MathUtils.degToRad(yaw)
+        renderer.render(scene, camera)
+        const url = renderer.domElement.toDataURL('image/jpeg', 0.92)
+        const output = await loadImage(url)
+        const tracked = tracker.detect(output).faceLandmarks[0]
+        if (!tracked) throw new Error('Face not detected on ' + name)
+        const outer = tracked[33],
+          inner = tracked[133],
+          other = tracked[362],
+          far = tracked[263]
+        const dx = other.x + far.x - outer.x - inner.x
+        const dz = other.z + far.z - outer.z - inner.z
+        const measured = Math.round((Math.atan2(dz, dx) * 180) / Math.PI)
+        const frame = document.createElement('figure'),
+          caption = document.createElement('figcaption')
+        const link = document.createElement('a')
+        link.href = url
+        link.download = name + '.jpg'
+        link.textContent = name + '.jpg'
+        output.alt = 'Rendered ' + name + ' view'
+        caption.append(
+          link,
+          ' · yaw ' + yaw + '° · estimated turn ' + measured + '° · ' + tracked.length + ' points',
+        )
+        frame.append(output, caption)
+        document.querySelector('#views').append(frame)
+      }
+    } finally {
+      tracker.close()
+      renderer.dispose()
+      portrait.dispose()
+    }
+  }
+  renderViews()
+    .then(() => {
+      document.querySelector('#status').textContent = 'All three JPEGs detected'
+    })
+    .catch((e) => {
+      document.querySelector('#status').textContent = e.message
+    })
+</script>

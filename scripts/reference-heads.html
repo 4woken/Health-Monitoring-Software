@@ -1,0 +1,122 @@
+<!doctype html><meta charset="utf-8" /><title>Reference head calibration</title>
+<style>
+  body {
+    margin: 20px;
+    background: #ecece8;
+    font: 14px monospace;
+  }
+  canvas {
+    width: 400px;
+    height: 400px;
+  }
+  pre {
+    white-space: pre-wrap;
+  }
+  section {
+    display: inline-block;
+    vertical-align: top;
+  }
+</style>
+<h1>Reference head calibration</h1>
+<p>Local MediaPipe calibration of the licensed reference meshes. No camera.</p>
+<pre id="status">Loading…</pre>
+<div id="heads"></div>
+<pre id="results"></pre>
+<script type="module">
+  import * as THREE from 'three'
+  import { normaliseFace } from '../src/camera/face/portrait'
+  import { orientTriangles } from '../src/body/anatomy/orientTriangles'
+  import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision'
+  const status = document.querySelector('#status')
+  try {
+    const [manifest, buffer, files] = await Promise.all([
+      fetch('/anatomy/anatomy.json').then((r) => r.json()),
+      fetch('/anatomy/anatomy.bin').then((r) => r.arrayBuffer()),
+      FilesetResolver.forVisionTasks('/face/wasm'),
+    ])
+    const tracker = await FaceLandmarker.createFromOptions(files, {
+      baseOptions: { modelAssetPath: '/face/face_landmarker.task', delegate: 'CPU' },
+      runningMode: 'IMAGE',
+      numFaces: 1,
+    })
+    const results = {}
+    for (const [name, data] of Object.entries(manifest.bodies)) {
+      const eyes = data.organs.filter((o) => o.name.includes('eyeball'))
+      const cx = (eyes[0].center[0] + eyes[1].center[0]) / 2,
+        cy = (eyes[0].center[1] + eyes[1].center[1]) / 2
+      const camera = new THREE.OrthographicCamera(cx - 0.16, cx + 0.16, cy + 0.15, cy - 0.17, 0.01, 4)
+      camera.position.set(0, 0, 2)
+      camera.lookAt(0, 0, 0)
+      camera.updateMatrixWorld()
+      const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true })
+      renderer.setSize(800, 800)
+      renderer.setClearColor('#c9cbd0')
+      renderer.outputColorSpace = THREE.SRGBColorSpace
+      const scene = new THREE.Scene()
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x686565, 2))
+      const light = new THREE.DirectionalLight(0xffffff, 3)
+      light.position.set(-1, 3, 5)
+      scene.add(light)
+      const geometry = (m) => {
+        const g = new THREE.BufferGeometry()
+        g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(buffer, m.pos, m.verts * 3), 3))
+        const indices = new Uint32Array(buffer, m.idx, m.tris * 3)
+        if (m.nrm !== undefined) {
+          const normals = new Float32Array(buffer, m.nrm, m.verts * 3)
+          g.setAttribute('normal', new THREE.BufferAttribute(normals, 3))
+          g.setIndex(
+            new THREE.BufferAttribute(orientTriangles(g.attributes.position.array, normals, indices), 1),
+          )
+        } else {
+          g.setIndex(new THREE.BufferAttribute(indices, 1))
+          g.computeVertexNormals()
+        }
+        return g
+      }
+      const skin = new THREE.Mesh(
+        geometry(data.skin),
+        new THREE.MeshStandardMaterial({ color: '#c79e83', roughness: 0.8, side: THREE.DoubleSide }),
+      )
+      scene.add(skin)
+      for (const eye of eyes) {
+        scene.add(
+          new THREE.Mesh(
+            geometry(eye),
+            new THREE.MeshStandardMaterial({ color: '#eeede7', side: THREE.DoubleSide }),
+          ),
+        )
+        const pupil = new THREE.Mesh(
+          new THREE.SphereGeometry(0.004, 24, 16),
+          new THREE.MeshBasicMaterial({ color: '#25201c' }),
+        )
+        pupil.position.set(eye.center[0], eye.center[1], eye.center[2] + 0.012)
+        scene.add(pupil)
+      }
+      renderer.render(scene, camera)
+      const section = document.createElement('section')
+      section.append(name, renderer.domElement)
+      document.querySelector('#heads').append(section)
+      const points = tracker.detect(renderer.domElement).faceLandmarks[0]
+      if (!points) {
+        results[name] = { error: 'No face found' }
+        continue
+      }
+      // Orthographic front projection: render-space coordinates locate points on the actual head.
+      results[name] = {
+        normalised: normaliseFace(points, 800, 800),
+        camera: { left: camera.left, right: camera.right, top: camera.top, bottom: camera.bottom },
+        points: points.slice(0, 468).map((p) => ({
+          x: camera.left + p.x * (camera.right - camera.left),
+          y: camera.top - p.y * (camera.top - camera.bottom),
+          z: p.z,
+        })),
+      }
+    }
+    tracker.close()
+    document.querySelector('#results').textContent = JSON.stringify(results)
+    status.textContent = 'Complete'
+  } catch (e) {
+    status.textContent = 'ERROR: ' + e.message
+    console.error(e)
+  }
+</script>
