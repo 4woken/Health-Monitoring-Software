@@ -1,4 +1,4 @@
-import { useId, useState, type CSSProperties, type ReactNode } from 'react'
+import { useId, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import type { Member } from '../../crew/roster'
 import type { MissionId } from '../../mission/missions'
 import { history } from '../readings'
@@ -162,6 +162,10 @@ export default function TrendChart({ member, mission, signals, day, initialPicke
   const start = Math.max(1, day - (span === 'mission' ? day : Number(span)) + 1)
   const inspectDay = Math.max(start, Math.min(day, inspection ?? day))
   const shown = picked.filter((id) => unique.some((o) => o.metric === id))
+  const series = useMemo(
+    () => new Map(picked.map((metric) => [metric, history(member, metric, day, mission, day - start + 1)])),
+    [picked, member, day, mission, start],
+  )
   const toggle = (id: MetricId) =>
     setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id].slice(-MAX)))
   const fill = day === start ? 100 : ((inspectDay - start) / (day - start)) * 100
@@ -178,7 +182,7 @@ export default function TrendChart({ member, mission, signals, day, initialPicke
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h2 className={compact ? 'font-semibold' : 'text-[20px] font-semibold'}>
-            {compact ? 'Since launch' : `${member.short} since launch`}
+            {compact ? 'Scenario history' : `${member.short} · scenario history`}
           </h2>
           <p className="mt-1 text-[13px] text-muted">
             Up to {MAX} measurements. The dashed line is the value before launch.
@@ -240,7 +244,7 @@ export default function TrendChart({ member, mission, signals, day, initialPicke
       <div className="mt-2">
         {shown.map((metric) => {
           const level = unique.find((o) => o.metric === metric)!.level
-          const data = history(member, metric, day, mission, day - start + 1)
+          const data = series.get(metric)!
           return (
             <Strip
               key={metric}

@@ -10,6 +10,7 @@ interface Cell {
   label: string
   value: string
   unit: string
+  source: string
 }
 
 /**
@@ -36,6 +37,7 @@ export default function VitalsStrip({
       label: 'Blood oxygen',
       value: formatMetric(readings.spo2Pct),
       unit: '%',
+      source: 'Wearable, simulated',
     },
     {
       metric: 'systolic',
@@ -43,6 +45,7 @@ export default function VitalsStrip({
       label: 'Blood pressure',
       value: `${readings.systolic}/${readings.diastolic}`,
       unit: 'mmHg',
+      source: 'Health kit, simulated',
     },
     {
       metric: 'temperature',
@@ -50,6 +53,7 @@ export default function VitalsStrip({
       label: 'Temperature',
       value: formatMetric(readings.temperatureC),
       unit: '°C',
+      source: 'Health kit, simulated',
     },
     {
       metric: 'glucose',
@@ -57,6 +61,7 @@ export default function VitalsStrip({
       label: 'Blood sugar',
       value: formatMetric(readings.glucoseMgDl),
       unit: 'mg/dL',
+      source: 'Health kit, simulated',
     },
     {
       metric: 'sleep',
@@ -64,6 +69,7 @@ export default function VitalsStrip({
       label: 'Sleep',
       value: formatMetric(readings.sleepHours),
       unit: 'h a night',
+      source: 'Wearable, simulated',
     },
   ]
   return (
@@ -103,6 +109,7 @@ export default function VitalsStrip({
             <span className="display text-[38px] text-white">{c.value}</span>
             <span className="text-[13px] text-white/60">{c.unit}</span>
           </span>
+          <span className="block font-cond text-[13px] text-white/75">{c.source}</span>
         </button>
       ))}
     </section>

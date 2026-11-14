@@ -340,7 +340,7 @@ export default function PulseCamera({
               ],
               [
                 'Find the rhythm',
-                'A 0.7–3 Hz filter (42–180 bpm), then the strongest rhythm of the last 10 seconds. Quality is the share of power at that rhythm and its harmonic.',
+                'A 0.7–3 Hz filter (42–180 bpm) finds the strongest rhythm over ten seconds. A clear pulse should stand out from noise and from any strong flicker in the light.',
               ],
             ].map(([title, text], i) => (
               <li key={title} className="flex gap-3">

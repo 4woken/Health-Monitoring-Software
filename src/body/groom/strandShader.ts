@@ -51,7 +51,7 @@ const vertex = /* glsl */ `
     vFollicle=vec2(atan(section.x,section.y)*max(length(section),0.024),groomRest.y)*460.0;
     float flowAngle = 0.86*sin(groomRest.y*21.0+2.0*sin(groomRest.x*41.0));
     strandDirection=normalize(normal*0.32+vec3(side*(0.3+0.42*flowAngle),-0.88,0.16*flowAngle));
-    strandLength=mix(0.002,0.004,smoothstep(0.48,0.69,y));
+    strandLength=mix(0.0028,0.0055,smoothstep(0.48,0.69,y));
   #endif
   vHairMask=groomMask;
   vShellHeight=h;
@@ -118,7 +118,7 @@ const coverage = /* glsl */ `
     float diffuseGain=mix(0.56,1.27,strandTone);
   #else
     float radius=mix(0.22,0.085,h);
-    float coverage=fibreCoverage(vFollicle,radius,0.091*mask,h,strandTone);
+    float coverage=fibreCoverage(vFollicle,radius,0.17*mask,h,strandTone);
     float strandAlpha=coverage*mask;
     float diffuseGain=mix(0.70,1.45,strandTone);
   #endif

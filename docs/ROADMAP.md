@@ -34,5 +34,5 @@ Both bodies now load separately, with CC0 MakeHuman geometry and textured skin. 
 
 ### Limits identified in the original plan
 
-- The female pelvis keeps the male shape, only widened. A female skeleton source would be better.
-- `public/anatomy/anatomy.bin` is 18 MB with both bodies. Loading only the body on screen, or storing positions as 16-bit integers, would cut the first load.
+- The female HRA pelvis and the eight major leg bones now supply those regions. The remaining transferred bones use reference-body registration.
+- The active viewer now loads only the selected body, with 16-bit positions for the internal anatomy. The combined reference atlas provides the fallback.

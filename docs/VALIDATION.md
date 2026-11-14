@@ -9,10 +9,10 @@ This protocol evaluates an educational prototype. It is not a clinical validatio
 The **Pulse** view of the **Camera** page uses one webcam capture, shared with the 3D heart of the **Body** screen.
 
 1. **Face**: MediaPipe Face Landmarker places 468 points on the face, on the computer.
-2. **Skin**: the mean red, green and blue of the forehead and both cheeks, about 30 times a second. Very dark and very bright pixels are left out. Frames where the head moves too much are skipped.
-3. **Signal**: the samples are resampled to 30 Hz, then processed with the POS method (Wang, den Brinker, Stuijk and de Haan, _Algorithmic Principles of Remote PPG_, IEEE Trans. Biomed. Eng. 64(7):1479-1491, 2017) in a sliding window of 1.6 s.
+2. **Skin**: the mean red, green and blue of the forehead and both cheeks, about 30 times a second. Very dark and very bright pixels are left out. Frames in which the selected facial landmarks move by more than 1.32% of the frame dimensions on average are skipped. This allows 10% more movement than the previous 1.20% cutoff. A larger movement clears the displayed rate for at least 1.5 seconds.
+3. **Signal**: the samples are resampled to 30 Hz. If the shared log-brightness varies by more than 0.5% RMS in the pulse band, the pipeline estimates each colour channel’s sensitivity to that fluctuation. It corrects the differences in gain, reaching full correction at 1% RMS. It then applies the POS method (Wang, den Brinker, Stuijk and de Haan, _Algorithmic Principles of Remote PPG_, IEEE Trans. Biomed. Eng. 64(7):1479-1491, 2017) in a sliding window of 1.6 s.
 4. **Rate**: the trend is removed, a fourth-order Butterworth band-pass filter from 0.7 to 3.0 Hz (42 to 180 bpm) runs in both directions, then the rate is the peak of the spectrum over the last 10 seconds.
-5. **Quality**: the signal-to-noise ratio of the spectrum, in the spirit of de Haan and Jeanne (2013): the power around the peak and its first harmonic, compared with the rest of the band. It is scaled between 0 and 1 (−1 dB gives 0, 7 dB gives 1).
+5. **Quality**: the signal-to-noise ratio of the spectrum, in the spirit of de Haan and Jeanne (2013): the power around the peak and its first harmonic, compared with the rest of the band. It is scaled between 0 and 1 (−1 dB gives 0, 7 dB gives 1). A strong periodic lighting peak within one frequency-resolution interval of the candidate pulse also suppresses the reading.
 6. **Display**: the first value comes after 8 seconds of signal. A pulse is shown only above a quality of 0.35, and the number shown is the median of the last five accepted estimates.
 
 The code is in `src/camera/pulse/`, and its tests are in `rppg.test.ts` and `skinRegions.test.ts`. On synthetic signals (sensor noise, light drift, dropped frames), the tests require an error of 2 bpm or less between 48 and 165 bpm, and a quality below the threshold when there is no pulse.
@@ -24,6 +24,19 @@ In the camera tools, in **Pulse camera**, tick **Compare POS and CHROM**. Both m
 For CHROM, each colour channel is normalised over a 1.6-second window. The two chrominance projections are filtered between 0.7 and 3 Hz and combined in the ratio of their standard deviations. The windows overlap by 50% with a Hann weighting ([de Haan and Jeanne, 2013](https://doi.org/10.1109/TBME.2013.2266196)).
 
 Two public recordings replayed in Chrome gave, over their last ten seconds, 74.1 and 61.8 bpm with POS, and 73.9 and 62.2 bpm with CHROM. The finger pulse over the same intervals was 75.3 and 61.3 bpm. [Protocol and reproduction](WEBCAM_RESEARCH.md).
+
+### Controlled lighting replay
+
+We replayed 18 lighting variants on the forehead/cheek RGB time series extracted from each public video. Each variant applies an oscillating brightness change with unequal channel gains. The two original videos and their synchronized finger-PPG references are the same across all 36 cases. The frequency, amplitude, channel gains and phase are fixed in `scripts/research/compare_browser_pulse.js`. Motion and video decoding are held constant. [Videos and reproduction](WEBCAM_RESEARCH.md).
+
+| Lighting replay                  | Readings displayed | Readings within 5 bpm of the finger sensor | Readings withheld |
+| -------------------------------- | -----------------: | -----------------------------------------: | ----------------: |
+| POS before exposure correction   |              36/36 |                                       3/36 |                 0 |
+| POS with exposure correction     |              20/36 |                                      20/36 |                16 |
+| CHROM before exposure correction |              24/36 |                                      13/36 |                12 |
+| CHROM with exposure correction   |              24/36 |                                      24/36 |                12 |
+
+On both original videos, the four unperturbed readings agreed with their previous values at the reported precision (0.1 bpm). Each lighting variant reuses an existing recording. These figures measure robustness to the specified perturbations, rather than accuracy across people, cameras or physical lighting conditions.
 
 ### Export
 

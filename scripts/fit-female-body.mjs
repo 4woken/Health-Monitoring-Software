@@ -1,16 +1,8 @@
-// Gives the female reference body a skeleton and full vessels, fitted from the male ones.
-//
-// The female body (HuBMAP HRA, Visible Human female) has organs but no bones, and vessels in the
-// torso only. This script takes the male bones, spine, arteries, veins and jugular veins (from
-// BodyParts3D, see add-bodyparts3d.mjs) and bends them into the female body with a thin-plate
-// spline warp. The warp is fitted on points matched between the two bodies: organ centres, the
-// line of the spine, the width of the torso, and the centre lines of the arms and legs measured on
-// the skin. Run add-bodyparts3d.mjs first, then:
-//
-//   node scripts/fit-female-body.mjs
-//
-// The result is an approximation to show where the bones and vessels are in a body of this shape,
-// not a female skeleton: the female pelvis, for example, keeps the male shape, only widened.
+// Fit the supplemental BodyParts3D skeleton, costal cartilage, vasculature and stomach
+// to the female atlas. The thin-plate spline uses corresponding organ centres, spine,
+// trunk width and limb centres. The subsequent HRA extraction replaces the pelvis
+// and eight major leg bones with their female scan surfaces.
+// Run node scripts/fit-female-body.mjs after scripts/add-bodyparts3d.mjs.
 
 import fs from 'node:fs'
 import path from 'node:path'
@@ -21,9 +13,11 @@ const ANATOMY = path.join(ROOT, 'public/anatomy')
 const DRY = process.argv.includes('--dry')
 
 const FITTED = [
+  'stomach',
   'skull',
   'vertebral column',
   'rib cage',
+  'costal cartilage',
   'shoulder girdle',
   'arm bones',
   'pelvis',
@@ -156,7 +150,9 @@ for (const name of [
 add(
   'lungs',
   mergeCentre(mesh('male', 'right lung'), mesh('male', 'left lung')),
-  medianCentre(mesh('female', 'lungs')),
+  manifest.bodies.female.organs.some((o) => o.name === 'lungs')
+    ? medianCentre(mesh('female', 'lungs'))
+    : mergeCentre(mesh('female', 'right lung'), mesh('female', 'left lung')),
 )
 
 const topOf = (b) => {
@@ -543,7 +539,7 @@ const fitted = FITTED.map((name) => {
       kept.push(tri[t], tri[t + 1], tri[t + 2])
     else stretched++
   }
-  return { name, positions: out, indices: new Uint32Array(kept) }
+  return { name, positions: out, indices: new Uint32Array(kept), footVertexStart: ref.footVertexStart }
 })
 
 console.log(
@@ -577,6 +573,7 @@ for (const [build, body] of Object.entries(manifest.bodies)) {
         verts: g.positions.length / 3,
         idx: put(g.indices),
         tris: g.indices.length / 3,
+        ...(g.footVertexStart !== undefined && { footVertexStart: g.footVertexStart }),
         center: boxCentre(g.positions).map((v) => Math.round(v * 1000) / 1000),
       })
     // The marker now sits on the fitted left jugular vein.

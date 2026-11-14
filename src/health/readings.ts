@@ -3,7 +3,7 @@
 // only on their scheduled days, so some values are days old.
 
 import type { Member } from '../crew/roster'
-import type { MissionId } from '../mission/missions'
+import { MISSIONS, missionDay, type MissionId } from '../mission/missions'
 import { METRICS, type MetricId } from './metrics'
 import { cabinOn, readingsOn } from './simulation'
 import { assess, type Readings, type Signal, type SignalId } from './signals'
@@ -50,7 +50,7 @@ export interface Freshness {
   automatic: boolean
 }
 
-export function freshness(id: SignalId, day: number): Freshness {
+export function freshness(id: SignalId, day: number, lastDay = Infinity): Freshness {
   const s = SCHEDULE[id]
   const takenDay = lastTaken(id, day)
   return {
@@ -58,7 +58,7 @@ export function freshness(id: SignalId, day: number): Freshness {
     takenDay,
     ageDays: day - takenDay,
     outdated: day - takenDay > s.freshFor,
-    nextDay: s.every > 1 ? takenDay + s.every : null,
+    nextDay: s.every > 1 && takenDay + s.every <= lastDay ? takenDay + s.every : null,
     automatic: s.automatic,
   }
 }
@@ -93,14 +93,16 @@ export interface DayReport {
 }
 
 export function dayReport(member: Member, day: number, mission: MissionId): DayReport {
+  day = missionDay(mission, day)
   const readings = readingsFor(member, day, mission)
   const signals = assess(readings, member.baseline, cabinOn(day, mission))
-  const fresh = Object.fromEntries(signals.map((s) => [s.id, freshness(s.id, day)]))
+  const fresh = Object.fromEntries(signals.map((s) => [s.id, freshness(s.id, day, MISSIONS[mission].days)]))
   return { member, day, readings, signals, freshness: fresh as Record<SignalId, Freshness> }
 }
 
 /** One metric over the last `span` days (no days before launch), with the value before launch. */
 export function history(member: Member, metric: MetricId, day: number, mission: MissionId, span = 30) {
+  day = missionDay(mission, day)
   const m = METRICS[metric]
   const count = Math.min(span, day)
   const values = Array.from({ length: count }, (_, i) => {

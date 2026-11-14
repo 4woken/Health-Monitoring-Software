@@ -78,6 +78,33 @@ describe('pulse estimate on a simulated camera', () => {
     }
   })
 
+  // A swinging shadow or camera exposure change can modulate the three channels
+  // unequally and mimic a different heart rate inside the pass band.
+  it.each(['pos', 'chrom'] as const)(
+    'recovers the injected pulse during periodic lighting with %s',
+    (method) => {
+      const flicker = (samples: RgbSample[], hz: number) =>
+        samples.map((s) => {
+          const light = 0.034 * Math.sin((2 * Math.PI * hz * s.t) / 1000)
+          return {
+            t: s.t,
+            r: s.r * (1 + 0.7 * light),
+            g: s.g * (1 + 1.06 * light),
+            b: s.b * (1 + 0.91 * light),
+          }
+        })
+      const skin = camera({ bpm: 76, seed: 12, amplitude: 0.004 })
+      const separated = estimate(flicker(skin, 1.95), method)
+      expect(separated.bpm).not.toBeNull()
+      expect(Math.abs(separated.bpm! - 76)).toBeLessThan(2)
+      expect(separated.quality).toBeGreaterThanOrEqual(RPPG.qualityThreshold)
+      const ambiguous = estimate(flicker(skin, 76 / 60), method)
+      expect(ambiguous.quality).toBeLessThan(RPPG.qualityThreshold)
+      const lightOnly = estimate(flicker(camera({ seed: 12 }), 1.95), method)
+      expect(lightOnly.quality).toBeLessThan(RPPG.qualityThreshold)
+    },
+  )
+
   it('keeps CHROM empty on a static face or an incomplete capture', () => {
     const stable = camera({ bpm: 72 }).map(({ t }) => ({ t, r: 70, g: 50, b: 30 }))
     expect(estimate(stable, 'chrom').bpm).toBeNull()

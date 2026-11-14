@@ -19,6 +19,7 @@ interface SkinManifest {
     idx: number
     center: Vec3
   }
+  pelvicSurface?: { baseVerts: number }
   eyes: EyeSocket[]
   height: number
 }
@@ -31,10 +32,13 @@ export async function asset(url: string, init?: RequestInit) {
 
 export async function loadHumanSkin(build: Build) {
   const base = '/human/' + build
-  const [metadata, buffer, albedo] = await Promise.all([
+  const [metadata, buffer, albedo, arms] = await Promise.all([
     asset(base + '.json').then((r) => r.json() as Promise<SkinManifest>),
     asset(base + '.bin').then((r) => r.arrayBuffer()),
     new THREE.TextureLoader().loadAsync(base + '.webp'),
+    asset('/human/arm-weights.bin')
+      .then((r) => r.arrayBuffer())
+      .catch(() => null),
   ])
   albedo.colorSpace = THREE.SRGBColorSpace
   const spec = metadata.skin
@@ -49,6 +53,11 @@ export async function loadHumanSkin(build: Build) {
   )
   geometry.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(buffer, spec.uv, spec.verts * 2), 2))
   geometry.setIndex(new THREE.BufferAttribute(new Uint16Array(buffer, spec.idx, spec.tris * 3), 1))
+  if (arms?.byteLength === (metadata.pelvicSurface?.baseVerts ?? spec.verts) * 2) {
+    const weights = new Uint8Array(spec.verts * 2)
+    weights.set(new Uint8Array(arms))
+    geometry.setAttribute('exerciseArms', new THREE.BufferAttribute(weights, 2, true))
+  }
   await loadSkinDetail(build, geometry, base + '-detail.bin')
   return {
     skin: { name: spec.name, center: spec.center, geometry },

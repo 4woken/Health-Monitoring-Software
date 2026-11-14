@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
+import type { Build } from '../body/anatomy/bodyShape'
 import type { AvatarCapture, PersonalAvatar } from '../camera/face/portrait'
 import { EMPTY_SIZE, loadSize, saveSize, type BodyDimensions, type SizeSetting } from './bodyDimensions'
 import { clearExerciseHistory } from '../exercises/exercisePlan'
@@ -66,6 +67,7 @@ export interface Crew {
   remove: (id: string) => void
   sizeOf: (id: string) => SizeSetting
   setSize: (id: string, values: BodyDimensions, remember: boolean) => SizeSetting
+  setBuild: (id: string, build: Build) => void
   faceOf: (id: string) => PersonalAvatar | null
   setFace: (id: string, face: AvatarCapture | null) => void
 }
@@ -91,7 +93,39 @@ export function CrewProvider({ children }: { children: ReactNode }) {
     return setting
   }, [])
   const sizeOf = useCallback((id: string) => (Object.hasOwn(sizes, id) ? sizes[id] : EMPTY_SIZE), [sizes])
-  const members = useMemo(() => [...TEAM, ...added], [added])
+  const [teamBuilds, setTeamBuilds] = useState<Partial<Record<string, Build>>>(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem('pulsar.crew.builds') ?? '{}')
+      return Object.fromEntries(
+        TEAM.filter((m) => raw?.[m.id] === 'male' || raw?.[m.id] === 'female').map((m) => [m.id, raw[m.id]]),
+      )
+    } catch {
+      return {}
+    }
+  })
+  const members = useMemo(
+    () => [...TEAM.map((m) => (teamBuilds[m.id] ? { ...m, build: teamBuilds[m.id]! } : m)), ...added],
+    [teamBuilds, added],
+  )
+  const setBuild = useCallback((id: string, build: Build) => {
+    if (TEAM.some((m) => m.id === id)) {
+      setTeamBuilds((current) => {
+        const next = { ...current, [id]: build }
+        try {
+          localStorage.setItem('pulsar.crew.builds', JSON.stringify(next))
+        } catch {
+          /* Session only. */
+        }
+        return next
+      })
+    } else {
+      setAdded((current) => {
+        const next = current.map((m) => (m.id === id ? { ...m, build } : m))
+        saveAdded(next)
+        return next
+      })
+    }
+  }, [])
   const current = members.find((m) => m.id === currentId) ?? members[0]
   const select = useCallback((id: string) => {
     setCurrentId(id)
@@ -132,10 +166,11 @@ export function CrewProvider({ children }: { children: ReactNode }) {
       remove,
       sizeOf,
       setSize,
+      setBuild,
       faceOf: (id) => faces[id] ?? null,
       setFace,
     }),
-    [members, current, select, add, remove, faces, setFace, sizeOf, setSize],
+    [members, current, select, add, remove, faces, setFace, sizeOf, setSize, setBuild],
   )
   return <CrewContext.Provider value={value}>{children}</CrewContext.Provider>
 }

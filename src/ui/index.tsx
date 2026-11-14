@@ -591,15 +591,33 @@ export function Drawer({
   subtitle,
   onClose,
   width,
+  showAvatar = false,
   children,
 }: {
   title: string
   subtitle?: string
   onClose: () => void
   width: number
+  showAvatar?: boolean
   children: ReactNode
 }) {
   const close = useClosable(onClose)
+  const content = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const container = content.current
+    if (!showAvatar || !container) return
+    const keepControlsVisible = () => {
+      const controls = container.querySelector('[data-exercise-controls]')?.getBoundingClientRect()
+      if (!controls) return
+      const bounds = container.getBoundingClientRect()
+      if (controls.bottom > bounds.bottom - 12) container.scrollTop += controls.bottom - bounds.bottom + 12
+      else if (controls.top < bounds.top) container.scrollTop += controls.top - bounds.top - 12
+    }
+    keepControlsVisible()
+    const observer = new ResizeObserver(keepControlsVisible)
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [showAvatar])
   return (
     <motion.aside
       role="dialog"
@@ -608,7 +626,7 @@ export function Drawer({
       animate={{ x: 0 }}
       exit={{ x: '100%' }}
       transition={{ duration: 0.42, ease: EASE }}
-      className="fixed top-16 right-0 bottom-0 z-20 flex w-full flex-col border-l border-white/[0.08] bg-[#0f1215]/95 backdrop-blur-xl"
+      className={`fixed top-16 right-0 bottom-0 z-20 flex w-full flex-col border-l border-white/[0.08] bg-[#0f1215]/95 backdrop-blur-xl ${showAvatar ? 'drawer-with-avatar' : ''}`}
       style={{ maxWidth: width }}
     >
       <div className="flex shrink-0 items-start justify-between gap-3 px-5 pt-5 pb-2 sm:px-6">
@@ -625,7 +643,9 @@ export function Drawer({
           <X size={16} />
         </button>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+      <div ref={content} className="min-h-0 flex-1 overflow-y-auto">
+        {children}
+      </div>
     </motion.aside>
   )
 }

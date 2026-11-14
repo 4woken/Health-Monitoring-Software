@@ -13,13 +13,23 @@ import { useMannequinDimensions } from '../crew/CrewProvider'
 import { hasSize, mannequinScale, type BodyDimensions } from '../crew/bodyDimensions'
 import { fitTorso } from '../crew/torsoFit'
 import { ORGAN_SIGNALS, loadBody, type Body } from './anatomy/loadAnatomy'
+import { createExercisePose } from '../exercises/exercisePose'
+import { demoVitals } from '../exercises/demoVitals'
+import type { ExerciseMotion } from '../exercises/environmentExercise'
 import { createBodyGroom } from './groom/bodyGroom'
 import { createRestingEye } from './portrait/restingEye'
 import { createPersonalFace } from './portrait/skinPortrait'
 import type { Build, Vec3 } from './anatomy/bodyShape'
 import type { Level } from '../health/signals'
 import type { AvatarCapture, FaceCalibration } from '../camera/face/portrait'
-import { DEPTH_STOPS, organNote, depthOpacity, type DepthLayer } from './anatomy/organs'
+import {
+  DEPTH_STOPS,
+  organNote,
+  depthOpacity,
+  matchesAnatomySelection,
+  anatomyChoices,
+  type DepthLayer,
+} from './anatomy/organs'
 import type { LiveFaceFrame } from '../camera/face/liveFace'
 import { Segmented } from '../ui'
 import { usePulse } from '../camera/pulse/pulseSession'
@@ -73,12 +83,15 @@ interface Props {
   onPick: (id: string) => void
   /** An organ was clicked (its mesh name), or the selection was cleared (null). */
   onOrgan?: (name: string | null) => void
+  onInventory?: (names: string[]) => void
   /** Organ to keep isolated; null shows the whole body. */
   organ?: string | null
   physiology: BodyPhysiology
   /** Simulated resting heart rate, used when the webcam pulse is not measuring. */
   restingBpm: number
   breathingRate?: number
+  exerciseMotion?: ExerciseMotion | null
+  exerciseStartedAt?: number
   layer: Layer
   onLayer: (l: Layer) => void
   /** The person's portrait, laid on this body's face. */
@@ -87,6 +100,8 @@ interface Props {
   calibration?: FaceCalibration
   initialView?: View
   studio?: boolean
+  /** Lock the camera to the head during crew sign-in. */
+  portraitOnly?: boolean
   /** Overlays drawn over the scene by the page (name, vitals, details). */
   children?: ReactNode
   /** Space kept free at the bottom of the scene for the page's own overlays, in pixels. */
@@ -113,6 +128,9 @@ function anatomyColour(name: string): string {
   if (name.includes('vessel')) return '#b8323a'
   if (name === 'heart') return '#a82a28'
   if (name.includes('lung')) return '#e3a09a'
+  if (name === 'costal cartilage') return '#88b5b6'
+  if (name === 'pancreas') return '#e1b56a'
+  if (name === 'spleen') return '#873855'
   if (name === 'liver') return '#7a2c22'
   if (name.includes('kidney')) return '#8a332b'
   if (name === 'stomach') return '#d99782'
@@ -220,6 +238,7 @@ interface Stage {
   setHeart: (h: Heart) => void
   setBreathingRate: (rate: number | undefined) => void
   setMotion: (m: Motion) => void
+  setExerciseMotion: (mode: ExerciseMotion | null, startedAt?: number) => void
   setAvatar: (a: AvatarCapture | null) => void
   setFaceOptions: (live: RefObject<LiveFaceFrame | null> | null, calibration?: FaceCalibration) => void
   setPins: (pins: { id: string; at: string; side?: 'left' | 'right' }[]) => void
@@ -238,9 +257,11 @@ function createStage(
     hoverLabel: () => HTMLElement | null
   },
   onCredit: (text: string) => void,
+  onInventory: (names: string[]) => void,
   onBodyPick: (id: string) => void,
   onOrganPick: (name: string | null) => void,
   allowLens: boolean,
+  portraitOnly: boolean,
 ): Stage {
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
@@ -251,6 +272,7 @@ function createStage(
   host.prepend(renderer.domElement)
   renderer.domElement.style.cssText =
     'position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:grab;z-index:1'
+  if (portraitOnly) renderer.domElement.style.touchAction = 'pan-y'
   renderer.domElement.setAttribute('aria-hidden', 'true')
 
   const scene = new THREE.Scene()
@@ -270,6 +292,13 @@ function createStage(
   scene.add(group)
   group.add(body)
 
+  const demoPose = createExercisePose()
+  let exercise: ExerciseMotion | null = null
+  let exerciseStarted = 0
+  let demoSecond = -1
+  let demoRates = demoVitals('ankle', 0)
+  let demoBeatPhase = 0
+  let demoBreathPhase = 0
   // Uniforms shared by the skin and the portrait.
   const shared = {
     uLens: { value: new THREE.Vector4(0, 0, 1, 0) },
@@ -282,6 +311,7 @@ function createStage(
   }
   /** Adds the lens cut, breathing and fluid shift to a built-in material's shaders. */
   const patch = (shader: THREE.WebGLProgramParametersWithUniforms, withRim: boolean) => {
+    demoPose.patch(shader, current?.skin.hasAttribute('exerciseArms') ?? false)
     Object.assign(shader.uniforms, shared)
     shader.vertexShader =
       'uniform float uBreathing;\nuniform float uFluid;\nuniform float uHeight;\n' +
@@ -380,7 +410,16 @@ function createStage(
   let baseDist = 4.75
   let userRot = 0
   let velocity = 0
+  // The point on the skin/organ is in world space, while the gesture is in
+  // viewport coordinates. Keep them paired throughout the eased camera move.
+  let zoomAnchor: { world: THREE.Vector3; screen: THREE.Vector2 } | null = null
   const clampView = () => {
+    if (portraitOnly) {
+      const height = current?.height ?? 1.75
+      zoomTo = 6.35
+      focusTo = height * 0.43
+      return
+    }
     zoomTo = Math.min(MAX_ZOOM, Math.max(1, zoomTo))
     const reach = ((current?.height ?? 1.75) / 2) * (1 - 1 / Math.max(zoomTo, 1.0001)) + 0.05
     focusTo = Math.min(reach, Math.max(-reach, focusTo))
@@ -392,6 +431,7 @@ function createStage(
   const resolve = (h: Hotspot): Vec3 => current?.anchors[h.id] ?? localPoint(h.pos)
   const organCenter = (name: string) => current?.organs.find((o) => o.name === name)?.center
   const flyTo = (zoomValue: number, y: number, x = 0) => {
+    zoomAnchor = null
     userRot = 0
     velocity = 0
     zoomTo = zoomValue
@@ -415,7 +455,7 @@ function createStage(
   const refresh = () => {
     const physiologyView = layer === 'physiology'
     const d = physiologyView ? 0 : depth
-    skinOpacity = isolated ? 0 : depthOpacity('skin', d)
+    skinOpacity = isolated ? 0.095 : depthOpacity('skin', d)
     face?.setVisible(skinOpacity > 0.9)
     shared.uFluid.value = physiologyView ? physio.fluidShiftShare : 0
     for (const o of organs) {
@@ -423,8 +463,15 @@ function createStage(
       let level: Level = 'ok'
       for (const h of hot) if (ids.includes(h.id) && RANK[h.level] > RANK[level]) level = h.level
       o.level = layer === 'signals' ? level : 'ok'
-      const isActive = (active !== null && ids.includes(active)) || hovered === o.name || isolated === o.name
-      o.opacity = isolated ? Number(o.name === isolated) : depthOpacity(o.layer, d)
+      const isActive =
+        (active !== null && ids.includes(active)) ||
+        hovered === o.name ||
+        (isolated !== null && matchesAnatomySelection(o.name, isolated))
+      o.opacity = isolated
+        ? matchesAnatomySelection(o.name, isolated)
+          ? 1
+          : 0.035
+        : depthOpacity(o.layer, d)
       o.mat.color.set(anatomyColour(o.name))
       o.mat.emissive.set(isActive && o.level === 'ok' ? '#3c3c3c' : FLAG_GLOW[o.level])
       o.mat.emissiveIntensity = o.level === 'ok' ? (isActive ? 1 : 0) : 0.6
@@ -441,13 +488,19 @@ function createStage(
     pointerMoved = true
     refresh()
     if (!name || !current) return
-    const o = organs.find((x) => x.name === name)
-    if (!o) return
-    o.mesh.geometry.computeBoundingSphere()
-    const sphere = o.mesh.geometry.boundingSphere!
-    const r = Math.max(0.02, sphere.radius) * Math.max(1, group.scale.x / group.scale.y)
+    const bounds = new THREE.Box3()
+    for (const part of organs) {
+      if (!matchesAnatomySelection(part.name, name)) continue
+      const geometry = part.mesh.geometry
+      if (!geometry.boundingBox) geometry.computeBoundingBox()
+      bounds.union(geometry.boundingBox!)
+    }
+    if (bounds.isEmpty()) return
+    const sphere = bounds.getBoundingSphere(new THREE.Sphere())
+    const available = Math.max(0.3, (host.clientWidth - sideInset) / host.clientHeight)
+    const radius = Math.max(0.025, sphere.radius) * Math.max(1, group.scale.x / group.scale.y)
     flyTo(
-      Math.min(MAX_ZOOM, current.height / 2 / (r * 2.6)),
+      Math.min(MAX_ZOOM, (current.height * 0.45 * Math.min(1, available)) / radius),
       sphere.center.y - current.height / 2,
       sphere.center.x,
     )
@@ -522,6 +575,12 @@ function createStage(
             )
         }
       }
+      // Internals and skin are registered in the same rest coordinates.
+      const shadeOrgan = mat.onBeforeCompile.bind(mat)
+      mat.onBeforeCompile = (shader, renderer) => {
+        shadeOrgan(shader, renderer)
+        demoPose.patch(shader)
+      }
       const mesh = new THREE.Mesh(o.geometry, mat)
       mesh.renderOrder = 1
       mesh.userData.organ = o.name
@@ -557,8 +616,15 @@ function createStage(
     groom = createBodyGroom(current, face.geometry, (shader) => patch(shader, false))
     body.add(groom.object)
     shared.uHeight.value = current.height
+    demoPose.setBody(current.height, current.build)
     body.position.y = -current.height / 2
     fitDimensions()
+    if (portraitOnly) {
+      clampView()
+      zoom = zoomTo
+      focusY = focusTo
+    }
+    onInventory(current.organs.map((o) => o.name))
     onCredit(current.attribution.endsWith('.') ? current.attribution : current.attribution + '.')
     updatePortrait()
     if (isolated) isolate(isolated)
@@ -572,6 +638,7 @@ function createStage(
   let lastX = 0
   let lastY = 0
   let pinch = 0
+  let pinched = false
   let pointerMoved = false
   let wasLookingInside = false
   const pointerCss = { x: 0, y: 0 }
@@ -581,9 +648,9 @@ function createStage(
   const trailPos = { x: 0, y: 0 }
   const raycaster = new THREE.Raycaster()
   const ndc = new THREE.Vector2()
-  const spread = () => {
-    const [a, b] = [...touches.values()]
-    return Math.hypot(a.x - b.x, a.y - b.y)
+  const pinchGesture = () => {
+    const [a, b] = touches.values()
+    return { distance: Math.hypot(a.x - b.x, a.y - b.y), x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
   }
   const point = (e: PointerEvent) => {
     const rect = el.getBoundingClientRect()
@@ -596,14 +663,14 @@ function createStage(
     pointerMoved = true
   }
   // At the lens centre a strength of 0.88 clears even the last dithered skin pixel.
-  const pointerSeesInside = () => {
+  const pointerSeesInside = (cssX = pointerCss.x, cssY = pointerCss.y) => {
     if (skinOpacity < 1) return skinOpacity <= 0.5
     const lens = shared.uLens.value
     const pr = renderer.getPixelRatio()
     return (
       lensAt.target > 0 &&
       lens.w >= 0.88 &&
-      Math.hypot(pointerCss.x * pr - lens.x, (host.clientHeight - pointerCss.y) * pr - lens.y) < lens.z * 0.45
+      Math.hypot(cssX * pr - lens.x, (host.clientHeight - cssY) * pr - lens.y) < lens.z * 0.45
     )
   }
   /** Pick only surfaces exposed at this pointer, including the reference eyes. */
@@ -613,7 +680,7 @@ function createStage(
     const h = host.clientHeight || 1
     ndc.set((cssX / w) * 2 - 1, -(cssY / h) * 2 + 1)
     raycaster.setFromCamera(ndc, camera)
-    const inside = pointerSeesInside()
+    const inside = pointerSeesInside(cssX, cssY)
     const targets: THREE.Object3D[] = organs
       .filter((o) => o.mesh.visible && o.mat.opacity >= 0.5 && (inside || o.eye))
       .map((o) => o.mesh)
@@ -622,15 +689,46 @@ function createStage(
     if (!hit) return null
     return { what: hit.object === skin ? 'skin' : (hit.object.userData.organ as string), point: hit.point }
   }
+  function zoomAt(clientX: number, clientY: number, factor: number, keepAnchor = false) {
+    if (portraitOnly) return
+    const next = THREE.MathUtils.clamp(zoomTo * factor, 1, MAX_ZOOM)
+    if (next === zoomTo && !keepAnchor) return
+    const rect = el.getBoundingClientRect()
+    if (!rect.width || !rect.height) return
+    const x = clientX - rect.left,
+      y = clientY - rect.top
+    const nx = (2 * x) / rect.width - 1,
+      ny = 1 - (2 * y) / rect.height
+    if (!zoomAnchor || (!keepAnchor && (zoomAnchor.screen.x !== nx || zoomAnchor.screen.y !== ny))) {
+      const hit = pickAt(x, y)
+      // For background pixels use the plane through the body's rotation axis.
+      // Use the camera ray explicitly even while the anatomy is loading.
+      raycaster.setFromCamera(ndc.set(nx, ny), camera)
+      const ray = raycaster.ray
+      const world = hit?.point ?? ray.at(-ray.origin.z / ray.direction.z, new THREE.Vector3())
+      zoomAnchor = { world, screen: new THREE.Vector2(nx, ny) }
+    } else {
+      zoomAnchor.screen.set(nx, ny)
+    }
+    zoomTo = next
+    velocity = 0
+  }
   const down = (e: PointerEvent) => {
     point(e)
     touches.set(e.pointerId, { x: e.clientX, y: e.clientY })
     el.setPointerCapture(e.pointerId)
     if (touches.size === 2) {
-      pinch = spread()
+      const { distance, x, y } = pinchGesture()
+      zoomAnchor = null
+      pinch = distance
+      pinched = true
+      zoomAt(x, y, 1, true)
       dragging = false
       return
     }
+    if (touches.size !== 1) return
+    zoomAnchor = null
+    pinched = false
     dragging = true
     gestureX = lastX = e.clientX
     gestureY = lastY = e.clientY
@@ -641,10 +739,9 @@ function createStage(
     if (!touches.has(e.pointerId)) return
     touches.set(e.pointerId, { x: e.clientX, y: e.clientY })
     if (touches.size === 2) {
-      const d = spread()
-      if (pinch > 0) zoomTo *= d / pinch
-      pinch = d
-      clampView()
+      const { distance, x, y } = pinchGesture()
+      if (pinch > 0 && distance > 0) zoomAt(x, y, distance / pinch, true)
+      pinch = distance
       return
     }
     if (!dragging) return
@@ -659,6 +756,7 @@ function createStage(
   const up = (e: PointerEvent) => {
     if (
       e.type === 'pointerup' &&
+      !pinched &&
       touches.size === 1 &&
       Math.hypot(e.clientX - gestureX, e.clientY - gestureY) < 5 &&
       current &&
@@ -667,7 +765,6 @@ function createStage(
     ) {
       const hit = pickAt(pointerCss.x, pointerCss.y)
       if (hit && hit.what !== 'skin') {
-        isolate(hit.what)
         onOrganPick(hit.what)
       } else if (hit && hit.what === 'skin' && hot.length) {
         const p = body.worldToLocal(hit.point.clone())
@@ -682,7 +779,6 @@ function createStage(
         }
         onBodyPick(best.id)
       } else if (!hit && isolated) {
-        isolate(null)
         onOrganPick(null)
       }
     }
@@ -702,9 +798,10 @@ function createStage(
     if (label) label.style.opacity = '0'
   }
   const wheel = (e: WheelEvent) => {
+    if (portraitOnly) return
     e.preventDefault()
-    zoomTo *= Math.exp(-e.deltaY * 0.0015)
-    clampView()
+    const pixels = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? host.clientHeight : 1)
+    zoomAt(e.clientX, e.clientY, Math.exp(-pixels * 0.0015))
   }
   el.addEventListener('pointerdown', down)
   el.addEventListener('pointermove', move)
@@ -738,6 +835,16 @@ function createStage(
     lastTime = now
     const t = (now - startedAt) / 1000
     shared.uTime.value = t
+    const exerciseSeconds = (now - exerciseStarted) / 1000
+    demoPose.update(exercise, exerciseSeconds, reduce)
+    if (exercise) {
+      if (Math.floor(exerciseSeconds) !== demoSecond) {
+        demoSecond = Math.floor(exerciseSeconds)
+        demoRates = demoVitals(exercise, exerciseSeconds)
+      }
+      demoBeatPhase = (demoBeatPhase + (dt * demoRates.bpm) / 60) % 1
+      demoBreathPhase = (demoBreathPhase + (dt * demoRates.breathsPerMinute) / 60) % 1
+    }
     if (!dragging) {
       userRot += velocity
       velocity *= 0.92
@@ -755,6 +862,16 @@ function createStage(
     // what is left.
     const visibleWidth = 2 * cameraZ * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect
     const shiftX = (sideShift / 2 / (host.clientWidth || 1)) * visibleWidth
+    if (zoomAnchor) {
+      // Solve perspective projection for the camera position at this frame's
+      // depth. Undo the panel offset and body scale when storing the new focus.
+      const { world, screen } = zoomAnchor
+      const halfHeight = (cameraZ - world.z) * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))
+      focusX = focusXTo = (world.x - screen.x * halfHeight * camera.aspect - shiftX) / group.scale.x
+      focusY = focusTo = (world.y - screen.y * halfHeight) / group.scale.y
+      if (pinch === 0 && Math.abs(zoomTo - zoom) < 1e-6 && Math.abs(sideInset - sideShift) < 0.01)
+        zoomAnchor = null
+    }
     camera.position.set(focusX * group.scale.x + shiftX, focusY * group.scale.y, cameraZ)
     if (hasSize(dimensions)) {
       const metresVisible = 2 * camera.position.z * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))
@@ -764,7 +881,7 @@ function createStage(
         lastRuler = ruler
       }
     }
-    group.rotation.y = userRot
+    group.rotation.y = userRot + (exercise ? 0.55 : 0)
 
     // X-ray lens: only through solid skin. Eased strength and a short trail.
     lensAt.strength += (lensAt.target - lensAt.strength) * Math.min(1, dt * 9)
@@ -786,15 +903,24 @@ function createStage(
 
     // Only the cadence is measured. The displayed phase and depth are illustrative.
     shared.uBreathing.value =
-      !reduce && motion === 'breathing' && breathingRate
-        ? Math.sin((t * 2 * Math.PI * breathingRate) / 60) * 0.012
-        : 0
+      !reduce && exercise
+        ? Math.sin(demoBreathPhase * 2 * Math.PI) * 0.012
+        : !reduce && motion === 'breathing' && breathingRate
+          ? Math.sin((t * 2 * Math.PI * breathingRate) / 60) * 0.012
+          : 0
     // Heartbeat: the two heart sounds, timed on the live beat when there is one.
     const period = 60 / Math.max(30, Math.min(200, heart.bpm || 60))
     const sinceBeat = heart.lastBeatAt !== null ? (now - heart.lastBeatAt) / 1000 : Infinity
-    const phase = sinceBeat < period * 3 ? (sinceBeat / period) % 1 : (t / period) % 1
+    const phase = exercise
+      ? demoBeatPhase
+      : sinceBeat < period * 3
+        ? (sinceBeat / period) % 1
+        : (t / period) % 1
     const bump = (c: number, w: number) => Math.exp(-(((phase - c) / w) ** 2))
-    const beat = reduce || motion !== 'heart' ? 0 : bump(0, 0.07) + bump(1, 0.07) + 0.55 * bump(0.24, 0.08)
+    const beat =
+      reduce || (!exercise && motion !== 'heart')
+        ? 0
+        : bump(0, 0.07) + bump(1, 0.07) + 0.55 * bump(0.24, 0.08)
 
     skin.visible = !!current && skinOpacity > 0
     const skinSeeThrough = skinOpacity < 1
@@ -806,7 +932,7 @@ function createStage(
     skinMaterial.opacity = skinOpacity
     shared.uSolidSkin.value = !skinSeeThrough
     const lensOpen = shared.uLens.value.w > 0.12
-    flow.value = motion === 'heart' && skinSeeThrough ? 0.35 + 0.65 * beat : 0
+    flow.value = (exercise || motion === 'heart') && skinSeeThrough ? 0.35 + 0.65 * beat : 0
     if (current) face?.updateLive(liveFace?.current ?? null, calibration)
     const portraitVisible = face?.portraitVisible ?? false
     const surfaceVisible = !!current && !skinSeeThrough
@@ -891,7 +1017,7 @@ function createStage(
       const node = dom.pinOf(p.id)
       if (!node) continue
       const spot = hot.find((x) => x.id === p.at)
-      if (!spot || layer !== 'signals' || isolated) {
+      if (!spot || layer !== 'signals' || isolated || depth > 0) {
         node.style.visibility = 'hidden'
         continue
       }
@@ -949,11 +1075,13 @@ function createStage(
   return {
     setBuild: (build) => {
       if (build === requestedBuild) return
+      zoomAnchor = null
       requestedBuild = build
       const revision = ++requestRevision
       current = reference = null
       skin.visible = organGroup.visible = false
       clearSurfaceDetails()
+      onInventory([])
       onCredit('')
       void loadBody(build).then((loaded) => {
         if (disposed || requestRevision !== revision) return
@@ -967,6 +1095,7 @@ function createStage(
       })
     },
     setDimensions: (next) => {
+      zoomAnchor = null
       const previous = dimensions
       dimensions = next
       const needsRefit =
@@ -1006,13 +1135,17 @@ function createStage(
     setOrgan: (name) => {
       if (name === isolated) return
       isolate(name)
-      if (!name) flyTo(1, 0)
+      if (!name && current) {
+        const stop = STOP_VIEW[Math.round(depth)]
+        flyTo(stop.zoom, (stop.at - 0.5) * current.height)
+      }
     },
     setView: (view, yaw = 0) => {
       flyTo(VIEWS[view].zoom, (VIEWS[view].at - 0.5) * (current?.height ?? 1.75))
       userRot = yaw
     },
     zoomBy: (factor) => {
+      zoomAnchor = null
       zoomTo *= factor
       clampView()
     },
@@ -1030,6 +1163,14 @@ function createStage(
     },
     setBreathingRate: (rate) => {
       breathingRate = rate
+    },
+    setExerciseMotion: (value, startedAt) => {
+      if (exercise === value && (startedAt === undefined || startedAt === exerciseStarted)) return
+      exercise = value
+      exerciseStarted = startedAt ?? performance.now()
+      demoSecond = -1
+      demoBeatPhase = demoBreathPhase = 0
+      if (value) flyTo(1, 0)
     },
     setMotion: (m) => {
       motion = m
@@ -1090,10 +1231,13 @@ export default function BodyScan({
   focusId,
   onPick,
   onOrgan,
+  onInventory,
   organ = null,
   physiology,
   restingBpm,
   breathingRate,
+  exerciseMotion = null,
+  exerciseStartedAt,
   layer,
   onLayer,
   avatar = null,
@@ -1101,6 +1245,7 @@ export default function BodyScan({
   calibration,
   initialView = 'full',
   studio = false,
+  portraitOnly = false,
   backdrop,
   children,
   insetBottom = 24,
@@ -1121,6 +1266,8 @@ export default function BodyScan({
   const organRef = useRef(onOrgan)
   organRef.current = onOrgan
   const [credit, setCredit] = useState('')
+  const [inventory, setInventory] = useState<string[]>([])
+  useEffect(() => onInventory?.(inventory), [onInventory, inventory])
   const [depth, setDepth] = useState(0)
   const [motion, setMotion] = useState<Motion>(breathingRate ? 'breathing' : 'heart')
 
@@ -1149,48 +1296,58 @@ export default function BodyScan({
           hoverLabel: () => hoverLabel.current,
         },
         setCredit,
+        setInventory,
         (id) => pickRef.current(id),
         (name) => organRef.current?.(name),
         !studio,
+        portraitOnly,
       )
     } catch {
-      return // No 3D support: the signal list still works.
+      setCredit('failed')
+      return // No 3D support: the rest of the screen remains available.
     }
     stage.current = s
     return () => {
       s.dispose()
       stage.current = null
     }
-  }, [studio])
+  }, [studio, portraitOnly])
 
-  useEffect(() => stage.current?.setBuild(build), [build, studio])
-  useEffect(() => stage.current?.setDimensions(dimensions), [dimensions, studio])
-  useEffect(() => stage.current?.setHotspots(hotspots), [hotspots, studio])
-  useEffect(() => stage.current?.setActive(activeId), [activeId, studio])
-  useEffect(() => stage.current?.setFocus(focusId), [focusId, studio])
-  useEffect(() => stage.current?.setOrgan(organ), [organ, studio])
-  useEffect(() => stage.current?.setLayer(layer), [layer, studio])
-  useEffect(() => stage.current?.setPhysiology(physiology), [physiology, studio])
-  useEffect(() => stage.current?.setHeart(heart), [heart, studio])
-  useEffect(() => stage.current?.setBreathingRate(breathingRate), [breathingRate, studio])
-  useEffect(() => stage.current?.setMotion(motion), [motion, studio])
-  useEffect(() => stage.current?.setAvatar(avatar), [avatar, studio])
-  useEffect(() => stage.current?.setFaceOptions(liveFace, calibration), [liveFace, calibration, studio])
-  useEffect(() => stage.current?.setView(initialView), [initialView, studio])
+  useEffect(() => stage.current?.setBuild(build), [build, studio, portraitOnly])
+  useEffect(() => stage.current?.setDimensions(dimensions), [dimensions, studio, portraitOnly])
+  useEffect(() => stage.current?.setHotspots(hotspots), [hotspots, studio, portraitOnly])
+  useEffect(() => stage.current?.setActive(activeId), [activeId, studio, portraitOnly])
+  useEffect(() => stage.current?.setFocus(focusId), [focusId, studio, portraitOnly])
+  useEffect(() => stage.current?.setOrgan(organ), [organ, studio, portraitOnly])
+  useEffect(() => stage.current?.setLayer(layer), [layer, studio, portraitOnly])
+  useEffect(() => stage.current?.setPhysiology(physiology), [physiology, studio, portraitOnly])
+  useEffect(() => stage.current?.setHeart(heart), [heart, studio, portraitOnly])
+  useEffect(() => stage.current?.setBreathingRate(breathingRate), [breathingRate, studio, portraitOnly])
+  useEffect(
+    () => stage.current?.setExerciseMotion(exerciseMotion, exerciseStartedAt),
+    [exerciseMotion, exerciseStartedAt, studio, portraitOnly],
+  )
+  useEffect(() => stage.current?.setMotion(motion), [motion, studio, portraitOnly])
+  useEffect(() => stage.current?.setAvatar(avatar), [avatar, studio, portraitOnly])
+  useEffect(
+    () => stage.current?.setFaceOptions(liveFace, calibration),
+    [liveFace, calibration, studio, portraitOnly],
+  )
+  useEffect(() => stage.current?.setView(initialView), [initialView, studio, portraitOnly])
   // The stage only needs the ids, anchors and sides; the cards themselves are React children.
   const pinKey = JSON.stringify(pins.map((p) => [p.id, p.at, p.side ?? '']))
   const latestPins = useRef(pins)
   latestPins.current = pins
   useEffect(() => {
     stage.current?.setPins(latestPins.current.map(({ id, at, side }) => ({ id, at, side })))
-  }, [pinKey, studio])
-  useEffect(() => stage.current?.setSideInset(sideInset), [sideInset, studio])
-  useEffect(() => stage.current?.setPaused(paused), [paused, studio])
+  }, [pinKey, studio, portraitOnly])
+  useEffect(() => stage.current?.setSideInset(sideInset), [sideInset, studio, portraitOnly])
+  useEffect(() => stage.current?.setPaused(paused), [paused, studio, portraitOnly])
   const avoidRight = pinAvoid?.right ?? 0
   const avoidBottom = pinAvoid?.bottom ?? 0
   useEffect(
     () => stage.current?.setPinBounds(insetBottom, { right: avoidRight, bottom: avoidBottom }),
-    [insetBottom, avoidRight, avoidBottom, studio],
+    [insetBottom, avoidRight, avoidBottom, studio, portraitOnly],
   )
 
   const goDepth = (d: number, fly: boolean) => {
@@ -1200,15 +1357,44 @@ export default function BodyScan({
   }
   const stopAt = Math.round(depth)
   const maxDepth = DEPTH_STOPS.length - 1
-  const heartShortcut = layer === 'signals' && stopAt === 2 && onOrgan && (
-    <button
-      type="button"
-      onClick={() => onOrgan('heart')}
-      aria-pressed={organ === 'heart'}
-      className="press shrink-0 rounded-full bg-black/65 px-3 py-1.5 text-[13px] font-medium text-white backdrop-blur-md hover:bg-white/20"
+  const shortcuts = layer === 'signals' && stopAt === 2 && onOrgan && (
+    <>
+      {inventory.some((name) => name.includes('lung')) && (
+        <button
+          type="button"
+          onClick={() => onOrgan('lungs')}
+          aria-pressed={organ === 'lungs'}
+          className="press shrink-0 rounded-full bg-black/65 px-3 py-1.5 text-[13px] font-medium text-white hover:bg-white/20"
+        >
+          Show lungs
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={() => onOrgan('heart')}
+        aria-pressed={organ === 'heart'}
+        className="press shrink-0 rounded-full bg-black/65 px-3 py-1.5 text-[13px] font-medium text-white backdrop-blur-md hover:bg-white/20"
+      >
+        Show heart
+      </button>
+    </>
+  )
+  const system = (['skin', 'vessels', 'organs', 'skeleton'] as const)[stopAt]
+  const choices = system === 'skin' ? [] : anatomyChoices(inventory, system)
+  const explorer = choices.length > 0 && layer === 'signals' && onOrgan && (
+    <select
+      aria-label="Explore anatomy"
+      value={organ && choices.includes(organ) ? organ : ''}
+      onChange={(event) => onOrgan(event.target.value || null)}
+      className="mt-1 max-w-full rounded-md bg-[#202226] px-2 py-1.5 text-[13px] text-white"
     >
-      Show heart
-    </button>
+      <option value="">Explore {DEPTH_STOPS[stopAt].toLowerCase()}…</option>
+      {choices.map((name) => (
+        <option key={name} value={name}>
+          {organNote(name).name}
+        </option>
+      ))}
+    </select>
   )
 
   const calloutData: { id: CalloutId; label: string; value: string; detail: string }[] = [
@@ -1228,13 +1414,13 @@ export default function BodyScan({
       id: 'bone',
       label: 'Hip and spine bone',
       value: `${fmt(physiology.bonePct - 100)}%`,
-      detail: 'Density since launch',
+      detail: 'Density since scenario start',
     },
     {
       id: 'muscle',
       label: 'Calf muscle',
       value: `${fmt(physiology.musclePct - 100)}%`,
-      detail: 'Volume since launch',
+      detail: 'Volume since scenario start',
     },
   ]
 
@@ -1244,9 +1430,11 @@ export default function BodyScan({
       className="scene body-stage relative h-full w-full"
       role="group"
       aria-label={
-        studio
-          ? 'Connected face and body preview. Drag to turn; use Head or Whole body to check the fit.'
-          : 'Body view. Use the depth control to go under the skin, then click an organ to see it alone.'
+        portraitOnly
+          ? '3D head preview'
+          : studio
+            ? 'Connected face and body preview. Drag to turn; use Head or Whole body to check the fit.'
+            : 'Body view. Use the depth control to go under the skin, then click an organ to highlight it.'
       }
     >
       {backdrop && (
@@ -1304,7 +1492,8 @@ export default function BodyScan({
           )
         })}
 
-      {layer === 'physiology' &&
+      {!exerciseMotion &&
+        layer === 'physiology' &&
         calloutData.map((c) => {
           const left = CALLOUT_LEFT.has(c.id)
           return (
@@ -1359,14 +1548,18 @@ export default function BodyScan({
           className="pointer-events-none absolute inset-0 z-[4] flex items-center justify-center px-8 text-center text-white"
           role="status"
         >
-          {credit === ''
-            ? 'Bringing in the 3D body…'
-            : 'The 3D body could not be loaded. The signals list still works.'}
+          {portraitOnly
+            ? credit === 'failed'
+              ? '3D preview unavailable. You can continue to your dashboard.'
+              : 'Loading your 3D head…'
+            : credit === ''
+              ? 'Bringing in the 3D body…'
+              : 'The 3D body could not be loaded. The signals list still works.'}
         </p>
       )}
 
       {/* Keep layer controls clear of the crew information on the left of the scene. */}
-      {!studio && (
+      {!studio && !exerciseMotion && (
         <div className="absolute top-24 right-4 z-[7] hidden w-[310px] rounded-2xl bg-black/45 p-3 text-white backdrop-blur-md sm:block lg:right-8">
           <div className="flex items-center justify-between text-[13px] text-white/75">
             Depth <span>{DEPTH_STOPS[stopAt]}</span>
@@ -1396,10 +1589,11 @@ export default function BodyScan({
               </button>
             ))}
           </div>
-          <div className="mt-2 flex items-center justify-between gap-2 border-t border-white/10 pt-2">
-            {heartShortcut || (
+          {explorer}
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-1 border-t border-white/10 pt-2">
+            {shortcuts || (
               <p className="text-[12px] text-white/65">
-                {depth < 0.5 ? 'Point at the body to look inside.' : 'Click an organ to isolate it.'}
+                {depth < 0.5 ? 'Point at the body to look inside.' : 'Select a structure to look closer.'}
               </p>
             )}
             <button
@@ -1414,7 +1608,7 @@ export default function BodyScan({
       )}
 
       {/* Phones: credits and depth controls share normal flow above the measured gauges. */}
-      {!studio && (
+      {!studio && !exerciseMotion && !organ && (
         <div
           className="pointer-events-none absolute inset-x-3 z-[6] flex flex-col items-start gap-2 sm:hidden"
           style={{ bottom: insetBottom + 8 }}
@@ -1445,80 +1639,83 @@ export default function BodyScan({
                 {label}
               </button>
             ))}
-            {heartShortcut}
+            {shortcuts}
+            {explorer}
           </div>
         </div>
       )}
 
-      <div
-        className={
-          studio
-            ? 'absolute inset-x-3 bottom-20 z-[5] flex flex-col items-center gap-3'
-            : 'absolute top-1/2 right-4 z-[5] hidden -translate-y-1/2 flex-col items-end gap-3 sm:flex lg:right-8'
-        }
-      >
-        {!studio && (
-          <Segmented
-            size="sm"
-            label="Body motion"
-            value={motion}
-            onChange={setMotion}
-            className="bg-black/40 backdrop-blur-md"
-            options={[
-              { id: 'still', label: 'Still' },
-              { id: 'heart', label: 'Heartbeat' },
-              { id: 'breathing', label: 'Breathing' },
-            ]}
-          />
-        )}
-        {!studio && motion === 'breathing' && (
-          <p className="max-w-[15rem] rounded-lg bg-black/65 px-3 py-1.5 text-right text-[13px] text-white">
-            {breathingRate
-              ? `Last webcam estimate · ${Math.round(breathingRate)} breaths/min`
-              : 'Measure your breathing to animate the chest.'}
-          </p>
-        )}
-        <div className="flex flex-wrap justify-center gap-1.5">
-          {studio &&
-            [-35, 35].map((degrees) => (
+      {!portraitOnly && !exerciseMotion && (
+        <div
+          className={
+            studio
+              ? 'absolute inset-x-3 bottom-20 z-[5] flex flex-col items-center gap-3'
+              : 'absolute top-1/2 right-4 z-[5] hidden -translate-y-1/2 flex-col items-end gap-3 sm:flex lg:right-8'
+          }
+        >
+          {!studio && (
+            <Segmented
+              size="sm"
+              label="Body motion"
+              value={motion}
+              onChange={setMotion}
+              className="bg-black/40 backdrop-blur-md"
+              options={[
+                { id: 'still', label: 'Still' },
+                { id: 'heart', label: 'Heartbeat' },
+                { id: 'breathing', label: 'Breathing' },
+              ]}
+            />
+          )}
+          {!studio && motion === 'breathing' && (
+            <p className="max-w-[15rem] rounded-lg bg-black/65 px-3 py-1.5 text-right text-[13px] text-white">
+              {breathingRate
+                ? `Last webcam estimate · ${Math.round(breathingRate)} breaths/min`
+                : 'Measure your breathing to animate the chest.'}
+            </p>
+          )}
+          <div className="flex flex-wrap justify-center gap-1.5">
+            {studio &&
+              [-35, 35].map((degrees) => (
+                <button
+                  key={degrees}
+                  aria-label={degrees < 0 ? 'View left cheek' : 'View right cheek'}
+                  onClick={() => stage.current?.setView('head', THREE.MathUtils.degToRad(degrees))}
+                  className="press h-9 rounded-full bg-black/40 px-3 text-[13px] text-white/80 backdrop-blur-md hover:text-white"
+                >
+                  {degrees < 0 ? 'Left ¾' : 'Right ¾'}
+                </button>
+              ))}
+            {(studio ? (['head', 'full'] as const) : (['head', 'chest', 'full'] as const)).map((view) => (
               <button
-                key={degrees}
-                aria-label={degrees < 0 ? 'View left cheek' : 'View right cheek'}
-                onClick={() => stage.current?.setView('head', THREE.MathUtils.degToRad(degrees))}
-                className="press h-9 rounded-full bg-black/40 px-3 text-[13px] text-white/80 backdrop-blur-md hover:text-white"
+                key={view}
+                onClick={() => stage.current?.setView(view)}
+                className="press h-9 rounded-full bg-black/40 px-3.5 text-[13px] text-white/80 backdrop-blur-md hover:text-white"
               >
-                {degrees < 0 ? 'Left ¾' : 'Right ¾'}
+                {view === 'full' ? 'Whole body' : view === 'head' ? 'Head' : 'Chest'}
               </button>
             ))}
-          {(studio ? (['head', 'full'] as const) : (['head', 'chest', 'full'] as const)).map((view) => (
             <button
-              key={view}
-              onClick={() => stage.current?.setView(view)}
-              className="press h-9 rounded-full bg-black/40 px-3.5 text-[13px] text-white/80 backdrop-blur-md hover:text-white"
+              onClick={() => stage.current?.zoomBy(1.4)}
+              aria-label="Zoom in"
+              className="press flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white/80 backdrop-blur-md hover:text-white"
             >
-              {view === 'full' ? 'Whole body' : view === 'head' ? 'Head' : 'Chest'}
+              <Plus size={15} />
             </button>
-          ))}
-          <button
-            onClick={() => stage.current?.zoomBy(1.4)}
-            aria-label="Zoom in"
-            className="press flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white/80 backdrop-blur-md hover:text-white"
-          >
-            <Plus size={15} />
-          </button>
-          <button
-            onClick={() => stage.current?.zoomBy(1 / 1.4)}
-            aria-label="Zoom out"
-            className="press flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white/80 backdrop-blur-md hover:text-white"
-          >
-            <Minus size={15} />
-          </button>
+            <button
+              onClick={() => stage.current?.zoomBy(1 / 1.4)}
+              aria-label="Zoom out"
+              className="press flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white/80 backdrop-blur-md hover:text-white"
+            >
+              <Minus size={15} />
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {children}
 
-      {credit && credit !== 'failed' && (
+      {!exerciseMotion && credit && credit !== 'failed' && (
         <p
           className={`on-photo pointer-events-none absolute right-4 z-[5] max-w-[46ch] text-right text-[11.5px] leading-snug text-white/60 lg:right-8 ${studio ? '' : 'hidden sm:block'}`}
           style={{ bottom: insetBottom }}

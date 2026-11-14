@@ -87,7 +87,7 @@ const METRICS: MetricDef[] = [
   },
   {
     key: 'dose',
-    label: 'Radiation dose since launch',
+    label: 'Radiation dose in this scenario',
     unit: 'mSv',
     decimals: 0,
     value: (p) => p.doseMSv,
@@ -260,7 +260,7 @@ function MetricCard({
   const value = def.value(now)
   const change =
     def.key === 'bone' || def.key === 'muscle'
-      ? `${(value - 100).toFixed(1)}% since launch`
+      ? `${(value - 100).toFixed(1)}% since scenario start`
       : def.key === 'dose'
         ? `${(now.doseCareerShare * 100).toFixed(0)}% of the career limit`
         : `${Math.round(now.fluidShiftShare * 100)}% of the full weightless shift`
@@ -465,7 +465,7 @@ export default function PhysiologyLab({
     <section className="@container" aria-label="Physiology simulator">
       <SectionHeader
         title="Physiology simulator"
-        detail="Fluid shift, bone, muscle and radiation dose, computed from gravity, mission day, exercise and dose rate. The body shows them while this panel is open."
+        detail="Gravity, exercise and radiation drive these illustrative projections. Long-term partial-gravity effects on a person remain unvalidated."
         action={
           <Segmented
             label="Mission profile"

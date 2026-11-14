@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { REGIONS, averageSkin, headMotion, insidePolygon, regionPolygons, type Polygon } from './skinRegions'
+import {
+  PULSE_MOTION_LIMIT,
+  REGIONS,
+  averageSkin,
+  headMotion,
+  insidePolygon,
+  regionPolygons,
+  type Polygon,
+} from './skinRegions'
 import type { FacePoint } from '../face/faceMesh'
 
 const square: Polygon = [
@@ -65,5 +73,8 @@ describe('skin regions', () => {
     const b = a.map((p) => ({ ...p, x: p.x + 0.03 }))
     expect(headMotion(a, a)).toBe(0)
     expect(headMotion(a, b)).toBeCloseTo(0.03, 9)
+    const smallShift = a.map((p) => ({ ...p, x: p.x + 0.0128 }))
+    expect(headMotion(a, smallShift)).toBeLessThan(PULSE_MOTION_LIMIT)
+    expect(headMotion(a, b)).toBeGreaterThan(PULSE_MOTION_LIMIT)
   })
 })

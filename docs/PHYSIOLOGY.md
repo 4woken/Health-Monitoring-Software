@@ -66,7 +66,7 @@ A profile is a list of phases, each with its own gravity and dose rate. The engi
 
 The panel offers three profiles:
 
-- **This setting** (the default): the current destination for the 90 days of the mission. Its day follows the mission day of the top bar.
+- **This setting** (the default): the current destination for its configured number of Earth days. Its day follows the top-bar slider. Orbit covers 180 days, the lunar surface 3, Mars cruise 203 and Mars surface 500. The last scenario is a design study. Each starts with its own baseline.
 - **ISS 6 months**: 180 days at 0 g and 0.73 mSv a day.
 - **Mars mission**, a conjunction mission: 180 days of cruise (0 g, 1.8 mSv a day), 500 days on the surface (0.38 g, 0.67 mSv a day), 180 days of cruise home.
 

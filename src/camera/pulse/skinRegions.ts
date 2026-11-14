@@ -105,6 +105,10 @@ export function averageSkin(
   return { r: r / count, g: g / count, b: b / count, count }
 }
 
+/** Allow a small frame-to-frame head shift before pausing the displayed reading.
+ * Expressed as a fraction of the image dimensions, matching headMotion(). */
+export const PULSE_MOTION_LIMIT = 0.0132
+
 /** Mean movement of the motion points between two frames, in shares of the image size. */
 export function headMotion(previous: readonly FacePoint[], current: readonly FacePoint[]): number {
   let sum = 0

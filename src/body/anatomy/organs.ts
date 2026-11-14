@@ -28,15 +28,21 @@ const NOTES: Record<string, OrganNote> = {
   },
   'blood vessels': {
     name: 'Blood vessels',
-    role: 'Arteries carry blood away from the heart; veins bring it back.',
+    role: 'Arteries carry blood away from the heart and veins bring it back.',
     inSpace: 'Without gravity about two litres of fluid move toward the chest and head.',
     layer: 'vessels',
   },
   arteries: {
     name: 'Arteries',
-    role: 'Carry oxygen-rich blood from the heart to every part of the body, from the carotids in the neck to the feet.',
+    role: 'Carry blood away from the heart. Systemic arteries supply the head, trunk and limbs.',
     inSpace:
       'Without gravity the pressure no longer differs between head and feet, and the arteries of the neck and head see more blood than on Earth.',
+    layer: 'vessels',
+  },
+  'leg veins': {
+    name: 'Leg and foot veins',
+    role: 'Deep veins and superficial veins return blood from the feet, calves and thighs toward the pelvis.',
+    inSpace: 'The standing pressure difference between feet and chest falls in weightlessness.',
     layer: 'vessels',
   },
   veins: {
@@ -103,6 +109,25 @@ const NOTES: Record<string, OrganNote> = {
     role: 'Processes nutrients and medicines and filters the blood.',
     inSpace: 'Medicines can behave differently in flight, one reason the onboard supply is chosen with care.',
     layer: 'organs',
+  },
+  pancreas: {
+    name: 'Pancreas',
+    role: 'Releases digestive enzymes and makes hormones, including insulin, that help regulate blood sugar.',
+    inSpace: 'Open the blood sugar reading to see the value and how it was obtained.',
+    layer: 'organs',
+  },
+  spleen: {
+    name: 'Spleen',
+    role: 'Filters old blood cells and helps the immune system respond to infection.',
+    inSpace: 'The check-up follows immune signals over time. This model shows the position of the spleen.',
+    layer: 'organs',
+  },
+  'costal cartilage': {
+    name: 'Costal cartilage',
+    role: 'Flexible cartilage extends from the front of the ribs and lets the chest wall move with each breath.',
+    inSpace:
+      'Use the breathing tool to follow breathing rate. The cartilage shown here is reference anatomy.',
+    layer: 'skeleton',
   },
   stomach: {
     name: 'Stomach',
@@ -212,8 +237,25 @@ export function organNote(meshName: string): OrganNote {
 /** Depth stops from the outside in, as in anatomy atlases. */
 export const DEPTH_STOPS = ['Skin', 'Vessels', 'Organs', 'Skeleton'] as const
 
-/** At a stop only that layer is drawn. Dragging blends its two neighbours. */
+/** The selected system is opaque. Faint surrounding tissue gives it a location within the body. */
 export function depthOpacity(layer: 'skin' | DepthLayer, depth: number): number {
   const stop = { skin: 0, vessels: 1, organs: 2, skeleton: 3 }[layer]
-  return Math.max(0, 1 - Math.abs(depth - stop))
+  const focus = Math.max(0, 1 - Math.abs(depth - stop))
+  const context = (layer === 'skin' ? 0.115 : 0.055) * Math.min(1, depth)
+  return focus + (1 - focus) * context
+}
+
+/** Older atlases store both lungs together. Newer ones allow inspection of either lung. */
+export function matchesAnatomySelection(mesh: string, selection: string) {
+  if (mesh === selection) return true
+  if (selection === 'veins') return mesh.includes('vein')
+  if (selection === 'arteries') return mesh === 'aorta'
+  return selection === 'lungs' && (mesh === 'left lung' || mesh === 'right lung')
+}
+
+export function anatomyChoices(names: string[], layer: DepthLayer): string[] {
+  const available = names.filter((name) => organNote(name).layer === layer)
+  if (available.includes('left lung') && available.includes('right lung') && !available.includes('lungs'))
+    available.push('lungs')
+  return available.sort((a, b) => organNote(a).name.localeCompare(organNote(b).name))
 }

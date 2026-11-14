@@ -1,10 +1,9 @@
 import { useState, type FormEvent } from 'react'
-import { Camera, UserPlus } from '@phosphor-icons/react'
+import { UserPlus } from '@phosphor-icons/react'
 import type { Build } from '../body/anatomy/bodyShape'
-import FaceFitter from '../camera/face/FaceFitter'
 import { HABITATS } from '../mission/habitats'
 import { Button, Segmented } from '../ui'
-import { MannequinPreview, useCrew } from './CrewProvider'
+import { useCrew } from './CrewProvider'
 import { BodySizeFields, parseSizeDraft, sizeDraft } from './BodySizeFields'
 import {
   PROFILE_LIMITS,
@@ -13,7 +12,6 @@ import {
   flightHistoryError,
   newMember,
   validRestingPulse,
-  type Member,
   type Role,
 } from './roster'
 
@@ -39,7 +37,6 @@ export default function NewMember({
   const [rememberPulse, setRememberPulse] = useState(false)
   const [role, setRole] = useState<Role>('Mission specialist')
   const [build, setBuild] = useState<Build>('male')
-  const [member, setMember] = useState<Member | null>(null)
   const [dimensions, setDimensions] = useState(() => sizeDraft())
   const { valid, values } = parseSizeDraft(dimensions)
   const profile = {
@@ -67,26 +64,6 @@ export default function NewMember({
     crew.setSize(m.id, values, dimensions.remember)
     return m
   }
-
-  if (member)
-    return (
-      <div className="pt-4">
-        <MannequinPreview id={member.id}>
-          <FaceFitter
-            person={member.short}
-            build={member.build}
-            avatar={crew.faceOf(member.id)}
-            onCapture={(capture) => {
-              crew.setFace(member.id, capture)
-              onDone(member.id)
-            }}
-            onRemove={() => crew.setFace(member.id, null)}
-            onSkip={() => onDone(member.id)}
-            skipLabel="Skip the face for now"
-          />
-        </MannequinPreview>
-      </div>
-    )
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
@@ -272,17 +249,7 @@ export default function NewMember({
         <div className="flex flex-wrap items-center gap-2">
           <Button kind="primary" type="submit" disabled={!ready}>
             <UserPlus size={16} />
-            Add member
-          </Button>
-          <Button
-            type="button"
-            disabled={!ready}
-            onClick={(event) => {
-              if (event.currentTarget.form?.reportValidity()) setMember(create())
-            }}
-          >
-            <Camera size={16} />
-            Add with a face
+            Continue to face setup
           </Button>
           <Button kind="ghost" type="button" onClick={onCancel}>
             Cancel

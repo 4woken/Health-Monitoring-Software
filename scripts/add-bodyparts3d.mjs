@@ -1,6 +1,6 @@
 // Completes the male reference body with BodyParts3D bones and vessels.
 //
-// Adds the skull, rib cage, shoulder girdle, arm, pelvis and leg bones, all arteries and veins
+// Adds the skull, rib cage, shoulder girdle, arm, pelvis and leg bones, labelled arteries and veins
 // (red and blue), and both internal jugular veins along the neck. The spine, the aorta and the
 // organs already in public/anatomy stay as they are; the single "blood vessels" mesh is replaced.
 //
@@ -26,39 +26,37 @@ if (!objDir || !fs.existsSync(objDir)) {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const ANATOMY = path.join(ROOT, 'public/anatomy')
 
-const NOT_BONE = /artery|vein|nerve|muscle|lobule|gyrus|ligament|tendon|sinus of/i
+// Mesh headers contain anatomical names such as "levator scapulae" and "iliotibial
+// tract". Match complete bone names, including the named trapezium and trapezoid.
+const groupsByName = {
+  skull:
+    /^(?:(?:left |right )?(?:frontal|parietal|occipital|temporal|sphenoid|zygomatic|nasal|lacrimal|palatine|hyoid) bone|ethmoid|vomer|(?:left |right )?(?:maxilla|inferior nasal concha)|mandible)$/i,
+  'rib cage':
+    /^(?:(?:left|right) (?:first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|eleventh|twelfth) rib|body of sternum|manubrium|xiphoid process)$/i,
+  'costal cartilage': /^(?:left|right) (?:first|second|third|fourth|fifth|sixth|seventh) costal cartilage$/i,
+  'shoulder girdle': /^(?:left|right) (?:scapula|clavicle)$/i,
+  'arm bones':
+    /^(?:(?:left|right) (?:humerus|radius|ulna|scaphoid|lunate|triquetral|pisiform|trapezium|trapezoid|capitate|hamate|(?:first|second|third|fourth|fifth) metacarpal bone)|(?:proximal|middle|distal) phalanx of (?:left|right) (?:thumb|(?:index|middle|ring|little) finger))$/i,
+  pelvis: /^(?:right|left) hip bone$/i,
+  'leg bones':
+    /^(?:(?:left|right) (?:femur|patella|tibia|fibula|talus|calcaneus|cuboid bone|(?:medial|intermediate|lateral) cuneiform bone|(?:first|second|third|fourth|fifth) metatarsal bone)|navicular bone of (?:left|right) foot|(?:proximal|middle|distal) phalanx of (?:left|right) (?:big|second|third|fourth|little) toe)$/i,
+}
+const errors = {
+  skull: 0.0007,
+  'rib cage': 0.0009,
+  'costal cartilage': 0.0009,
+  'shoulder girdle': 0.0009,
+  'arm bones': 0.0006,
+  pelvis: 0.0009,
+  'leg bones': 0.0008,
+}
 const GROUPS = [
-  {
-    name: 'skull',
-    test: (n) =>
-      /\b(frontal|parietal|occipital|temporal|sphenoid|zygomatic|nasal|lacrimal|palatine) bone\b|^ethmoid$|^vomer$|maxilla$|^mandible$|^hyoid bone$|inferior nasal concha|\btooth\b|\bteeth\b/i.test(
-        n,
-      ) && !NOT_BONE.test(n),
-    error: 0.0007,
-  },
-  {
-    name: 'rib cage',
-    test: (n) => /\brib\b|sternum|manubrium|xiphoid|costal cartilage/i.test(n) && !NOT_BONE.test(n),
-    error: 0.0009,
-  },
-  { name: 'shoulder girdle', test: (n) => /clavicle|scapula/i.test(n) && !NOT_BONE.test(n), error: 0.0009 },
-  {
-    name: 'arm bones',
-    test: (n) =>
-      /humerus|\bradius\b|\bulna\b|scaphoid|lunate|triquetr|pisiform|trapezi|capitate|hamate|metacarpal|phalanx of .*(finger|thumb)/i.test(
-        n,
-      ) && !NOT_BONE.test(n),
-    error: 0.0006,
-  },
-  { name: 'pelvis', test: (n) => /hip bone/i.test(n) && !NOT_BONE.test(n), error: 0.0009 },
-  {
-    name: 'leg bones',
-    test: (n) =>
-      /femur|patella|tibia|fibula|talus|calcaneus|navicular|cuboid|cuneiform|metatarsal|phalanx of .*toe/i.test(
-        n,
-      ) && !NOT_BONE.test(n),
-    error: 0.0008,
-  },
+  ...Object.entries(groupsByName).map(([name, pattern]) => ({
+    name,
+    test: (part) => pattern.test(part),
+    error: errors[name],
+  })),
+  { name: 'pancreas', test: (name) => /^pancreas$/i.test(name), error: 0.0006 },
   {
     name: 'arteries',
     test: (n) =>
@@ -193,7 +191,47 @@ function buildGroup(group) {
   }
 }
 
-const built = GROUPS.map(buildGroup)
+// Detect changes to the published archive or the inclusion rules before writing.
+const expectedBones = {
+  skull: 24,
+  'rib cage': 27,
+  'costal cartilage': 14,
+  'shoulder girdle': 4,
+  'arm bones': 60,
+  pelvis: 2,
+  'leg bones': 60,
+}
+for (const group of GROUPS.filter((g) => g.name in expectedBones)) {
+  const count = parts.filter((p) => group.test(p.name)).length
+  if (count !== expectedBones[group.name])
+    throw new Error(group.name + ': expected ' + expectedBones[group.name] + ' source surfaces, got ' + count)
+}
+const built = GROUPS.map((group) => {
+  if (group.name !== 'leg bones') return buildGroup(group)
+  // Retain the source distinction so the female atlas can supply the thigh and
+  // lower leg while its transferred BodyParts3D ankle and foot remain intact.
+  const longBone = / (?:femur|patella|tibia|fibula)$/i
+  const upper = buildGroup({ ...group, test: (n) => group.test(n) && longBone.test(n) })
+  const foot = buildGroup({ ...group, test: (n) => group.test(n) && !longBone.test(n) })
+  const footVertexStart = upper.positions.length / 3
+  const positions = new Float32Array(upper.positions.length + foot.positions.length)
+  positions.set(upper.positions)
+  positions.set(foot.positions, upper.positions.length)
+  const indices = new Uint32Array(upper.indices.length + foot.indices.length)
+  indices.set(upper.indices)
+  indices.set(
+    foot.indices.map((i) => i + footVertexStart),
+    upper.indices.length,
+  )
+  return {
+    name: group.name,
+    positions,
+    indices,
+    footVertexStart,
+    parts: upper.parts + foot.parts,
+    trisBefore: upper.trisBefore + foot.trisBefore,
+  }
+})
 
 // Internal jugular veins. BodyParts3D has only a short segment of the right one, at the base of the
 // neck. Each vein is drawn as a tube that starts on that segment (mirrored for the left) and runs
@@ -284,6 +322,7 @@ for (const [build, body] of Object.entries(manifest.bodies)) {
         idx: put(g.indices),
         tris: g.indices.length / 3,
         center: centerOf(g.positions),
+        ...(g.footVertexStart !== undefined && { footVertexStart: g.footVertexStart }),
       })
   bodies[build] = { ...body, skin: copyRef(body.skin), organs }
 }

@@ -11,6 +11,7 @@ import {
   Vector3,
   type WebGLProgramParametersWithUniforms,
 } from 'three'
+import type { Build } from '../anatomy/bodyShape'
 import type { Body } from '../anatomy/loadAnatomy'
 import type { HeadFrame } from '../portrait/headFit'
 import { registeredHeadTemplate } from '../portrait/headFit'
@@ -54,7 +55,7 @@ function scalpMask(p: Vector3, n: Vector3, head: HeadFrame, height: number) {
   )
 }
 
-function bodyHairMask(p: Vector3, n: Vector3, height: number) {
+function bodyHairMask(p: Vector3, n: Vector3, height: number, build: Build) {
   const y = p.y / height,
     x = Math.abs(p.x / height),
     z = p.z / height
@@ -67,7 +68,15 @@ function bodyHairMask(p: Vector3, n: Vector3, height: number) {
     (1 - ramp(0.049, 0.089, x)) *
     ramp(0.021, 0.043, z) *
     ramp(0.2, 0.62, n.z)
-  return Math.max(leg * 0.72, arm * 0.74, chest)
+  const abdomen =
+    ramp(0.48, 0.53, y) * (1 - ramp(0.6, 0.68, y)) * (1 - ramp(0.009, 0.032, x)) * ramp(0.25, 0.72, n.z)
+  const finer = build === 'female'
+  return Math.max(
+    leg * (finer ? 0.42 : 0.83),
+    arm * (finer ? 0.47 : 0.86),
+    chest * (finer ? 0 : 1),
+    abdomen * (finer ? 0 : 0.72),
+  )
 }
 
 function makeRegions(body: Body, skin: BufferGeometry) {
@@ -90,7 +99,7 @@ function makeRegions(body: Body, skin: BufferGeometry) {
     p.fromBufferAttribute(positions, v)
     n.fromBufferAttribute(normals, v)
     scalp[v] = scalpMask(p, n, head, body.height)
-    if (body.build === 'male') bodyHair[v] = bodyHairMask(p, n, body.height)
+    bodyHair[v] = bodyHairMask(p, n, body.height, body.build)
   }
   const scalpMap = new Map<number, number>(),
     bodyMap = new Map<number, number>()
@@ -126,7 +135,7 @@ function makeRegions(body: Body, skin: BufferGeometry) {
       b = index.getX(i + 1),
       c = index.getX(i + 2)
     addFace(regions.scalp, scalpMap, scalp, a, b, c)
-    if (body.build === 'male') addFace(regions.body, bodyMap, bodyHair, a, b, c)
+    addFace(regions.body, bodyMap, bodyHair, a, b, c)
     if (eyePatch && (eyePatch.getX(a) > 0.5 || eyePatch.getX(b) > 0.5 || eyePatch.getX(c) > 0.5)) continue
     if (
       Math.max(positions.getY(a), positions.getY(b), positions.getY(c)) < head.y - 0.02 ||
@@ -309,6 +318,17 @@ export function createBodyGroom(body: Body, skin: BufferGeometry, patch?: Patch)
     geometry.setAttribute('normal', norm)
     geometry.setAttribute('groomRest', new BufferAttribute(rest, 3))
     geometry.setAttribute('groomMask', new BufferAttribute(masks, 1))
+    const skinArms = skin.getAttribute('exerciseArms')
+    if (skinArms) {
+      const weights = new Float32Array(r.vertices.length * 2)
+      r.vertices.forEach(({ source }, i) => {
+        for (let j = 0; j < 3; j++) {
+          weights[i * 2] += skinArms.getX(source.indices[j]) * source.weights[j]
+          weights[i * 2 + 1] += skinArms.getY(source.indices[j]) * source.weights[j]
+        }
+      })
+      geometry.setAttribute('exerciseArms', new BufferAttribute(weights, 2))
+    }
     if (r.kind === 'brow' || r.kind === 'lash') {
       geometry.setAttribute(
         'groomRibbon',

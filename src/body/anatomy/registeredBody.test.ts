@@ -65,3 +65,30 @@ it.each(['female', 'male'] as const)('keeps the %s internal meshes connected loc
     expect(maxExtension, organ.name).toBeLessThan(0.045)
   }
 })
+
+it.each(['male', 'female'] as const)(
+  'ships lower-limb veins from both thighs to the feet in the %s pack',
+  (build) => {
+    const base = 'public/human/' + build + '-organs'
+    const bytes = raw(base + '.bin')
+    const { organs } = JSON.parse(readFileSync(base + '.json', 'utf8')) as { organs: PackedMesh[] }
+    const legs = organs.find((o) => o.name === 'leg veins')!
+    expect(legs).toBeDefined()
+    const packed = new Uint16Array(bytes, legs.pos, legs.verts * 3)
+    const bands = [0.06, 0.3, 0.6]
+    for (const side of [-1, 1]) {
+      for (const band of bands) {
+        let present = false
+        for (let i = 0; i < packed.length; i += 3) {
+          const x = legs.offset[0] + packed[i] * legs.scale[0]
+          const y = legs.offset[1] + packed[i + 1] * legs.scale[1]
+          if (side * x > 0.015 && Math.abs(y - band) < 0.03) {
+            present = true
+            break
+          }
+        }
+        expect(present, build + ' leg veins at ' + band + ' m on side ' + side).toBe(true)
+      }
+    }
+  },
+)

@@ -1,5 +1,7 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { ArrowClockwise, Check, Plus, X } from '@phosphor-icons/react'
+import type { HabitatId } from '../mission/habitats'
+import type { OnExerciseDemo } from '../exercises/demoVitals'
 import type { Member } from '../crew/roster'
 import type { SignalId } from '../health/signals'
 import { dayReport } from '../health/readings'
@@ -24,8 +26,14 @@ export default function CheckupScreen({
   day,
   onShow,
   exerciseInterest,
+  habitat,
+  gravity,
+  onDemo,
 }: {
   member: Member
+  habitat: HabitatId
+  gravity: number
+  onDemo: OnExerciseDemo
   mission: MissionId
   day: number
   /** Shows the part of the body a task is about. */
@@ -65,6 +73,9 @@ export default function CheckupScreen({
       <div className="pt-6">
         <ExerciseMissions
           key={`${member.id}:${mission}:${day}`}
+          habitat={habitat}
+          gravity={gravity}
+          onDemo={onDemo}
           memberId={member.id}
           person={member.short}
           interest={exerciseInterest}

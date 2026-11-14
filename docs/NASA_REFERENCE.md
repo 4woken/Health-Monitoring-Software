@@ -52,6 +52,6 @@ The factors follow NASA's hazards of human spaceflight: radiation, isolation and
 
 ## Limits
 
-- The schedule is the ISS one, written for flights of about six months. Pulsar's mission lasts 90 days and uses the same flight days. One-year flights add eye exams and health checks on days 180 and 270.
+- The schedule is the ISS one, written for flights of about six months. Pulsar uses selected flight days from this reference across its scenarios. The dashboard duration varies from 3 to 500 Earth days by destination. One-year flights add eye exams and health checks on days 180 and 270.
 - NASA has no medical requirements yet for long stays on the Moon or Mars. Pulsar applies the ISS ones there.
 - This is an educational prototype, not a medical device.

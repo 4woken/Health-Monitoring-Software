@@ -472,3 +472,22 @@ input[type='range'].day-range::-moz-range-thumb {
 .body-pin[data-side='left'] .body-pin-card {
   right: var(--lead);
 }
+
+/* The check-up and the same WebGL stage share the viewport during avatar exercises. */
+.body-for-exercise {
+  width: calc(100% - var(--checkup-width));
+  height: 100dvh;
+  padding-top: 4rem;
+}
+
+@media (max-width: 899px) {
+  .body-for-exercise {
+    width: 100%;
+    height: calc(4rem + 39dvh);
+  }
+  .drawer-with-avatar {
+    top: calc(4rem + 39dvh);
+    max-width: 100% !important;
+    border-top: 1px solid rgb(255 255 255 / 0.14);
+  }
+}

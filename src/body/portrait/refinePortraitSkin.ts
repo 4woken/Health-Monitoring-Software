@@ -84,12 +84,12 @@ export function refinePortraitSkin(skin: BufferGeometry, head: HeadFrame): Buffe
     refined.setAttribute(attr, new BufferAttribute(values, 3))
   }
   // Keep source UV seams and baked skin-region weights on subdivided triangles.
-  for (const name of ['uv', 'skinDetail']) {
+  for (const name of ['uv', 'skinDetail', 'exerciseArms']) {
     const source = skin.getAttribute(name)
     if (!source) continue
     const size = source.itemSize
     const values =
-      name === 'skinDetail'
+      source.array instanceof Uint8Array
         ? new Uint8Array((count + midpointSources.length) * size)
         : new Float32Array((count + midpointSources.length) * size)
     values.set(source.array)

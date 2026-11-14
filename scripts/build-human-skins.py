@@ -171,6 +171,24 @@ ALBEDO_SHA256 = {
 }
 
 
+def bake_arm_weights(weights, corners):
+    """Bake shoulder and elbow influence shared by the two hm08 skin topologies."""
+    result = np.zeros((int(corners.max()) + 1, 2))
+    for bone, entries in weights.items():
+        upper = bone.startswith("upperarm_")
+        distal = bone.startswith(
+            ("lowerarm_", "hand_", "index_", "middle_", "ring_", "pinky_", "thumb_")
+        )
+        if upper or distal:
+            ids, w = np.asarray(entries).T
+            keep = ids < len(result)
+            ids = ids[keep].astype(int)
+            result[ids, 0] += w[keep]
+            if distal:
+                result[ids, 1] += w[keep]
+    return np.uint8(np.rint(255 * np.clip(result[corners], 0, 1)))
+
+
 def bake(sources):
     OUT.mkdir(parents=True, exist_ok=True)
     for sex, digest in ALBEDO_SHA256.items():
@@ -188,6 +206,9 @@ def bake(sources):
     skin_indices = np.unique(faces[:, :, 0])
     corners, inverse = np.unique(faces.reshape(-1, 2), axis=0, return_inverse=True)
     indices = inverse.reshape(-1, 3)
+    (OUT / "arm-weights.bin").write_bytes(
+        bake_arm_weights(weights, corners[:, 0]).tobytes()
+    )
     uv = uv[corners[:, 1]]
     # Official UV masks identify each lip and nail polygon. Give all of its
     # rendered vertices, including seam duplicates, the same region membership.

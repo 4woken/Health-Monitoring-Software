@@ -65,6 +65,8 @@ export function createPersonalFace(
     const count = patch.getAttribute('position').count
     if (skin.hasAttribute('uv'))
       patch.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(count * 2), 2))
+    if (skin.hasAttribute('exerciseArms'))
+      patch.setAttribute('exerciseArms', new THREE.BufferAttribute(new Uint8Array(count * 2), 2, true))
     if (skin.hasAttribute('skinDetail'))
       patch.setAttribute('skinDetail', new THREE.BufferAttribute(new Uint8Array(count * 4), 4, true))
   }

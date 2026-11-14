@@ -11,7 +11,7 @@ import { useSyncExternalStore } from 'react'
 import type { FaceLandmarker } from '@mediapipe/tasks-vision'
 import type { FacePoint } from '../face/faceMesh'
 import { BpmSmoother, RPPG, estimate, type RgbSample } from './rppg'
-import { averageSkin, headMotion, regionPolygons } from './skinRegions'
+import { averageSkin, headMotion, PULSE_MOTION_LIMIT, regionPolygons } from './skinRegions'
 
 export type PulsePhase = 'off' | 'loading' | 'permission' | 'searching' | 'warming' | 'measuring' | 'error'
 
@@ -62,8 +62,6 @@ const PUBLISH_MS = 110
 const KEEP_MS = (RPPG.spectrumWindowS + 2) * 1000
 /** A pause longer than this restarts the signal: interpolating across it would invent data. */
 const MAX_GAP_MS = 1000
-/** Head movement per frame (share of the image) above which the frame is skipped. */
-const MOTION_LIMIT = 0.012
 /** Face missing for longer than this resets the signal. */
 const LOST_FACE_MS = 800
 
@@ -327,7 +325,7 @@ function analyse(s: Session, now: number) {
   s.faceMissingSince = null
   const previous = s.lastPoints
   s.lastPoints = points
-  if (previous && headMotion(previous, points) > MOTION_LIMIT) {
+  if (previous && headMotion(previous, points) > PULSE_MOTION_LIMIT) {
     s.movedAt = now
     return
   }
@@ -371,6 +369,20 @@ function publish(s: Session, now: number) {
   const fresh = last && now - last.t <= MAX_GAP_MS && s.faceMissingSince === null
   const seconds = fresh && first ? (last.t - first.t) / 1000 : 0
   const moving = now - s.movedAt < 1500
+  if (moving) {
+    s.smoother.reset()
+    set({
+      phase: 'warming',
+      comparison: null,
+      message: 'Hold still. Movement hides the pulse signal.',
+      bpm: null,
+      quality: 0,
+      wave: [],
+      lastBeatAt: null,
+      fps,
+    })
+    return
+  }
   const e = seconds >= 3 ? estimate(s.samples) : null
 
   if (seconds < RPPG.warmupSeconds) {
@@ -378,9 +390,7 @@ function publish(s: Session, now: number) {
     set({
       phase: 'warming',
       comparison: null,
-      message: moving
-        ? 'Hold still. Movement hides the pulse signal.'
-        : `Reading your pulse… ${share}%. Hold still.`,
+      message: `Reading your pulse… ${share}%. Hold still.`,
       bpm: null,
       quality: e?.quality ?? 0,
       wave: e?.wave ?? [],
@@ -405,9 +415,7 @@ function publish(s: Session, now: number) {
       : null,
     message: good
       ? 'Live estimate from skin colour · not a medical measurement'
-      : moving
-        ? 'Hold still. Movement hides the pulse signal.'
-        : 'Weak signal. Keep your face still and evenly lit, without light behind you.',
+      : 'Weak signal. Keep your face still and evenly lit, without light behind you.',
     bpm,
     quality: e?.quality ?? 0,
     wave: e?.wave ?? [],

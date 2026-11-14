@@ -19,11 +19,9 @@ npm ci
 npm run dev
 ```
 
-Open <http://localhost:5173>. Pulsar opens on the body of the last person shown, Lucas the first time. The small menu with their name at the top left switches to **Enzo**, **Nassim** or **Youssef**. Nobody signs in and every profile is open to everyone.
+Open <http://localhost:5173>. **Who's on board?** lets you select Lucas, Enzo, Nassim or Youssef, or add a crew member. The next screen shows the profile’s 3D head. Choose a reference body, enter height and weight, and optionally use **Connect webcam** to fit your portrait. Once a stable face is captured, the camera stops. **Next** opens the dashboard with the same face. Profile selection is local and does not authenticate identity.
 
-Choose **Add a crew member** in that menu to set up a profile. You can enter a call sign, specialty, completed spaceflights and total days in space before the current mission. Leave unknown values blank. You can create a member directly or add a face with the camera.
-
-Enter height, weight, chest circumference and waist circumference during creation, or later with **Edit body dimensions** in the same menu. Each value is optional. Height sets the model’s scale. Weight approximates overall width, while the two circumferences adjust the torso. Measurements stay in the session unless you choose to remember them on this device.
+New profiles can include a call sign, specialty, flight history, chest and waist measurements. Beside the dashboard avatar, **Avatar dimensions** updates height and weight. The crew menu also opens the full measurement editor. Height scales the model, weight approximates overall width, and chest and waist refine the torso. Measurements stay in the session unless you choose to remember them on this device.
 
 You can also enter your resting pulse measured before the mission. In **Camera → Pulse camera**, a sufficiently clear live reading shows the difference from that personal reference in beats per minute. The reference is optional and is only saved across visits when you choose to remember it. NASA has used resting heart rate before flight as a reference for comparisons. [Biomedical Results of Apollo](https://ntrs.nasa.gov/api/citations/19760005580/downloads/19760005580.pdf).
 
@@ -38,7 +36,7 @@ NASA’s astronaut health surveillance tracks spaceflight exposure over time, in
 
 ## What you can do
 
-**One screen.** The body stays on screen. The check-up, the camera tools and every detail open over it and close back to it.
+**One dashboard.** Select Skin, Vessels, Organs or Skeleton. Other tissues stay faint below the skin. Use **Explore anatomy** to select deeper structures or **Show lungs** to see both lungs. Wheel and pinch zoom follow the pointer or the midpoint of the gesture. The check-up, the camera tools and every detail open over it and close back to it.
 
 - **What to do today**, at the top left, lists the recommendations of the day: exercise, stretching in the first weeks of weightlessness, the heart, fatigue, stress, hydration, the eyes, the air, radiation, food and infection. The three most urgent also point at the body, red to act now and amber for today.
 - Click a recommendation or a place on the body. The camera moves there and a pop-up shows the value, its trend over 30 days, what to do and why, and the exam NASA does in flight on the same question. **Details** opens everything about it beside the body.
@@ -53,6 +51,8 @@ NASA’s astronaut health surveillance tracks spaceflight exposure over time, in
 
 **Mission effects.** Four known effects of spaceflight, computed day by day: fluid moving toward the head, loss of hip and spine bone, loss of calf muscle, and radiation dose. Choose **Mission effects** beside the body: the simulator opens in a panel and the body shows the result. Change the gravity, the share of the exercise programme done and the dose rate, or load six months in orbit or a full Mars mission. Every number has a source, and the [model description](docs/PHYSIOLOGY.md) explains each equation.
 
+**Habitat exercise demos.** After the personal check-in, an eligible crew member can preview a short exercise on the avatar. Habitat and mission gravity determine the movement. Its illustrative heart and breathing rates stay separate from personal measurements.
+
 **Personal mini-missions.** Open **Check-up → Find a mini-mission**, or follow a hand, leg, sleep or mood link from the body: the panels of the arm and leg bones, and the pop-ups of sleep and mood. A personal check-in can suggest a camera-guided solar-panel assembly game, seated knee extensions on Earth, a five-signal reaction game or a one-minute breathing break when the person reports stress. An optional camera sample shows breaths per minute alongside the person's own answer. The video and breathing rate stay in memory. After the break, the person can say whether their stress feels lower, about the same or higher. Each suggestion explains its source and the reason it was offered. Completed activities and optional difficulty feedback are separate for each crew member. Result saving on this device is optional.
 
 **Check-up.** **Check-up** in the top bar opens the tasks of the day beside the body: exams that are due or out of date and NASA's tasks of the mission day, a follow-up for each signal that needs one, and the daily routine (blood pressure, urine volume, mood, exercise, pulse with the camera). Tick them, remove them, add your own. **See it on the body** points at the part a task is about. The plan comes from simple rules on the signals, so every task can be traced to a value; the planner is built so that an AI model can take its place later without changing the screen.
@@ -61,9 +61,9 @@ NASA’s astronaut health surveillance tracks spaceflight exposure over time, in
 
 ### Destination and habitat
 
-The **destination** sets what the body lives with: gravity and radiation dose rate. **Orbit** (low Earth orbit), the **Moon** (lunar south pole), the **cruise to Mars** and **Mars** (Gale crater) each use measured dose rates with their sources. Each destination brings its usual **habitat**, the room behind the body, and you can choose another. The habitat never changes the body. The station and the spacecraft are credited NASA photographs (the Destiny laboratory aboard the ISS and an Orion cabin mock-up); the rover, the Moon base and the Mars base are generated illustrations based on NASA images, and the app says so under the picture. NASA has not reviewed or endorsed this software.
+The **destination** sets what the body lives with: gravity and radiation dose rate. **Orbit** (low Earth orbit), the **Moon** (lunar south pole), the **cruise to Mars** and **Mars** (Gale crater) each use measured dose rates with their sources. Each destination brings its usual **habitat**, the room behind the body, and you can choose another. The habitat sets the backdrop and helps select the exercise demo. The station and the spacecraft are credited NASA photographs (the Destiny laboratory aboard the ISS and an Orion cabin mock-up); the rover, the Moon base and the Mars base are generated illustrations based on NASA images, and the app says so under the picture. NASA has not reviewed or endorsed this software.
 
-The **mission day** in the top bar moves the whole simulation through the 90 days of the mission.
+**Mission day** counts Earth days in the selected setting. Orbit covers 180 days (a typical ISS expedition of about six months). The lunar surface covers three complete days, using Apollo 17’s 75-hour stay as a reference. Cruise covers 203 days, based on the robotic Perseverance transit. The Mars surface scenario covers 500 days as a human mission design assumption. The selected day controls the dashboard history and the check-up. [ISS expeditions](https://www.nasa.gov/missions/station/faq-the-real-story-about-astronaut-health-care-in-space/) · [Apollo 17](https://www.nasa.gov/missions/apollo/apollo-17-mission-details/) · [Mars 2020 cruise](https://www.jpl.nasa.gov/news/press_kits/mars_2020/landing/mission/) · [NASA Mars reference mission](https://ntrs.nasa.gov/citations/19990026747).
 
 ## Privacy
 
@@ -75,7 +75,7 @@ The **mission day** in the top bar moves the whole simulation through the 90 day
 ## What is real and what is simulated
 
 - **Real:** measured radiation dose rates for orbit, the Moon, the cruise to Mars and the Martian surface; the career dose limit; published bone, muscle, fluid-shift and blood figures from spaceflight; NASA's risk pages for each signal; the NASA photographs.
-- **Simulated:** every health value, its day-by-day curve and the storylines of the four profiles.
+- **Simulated:** mission health records, their charts, the four crew storylines and the pulse and breathing shown during an avatar exercise demo.
 - **Our own choices:** some warning levels and the behaviour in partial gravity, which nobody has measured over long stays. The interface marks them as our assumptions wherever they are used.
 
 Sources are listed in each signal's detail, in [docs/RESEARCH.md](docs/RESEARCH.md) and in `src/health/sources.ts`.

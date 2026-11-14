@@ -41,6 +41,8 @@ export const RPPG = {
   /** SNR (dB) mapped to quality 0 and quality 1. */
   snrFloorDb: -1,
   snrGoodDb: 7,
+  /** Band-limited log-brightness RMS above which exposure correction starts. */
+  exposureNoiseFloor: 0.005,
   /** Quality needed before a pulse rate is shown. */
   qualityThreshold: 0.35,
 } as const
@@ -408,12 +410,42 @@ export interface Estimate {
 
 const EMPTY: Estimate = { bpm: null, snrDb: -Infinity, quality: 0, seconds: 0, wave: [], beats: [] }
 
+/**
+ * Estimate the common exposure change from the mean log RGB. Under a moving
+ * shadow or auto-exposure, cameras can apply a different gain to each channel.
+ * Regress only this in-band, shared component out of the channel differences.
+ * On a steady face the small natural pulse modulation is left untouched.
+ */
+function correctExposure(u: Uniform, fs: number): Float64Array | null {
+  const channels = [u.r, u.g, u.b]
+  if (channels.some((channel) => channel.some((value) => value <= 0))) return null
+  const logs = channels.map((channel) => channel.map(Math.log))
+  const common = logs[0].map((r, i) => (r + logs[1][i] + logs[2][i]) / 3)
+  const reference = bandpass(detrend(common), fs)
+  const mean = reference.reduce((sum, value) => sum + value, 0) / reference.length
+  const centered = reference.map((value) => value - mean)
+  const power = centered.reduce((sum, value) => sum + value * value, 0)
+  const rms = Math.sqrt(power / centered.length)
+  if (rms <= RPPG.exposureNoiseFloor) return null
+  const strength = Math.min(1, (rms - RPPG.exposureNoiseFloor) / RPPG.exposureNoiseFloor)
+  for (const [channel, signal] of channels.entries()) {
+    const filtered = bandpass(detrend(logs[channel]), fs)
+    const covariance = filtered.reduce((sum, value, i) => sum + value * centered[i], 0)
+    // Match channel gain to the average. Bound the correction if colour
+    // variation or poor light makes the estimate unreliable.
+    const excess = Math.max(-0.75, Math.min(1.5, covariance / power - 1))
+    for (let i = 0; i < signal.length; i++) signal[i] *= Math.exp(-strength * excess * centered[i])
+  }
+  return centered
+}
+
 /** Whole pipeline, from raw camera samples to a pulse estimate. Never throws. */
 export function estimate(samples: readonly RgbSample[], method: PulseMethod = 'pos'): Estimate {
   const fs = RPPG.sampleRateHz
   const u = resample(samples, fs)
   if (!u) return EMPTY
   const seconds = (u.r.length - 1) / fs
+  const exposure = seconds >= RPPG.minSeconds ? correctExposure(u, fs) : null
   const filtered =
     method === 'chrom' ? chrom(u.r, u.g, u.b, fs) : bandpass(detrend(pos(u.r, u.g, u.b, fs)), fs)
   const n = filtered.length
@@ -428,6 +460,17 @@ export function estimate(samples: readonly RgbSample[], method: PulseMethod = 'p
   const segment = filtered.slice(start)
   const peak = spectralPeak(segment, fs, RPPG.lowHz, RPPG.highHz)
   if (!peak) return { ...EMPTY, seconds, wave }
+  // A strong lighting oscillation at the candidate pulse frequency cannot
+  // be separated from a heartbeat at this window's frequency resolution.
+  if (exposure) {
+    const lighting = spectralPeak(exposure.subarray(start), fs)
+    if (
+      lighting &&
+      qualityFromSnr(lighting.snrDb) >= RPPG.qualityThreshold &&
+      Math.abs(lighting.hz - peak.hz) < fs / specN
+    )
+      return { ...EMPTY, seconds, wave, snrDb: peak.snrDb }
+  }
   const minGap = Math.max(Math.round(0.3 * fs), Math.round((0.6 * fs) / peak.hz))
   const beats = findBeats(segment, minGap).map((i) => u.t0 + (start + i) * u.dt)
   return {

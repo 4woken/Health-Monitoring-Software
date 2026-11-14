@@ -23,7 +23,9 @@ Download the archives linked in the skin catalogues and extract these two origin
 | `skins02_cc0.zip`, `skins/toigo_light_skin_male_bronze/young_lightskinned_male_diffuse_Bronze.png`         | `male.png`   |
 | `skins01_cc0.zip`, `skins/toigo_light_skin_female_freckles/young_lightskinned_female_diffuse_freckles.png` | `female.png` |
 
-From the repository root run `python3 scripts/build-human-skins.py /path/to/sources`. The script keeps the mesh's body group, applies an equal mix of the three stock adult targets for each body, and poses the arms and legs using MakeHuman's joint centres and bone weights. Both models share UV topology and retain separate fingers, toes, lips and eyelids. The eye centres and radii come from the corresponding MakeHuman helper geometry.
+From the repository root run `python3 scripts/build-human-skins.py /path/to/sources`. The script keeps the mesh's body group, applies an equal mix of the three stock adult targets for each body, and poses the arms and legs using MakeHuman's joint centres and bone weights. Both models share UV topology and retain separate fingers, toes, lips and eyelids. Their shared `arm-weights.bin` records MakeHuman shoulder and elbow influences at each UV vertex, including the wrists and individual fingers. The eye centres and radii come from the corresponding MakeHuman helper geometry.
+
+The active male surface includes the external pelvic skin of **BodyParts3D, © The Database Center for Life Science, licensed under CC Attribution 4.0 International**. From the BodyParts3D 4.0 `partof_BP3D_4.0_obj_99.zip` archive, use `FJ2810.obj` (Skin, FMA7163). After building the MakeHuman meshes, run `blender -b --factory-startup --python-exit-code 1 --python scripts/realism/fit-male-pelvic-surface.py -- /path/to/FJ2810.obj`, followed by the regional skin bake below. The script extracts the outer sheet, registers it to the surrounding MakeHuman skin and transfers a local swatch of its colour map. The geometry represents the atlas reference person. [BodyParts3D download](https://dbarchive.biosciencedbc.jp/en/bodyparts3d/download.html) · [Source licence](https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html)
 
 Each compact binary contains Float32 positions, smooth normals, Float32 UVs and Uint16 triangles. Offsets in the corresponding JSON are bytes. The original texture orientation follows OBJ conventions (v increases upwards).
 
@@ -31,7 +33,15 @@ Each compact binary contains Float32 positions, smooth normals, Float32 UVs and 
 
 Run `python3 scripts/realism/register-anatomy.py` with NumPy and SciPy after building the skin meshes. It reads the committed atlas and female reference pelvis. A thin-plate spline registers organ centres, spine and limb landmarks to the new surface. The build checks the quantised internal vertices against an eroded 2.5 mm skin voxel grid. The eyeballs are fitted separately to the sockets. The output contains measured chest and waist circumferences for the sizing controls. Each body has its own package.
 
-The female pelvis can be regenerated in Blender with `scripts/realism/extract-female-pelvis.py` and the [official female model](https://cdn.humanatlas.io/digital-objects/ref-organ/united-female/v1.10/assets/3d-vh-f-united.glb). Its SHA-256 is `95f0c3d2f918582608692ca1139e8bdb18c147a16470e9ee9af8b276bd77c422`. See the [model credits](../../THIRD_PARTY_NOTICES.md).
+To rebuild the source atlas, import the BodyParts3D 4.0 part-of OBJ archive with `node scripts/add-bodyparts3d.mjs /path/to/objs`, then run `node scripts/fit-female-body.mjs`. These scripts keep separately named bones and costal cartilages and fit the supplemental bones, vessels and stomach to the female reference. [BodyParts3D archive and licence](https://dbarchive.biosciencedbc.jp/en/bodyparts3d/download.html)
+
+Next run the Blender command below with the four official GLBs. The extractor verifies their SHA-256 digests. The female reference supplies its pelvis, eight major leg bones, uterine vessels, spleen and pancreas. The male reference supplies both lung surfaces, spleen and spinal cord. The source organs are registered to each reference body. [United female v1.10](https://cdn.humanatlas.io/digital-objects/ref-organ/united-female/v1.10/assets/3d-vh-f-united.glb) · [Male lungs v1.4](https://cdn.humanatlas.io/digital-objects/ref-organ/lung-male/v1.4/assets/3d-vh-m-lung.glb) · [Male spleen v1.3](https://cdn.humanatlas.io/digital-objects/ref-organ/spleen-male/v1.3/assets/3d-vh-m-spleen.glb) · [Male spinal cord v1.1](https://cdn.humanatlas.io/digital-objects/ref-organ/spinal-cord-male/v1.1/assets/3d-vh-m-spinal-cord.glb)
+
+```sh
+blender -b --factory-startup --python-exit-code 1 --python scripts/realism/extract-female-pelvis.py -- 3d-vh-f-united.glb 3d-vh-m-lung.glb 3d-vh-m-spleen.glb 3d-vh-m-spinal-cord.glb
+```
+
+Apply the lower-limb vein supplement with `scripts/realism/add-leg-veins.py` before the final `register-anatomy.py` step. [Model credits](../../THIRD_PARTY_NOTICES.md)
 
 Run `blender -b --factory-startup --python-exit-code 1 --python scripts/bake-skin-detail.py -- --human` to bake the regional appearance attributes and inspect navel relief.
 

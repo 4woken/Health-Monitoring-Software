@@ -1,21 +1,21 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { CaretDown, CheckCircle, ListPlus, X } from '@phosphor-icons/react'
 import BodyViewer, { type Hotspot, type Layer, type Pin } from './BodyViewer'
 import { ORGAN_SIGNALS } from './anatomy/loadAnatomy'
 import { regionOf } from './anatomy/bodyShape'
-import { organNote } from './anatomy/organs'
+import { anatomyChoices, organNote } from './anatomy/organs'
 import type { PersonalAvatar } from '../camera/face/portrait'
 import type { BreathReading } from '../camera/breathReading'
 import type { CameraView } from '../camera/CameraScreen'
 import { useCheckup } from '../checkup/useCheckup'
+import DashboardDimensions from '../crew/DashboardDimensions'
 import type { Member } from '../crew/roster'
 import { KIND_LABEL, advise, type Advice } from '../health/advice'
 import { requirementsFor, type Phase } from '../health/exams'
 import { SIGNAL_METRICS, type MetricId } from '../health/metrics'
 import { dayReport, history } from '../health/readings'
 import { LIMITS, type Signal, type SignalId } from '../health/signals'
-import { MISSION_DAYS } from '../health/simulation'
 import NasaReference from '../health/ui/NasaReference'
 import SignalPanel from '../health/ui/SignalPanel'
 import SignalRow from '../health/ui/SignalRow'
@@ -55,6 +55,8 @@ const PHASE_WORD: Record<Phase, string> = {
   career: 'NASA after the career',
 }
 
+import AvatarDemoVitals from '../exercises/AvatarDemoVitals'
+import type { DemoPlayback } from '../exercises/demoVitals'
 import type { ExerciseKind } from '../exercises/exercisePlan'
 
 interface Props {
@@ -64,6 +66,8 @@ interface Props {
   day: number
   setDay: (day: number) => void
   habitat: HabitatId
+  onGravity: (value: number) => void
+  exerciseDemo: DemoPlayback | null
   onOpenCamera: (view?: CameraView) => void
   onOpenExercises: (kind: ExerciseKind) => void
   breath: BreathReading | null
@@ -86,6 +90,8 @@ export default function BodyScreen({
   day,
   setDay,
   habitat,
+  onGravity,
+  exerciseDemo,
   onOpenCamera,
   onOpenExercises,
   breath,
@@ -94,6 +100,7 @@ export default function BodyScreen({
   request,
 }: Props) {
   const narrow = useNarrow()
+  const demonstrating = exerciseDemo !== null
   const gauges = useRef<HTMLDivElement>(null)
   // The list of the day, at the top left: pins keep clear of it.
   const todo = useRef<HTMLDivElement>(null)
@@ -107,7 +114,7 @@ export default function BodyScreen({
     const observer = new ResizeObserver(measure)
     observer.observe(el)
     return () => observer.disconnect()
-  }, [])
+  }, [demonstrating])
   const [gaugeHeight, setGaugeHeight] = useState(160)
   useEffect(() => {
     const el = gauges.current
@@ -117,7 +124,7 @@ export default function BodyScreen({
     const observer = new ResizeObserver(measure)
     observer.observe(el)
     return () => observer.disconnect()
-  }, [])
+  }, [demonstrating])
 
   /** The part whose pop-up is open; the camera moves to it. */
   const [selected, setSelected] = useState<SignalId | null>(null)
@@ -126,10 +133,12 @@ export default function BodyScreen({
   const [openMetric, setOpenMetric] = useState<MetricId | undefined>()
   /** Organ isolated in the body view (mesh name). */
   const [organ, setOrgan] = useState<string | null>(null)
+  const [inventory, setInventory] = useState<string[]>([])
   const [hoverId, setHoverId] = useState<SignalId | null>(null)
   const [layer, setLayer] = useState<Layer>('signals')
   /** On phones the list of the day folds away. */
   const [todoOpen, setTodoOpen] = useState(false)
+  const [sizeOpen, setSizeOpen] = useState(false)
 
   const report = useMemo(() => dayReport(member, day, mission), [member, day, mission])
   const signals = report.signals
@@ -202,17 +211,20 @@ export default function BodyScreen({
         ? [
             {
               label: m.name,
-              days: MISSION_DAYS,
+              days: m.days,
               gravity: input.gravity,
               doseRateMSvDay: input.doseRateMSvDay,
             },
           ]
         : MISSION_PROFILES[profile].phases,
-    [profile, m.name, input.gravity, input.doseRateMSvDay],
+    [profile, m, input.gravity, input.doseRateMSvDay],
   )
   const points = useMemo(() => simulateProfile(phases, input.exercise), [phases, input.exercise])
   const cursor = profile === 'setting' ? day : Math.min(points.length - 1, localCursor ?? points.length - 1)
   const physiology = points[Math.min(points.length - 1, cursor)]
+
+  const activeGravity = phases[physiology.phase].gravity
+  useEffect(() => onGravity(activeGravity), [activeGravity, onGravity])
 
   /** Open the pop-up of one part: the camera moves to it. */
   const select = (id: SignalId) => {
@@ -337,6 +349,7 @@ export default function BodyScreen({
       {/* What to do today. */}
       <div
         ref={todo}
+        hidden={sheet === 'organ'}
         className="absolute top-20 left-4 z-[6] w-[min(21rem,calc(100%-2rem))] lg:top-24 lg:left-8"
       >
         <p className="on-photo font-cond text-[13px] text-white/65">
@@ -410,6 +423,17 @@ export default function BodyScreen({
             NASA reference
           </button>
         </div>
+        {narrow && (
+          <button
+            type="button"
+            onClick={() => setSizeOpen(!sizeOpen)}
+            aria-expanded={sizeOpen}
+            className="press mt-2 rounded-full bg-black/65 px-3 py-1.5 text-[13px] text-white"
+          >
+            Avatar dimensions
+          </button>
+        )}
+        {(!narrow || sizeOpen) && <DashboardDimensions memberId={member.id} />}
         {face && (
           <p className="on-photo mt-3 text-[12px] text-white/60">
             {face.sample
@@ -426,7 +450,10 @@ export default function BodyScreen({
         </div>
       )}
 
-      <div className="absolute inset-x-0 bottom-0 z-[6] flex items-end px-4 pb-6 lg:px-8" ref={gauges}>
+      <div
+        className={`absolute inset-x-0 bottom-0 z-[6] items-end px-4 pb-6 lg:px-8 ${sheet === 'organ' ? 'hidden' : 'flex'}`}
+        ref={gauges}
+      >
         <VitalsStrip
           readings={report.readings}
           breath={breath}
@@ -444,7 +471,7 @@ export default function BodyScreen({
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 40 }}
             transition={{ duration: 0.35, ease: EASE }}
-            className="veil absolute top-20 right-3 bottom-3 z-[7] flex flex-col overflow-hidden lg:top-24 lg:right-8"
+            className={`veil z-[8] flex flex-col overflow-hidden ${narrow && sheet === 'organ' ? 'fixed inset-x-3 bottom-2 h-[45dvh]' : 'absolute top-20 right-3 bottom-3 lg:top-24 lg:right-8'}`}
             style={{ width: `min(${SHEET_WIDTH[sheet]}px, calc(100% - 1.5rem))` }}
             aria-label={sheetTitle}
           >
@@ -491,13 +518,28 @@ export default function BodyScreen({
                     points={points}
                     cursor={cursor}
                     onCursor={(d) => {
-                      if (profile === 'setting') setDay(Math.min(MISSION_DAYS, Math.max(1, d)))
+                      if (profile === 'setting') setDay(Math.max(1, d))
                       else setLocalCursor(d)
                     }}
                   />
                 </div>
               ) : note ? (
                 <div className="space-y-5 px-5 pb-6">
+                  <label className="block font-cond text-sm text-white/70">
+                    Explore this system
+                    <select
+                      aria-label="Selected structure"
+                      value={organ ?? ''}
+                      onChange={(e) => setOrgan(e.target.value)}
+                      className="mt-1 block w-full rounded-lg border border-white/20 bg-[#202226] p-2 text-white"
+                    >
+                      {anatomyChoices(inventory, note.layer).map((name) => (
+                        <option key={name} value={name}>
+                          {organNote(name).name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                   <div>
                     <h3 className="font-cond text-[13px] text-white/60">What it does</h3>
                     <p className="mt-1 text-[16px] leading-relaxed">{note.role}</p>
@@ -515,7 +557,7 @@ export default function BodyScreen({
                         {organSignals.map((s) => (
                           <li key={s.id}>
                             <button
-                              onClick={() => details(s.id)}
+                              onClick={() => details(s.id, organ === 'pancreas' ? 'glucose' : undefined)}
                               className="press flex w-full items-center gap-3 py-3 text-left hover:text-white"
                             >
                               <span className="min-w-0 flex-1">
@@ -601,14 +643,19 @@ export default function BodyScreen({
   )
 
   return (
-    <section className="relative h-[100dvh] min-h-[600px]" aria-label={`${member.name}, body view`}>
+    <section
+      className={`relative ${demonstrating ? 'body-for-exercise' : narrow && sheet === 'organ' ? 'mt-16 h-[calc(55dvh-4rem)]' : 'h-[100dvh] min-h-[600px]'}`}
+      style={demonstrating ? ({ '--checkup-width': `${covered}px` } as CSSProperties) : undefined}
+      aria-label={`${member.name}, body view`}
+    >
       <BodyViewer
         build={member.build}
-        hotspots={hotspots}
+        hotspots={demonstrating ? [] : hotspots}
         activeId={hoverId ?? selected ?? openId}
         focusId={layer === 'signals' ? (selected ?? (sheet === 'signal' ? openId : null)) : null}
         onPick={(id) => select(id as SignalId)}
         organ={organ}
+        onInventory={setInventory}
         onOrgan={(name) => {
           setOrgan(name)
           if (name) {
@@ -618,18 +665,20 @@ export default function BodyScreen({
         }}
         physiology={physiology}
         restingBpm={report.readings.restingPulseBpm}
+        exerciseMotion={exerciseDemo?.mode}
+        exerciseStartedAt={exerciseDemo?.startedAt}
         layer={layer}
         onLayer={(l) => showMission(l === 'physiology')}
         avatar={face}
         insetBottom={gaugeHeight + 12}
         breathingRate={breath?.breathsPerMinute}
         backdrop={{ src: place.image, position: place.imagePosition, caption, href: place.sourceUrl }}
-        pins={pins}
-        sideInset={covered || (sheet && !narrow ? SHEET_WIDTH[sheet] : 0)}
+        pins={demonstrating ? [] : pins}
+        sideInset={demonstrating ? 0 : covered || (sheet && !narrow ? SHEET_WIDTH[sheet] : 0)}
         paused={paused}
         pinAvoid={narrow ? undefined : todoBox}
       >
-        {overlays}
+        {exerciseDemo ? <AvatarDemoVitals playback={exerciseDemo} /> : overlays}
       </BodyViewer>
     </section>
   )

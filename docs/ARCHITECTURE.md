@@ -5,7 +5,7 @@ Pulsar runs entirely in the browser: no server, no account, no database. The cod
 ```text
 src/
   main.tsx    entry point: fonts, styles and motion settings
-  app/        the shell: top bar and the panels over the body (check-up, camera, adding someone)
+  app/        the crew introduction, 3D setup and dashboard shell with check-up and camera overlays
   crew/       the crew: the list (roster.ts), adding someone, the crew menu, shared state
   body/       the 3D body (BodyViewer) and the one screen around it (BodyScreen): pins, pop-ups, side panels
     anatomy/  loading the models, organs and depth layers, where each signal sits on the body
@@ -25,7 +25,7 @@ src/
 
 The four demo profiles and their values are simulated. `crew/roster.ts` describes the four team members: role, reference body, values before launch and storylines (`stories`). `health/simulation.ts` produces each day's values from these storylines. `health/readings.ts` adds the measurement schedule (an eye and a neck ultrasound every 14 days, a blood test every 30 days, and so on) and how fresh each value is. `health/signals.ts` judges the values with one rule set, adapted to spaceflight. Each limit cites an entry in `health/sources.ts`, or says that it is our assumption.
 
-The destination (`mission/missions.ts`) sets the gravity, the share of the weightless fluid shift and the radiation dose rate that the simulation uses. The habitat (`mission/habitats.ts`) is only the picture behind the body.
+The destination (`mission/missions.ts`) sets the gravity, the share of the weightless fluid shift and the radiation dose rate that the simulation uses. The habitat (`mission/habitats.ts`) sets the picture behind the body and helps select an exercise demonstration at the current gravity.
 
 Someone added gets typical values for their reference body and no storyline. Their identity, role, optional call sign, speciality, flight history and choice of body stay in the browser. Height, weight and chest and waist circumferences adjust the mannequin (`crew/bodyDimensions.ts`, `crew/torsoFit.ts`). These measurements and the resting pulse before launch are optional and stay in memory, unless the person chooses to keep them on this device. The face is gone after a reload. Only a pulse measured live with a good enough signal is compared with the resting pulse before launch, separately from the simulated data.
 

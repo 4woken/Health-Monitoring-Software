@@ -64,7 +64,10 @@ export function planDay({ report, mission }: PlanRequest): Task[] {
         id: `exam:${name}`,
         kind: 'exam',
         title: `${name}: the last one is ${f.ageDays} days old`,
-        detail: `Next scheduled on day ${f.nextDay}. Do it sooner if something feels wrong.`,
+        detail:
+          f.nextDay === null
+            ? 'The last result is out of date and no further check is scheduled in this scenario.'
+            : `Next scheduled on day ${f.nextDay}. Do it sooner if something feels wrong.`,
         signal: s.id,
       })
   }

@@ -9,9 +9,6 @@ import type { Member } from '../crew/roster'
 import { MISSIONS, type MissionId } from '../mission/missions'
 import type { Cabin, Readings, VeinFlow } from './signals'
 
-/** Length of the simulated mission, days. */
-export const MISSION_DAYS = 90
-
 /** A health storyline a person can live through during the mission. */
 export type Story =
   /** The optic nerve sheath grows after day 40, with a vision complaint from day 75. */
@@ -64,8 +61,8 @@ export function readingsOn(member: Member, day: number, mission: MissionId): Rea
   // White cells rise in flight; lymphocytes stay about the same.
   const whiteCellsK = b.whiteCellsK * (1 + 0.2 * Math.min(1, day / 10)) + n(12) * 0.1
   const lymphocytesK = b.lymphocytesK * (1 + n(13) * 0.03)
-  // Vitamin D falls about 25% over a long flight, even with supplements.
-  const vitaminDNgMl = b.vitaminDNgMl * (1 - 0.25 * (day / MISSION_DAYS)) + n(14) * 0.3
+  // Illustrative interpolation to the published 4–6 month change, held constant after 180 days.
+  const vitaminDNgMl = b.vitaminDNgMl * (1 - 0.25 * Math.min(day / 180, 1)) + n(14) * 0.3
 
   let opticNerveMm = b.opticNerveMm + n(2) * 0.04
   let sleepHours = 6.8 + n(3) * 0.3
@@ -76,7 +73,7 @@ export function readingsOn(member: Member, day: number, mission: MissionId): Rea
   let neckVeinFlow: VeinFlow = 'forward'
   let headache = false
 
-  if (has('eyes')) opticNerveMm += Math.max(0, day - 40) * 0.012 * shift
+  if (has('eyes')) opticNerveMm += Math.min(50, Math.max(0, day - 40)) * 0.012 * shift
   if (has('hydration') && day >= 20) urineLitres = 1.6 + n(6) * 0.1
   if (has('air') && co2 >= 2.9) {
     headache = true

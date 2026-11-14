@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type RefObject } from 'react'
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import type { FaceLandmarker } from '@mediapipe/tasks-vision'
 import { createTracker } from './faceModel'
 import { assessScanView, type ScanAngle } from './scanGuidance'
@@ -221,12 +221,12 @@ export function useFaceTracking(video: RefObject<HTMLVideoElement | null>) {
     currentQuality.current = INITIAL_QUALITY
     setQuality(INITIAL_QUALITY)
   }
-  const capture = (): AvatarCapture => {
+  const capture = useCallback((): AvatarCapture => {
     const frame = liveFace.current
     if (!source || !frame || !currentQuality.current.ready || performance.now() - frame.id > 400)
       throw new Error('Hold still with your whole face visible before capturing.')
     return { ...capturePortrait(frame.source, frame.points), sample: frame.sample }
-  }
+  }, [source])
   const loadSample = async (): Promise<AvatarCapture> => {
     stopPulse()
     setSource(null)
@@ -253,6 +253,11 @@ export function useFaceTracking(video: RefObject<HTMLVideoElement | null>) {
     setQuality(INITIAL_QUALITY)
     setSource(next)
   }
+  const stop = useCallback(() => {
+    sampleEpoch.current++
+    setSource(null)
+    setError('')
+  }, [])
   return {
     enabled: source !== null,
     source,
@@ -264,10 +269,6 @@ export function useFaceTracking(video: RefObject<HTMLVideoElement | null>) {
     capture,
     loadSample,
     start,
-    stop: () => {
-      sampleEpoch.current++
-      setSource(null)
-      setError('')
-    },
+    stop,
   }
 }

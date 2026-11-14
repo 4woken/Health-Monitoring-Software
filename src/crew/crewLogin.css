@@ -1,0 +1,196 @@
+.crew-login {
+  min-height: 100dvh;
+  background: #101315;
+  color: #f3f4f1;
+  padding: 0 clamp(1rem, 4vw, 5rem) 2rem;
+}
+.crew-login__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  max-width: 1400px;
+  min-height: 4.65rem;
+  margin: 0 auto;
+}
+.crew-login__back,
+.crew-login__clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.75rem;
+  font-size: 0.9rem;
+  color: #bcc5c4;
+}
+.crew-login__back:hover,
+.crew-login__clear:hover {
+  color: white;
+}
+.crew-login__content {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(300px, 0.82fr);
+  max-width: 1250px;
+  margin: clamp(0.25rem, 2vw, 2rem) auto 0;
+  gap: clamp(2rem, 6vw, 6rem);
+  align-items: center;
+}
+.crew-login__portrait {
+  height: clamp(490px, 75vh, 740px);
+  position: relative;
+  overflow: hidden;
+  border-radius: 22px;
+  border: 1px solid rgb(255 255 255 / 0.13);
+  background: #121a1c;
+}
+.crew-login__portrait .body-stage {
+  background: radial-gradient(ellipse at 50% 46%, #344348, #151d20 58%, #101517);
+}
+.crew-login__portrait .body-stage > [aria-hidden='true']:not(canvas) {
+  opacity: 0.28;
+}
+.crew-login__portrait .body-stage > p {
+  left: 0.85rem;
+  right: 0.85rem;
+  text-align: left;
+  font-size: 0.63rem;
+  width: fit-content;
+  padding: 0.15rem 0.4rem;
+  border-radius: 0.25rem;
+  background: rgb(10 16 18 / 0.67);
+}
+.crew-login__portrait-tag {
+  position: absolute;
+  left: 1rem;
+  top: 1rem;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.75rem;
+  border-radius: 999px;
+  background: rgb(8 16 18 / 0.74);
+  color: #dee7e5;
+}
+.crew-login__portrait-tag span {
+  width: 0.38rem;
+  height: 0.38rem;
+  border-radius: 50%;
+  background: #8be4d6;
+}
+.crew-login__form {
+  width: 100%;
+  max-width: 30rem;
+}
+.crew-login__form h1 {
+  font-family: var(--font-cond);
+  font-size: clamp(2.6rem, 4.2vw, 4.6rem);
+  line-height: 0.98;
+  font-weight: 600;
+  letter-spacing: -0.035em;
+}
+.crew-login__member {
+  margin: 0.78rem 0 1.7rem;
+  font-size: 1.05rem;
+  color: #e5ecea;
+}
+.crew-login__member span,
+.crew-login__hint {
+  color: #afbbba;
+}
+.crew-login__section {
+  min-width: 0;
+  display: grid;
+  justify-items: start;
+  gap: 0.6rem;
+  border-top: 1px solid #353c3e;
+  padding: 0.85rem 0 1.3rem;
+}
+.crew-login__section legend {
+  float: left;
+  width: 100%;
+  padding: 0;
+  font-weight: 600;
+  font-size: 1.15rem;
+}
+.crew-login__hint {
+  font-size: 0.92rem;
+  line-height: 1.45;
+  max-width: 34ch;
+}
+.crew-login__label {
+  display: block;
+  font-size: 0.875rem;
+  color: #cad2d1;
+}
+.crew-login__dimensions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: 100%;
+  gap: 0.8rem;
+  margin: 0.25rem 0;
+}
+.crew-login__input {
+  margin-top: 0.38rem;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  border: 1px solid #41494a;
+  background: #171d1f;
+  border-radius: 9px;
+  padding: 0 0.7rem;
+}
+.crew-login__input:focus-within {
+  outline: 2px solid #90dece;
+  outline-offset: 1px;
+}
+.crew-login__input input {
+  min-width: 0;
+  width: 100%;
+  height: 2.7rem;
+  outline: none;
+  background: transparent;
+  color: white;
+  font-size: 1rem;
+}
+.crew-login__input input::-webkit-inner-spin-button {
+  appearance: none;
+}
+.crew-login__input span {
+  color: #acb7b6;
+  font-size: 0.85rem;
+}
+.crew-login__remember {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.82rem;
+  color: #bec8c7;
+}
+.crew-login__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+.crew-login__next {
+  min-width: 9.3rem;
+  justify-content: space-between;
+}
+@media (max-width: 760px) {
+  .crew-login__header {
+    min-height: 3.75rem;
+  }
+  .crew-login__content {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 32rem;
+    gap: 1.35rem;
+  }
+  .crew-login__portrait {
+    height: clamp(250px, 43vh, 375px);
+  }
+  .crew-login__form {
+    max-width: none;
+  }
+  .crew-login__member {
+    margin-bottom: 1.2rem;
+  }
+}

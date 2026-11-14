@@ -166,7 +166,7 @@ export default function LivePulse({
           <span
             className={`rounded px-1.5 py-0.5 font-cond text-[12px] ${live ? 'border border-holo/60 text-ink' : 'border border-line-strong text-dim'}`}
           >
-            {live ? 'Webcam, live' : running ? 'Webcam, starting' : 'Wearable, simulated'}
+            {live ? 'Webcam estimate, live' : 'Wearable, simulated'}
           </span>
         </div>
         <div className="mt-2 flex items-end gap-2">

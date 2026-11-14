@@ -3,7 +3,6 @@ import { AnimatePresence, motion } from 'motion/react'
 import { CaretDown, Check } from '@phosphor-icons/react'
 import { MISSIONS, MISSION_ORDER, type MissionId } from './missions'
 import { HABITATS, type HabitatId } from './habitats'
-import { MISSION_DAYS } from '../health/simulation'
 import { EASE } from '../ui'
 
 /**
@@ -41,7 +40,7 @@ export default function MissionMenu({
     }
   }, [open])
   const m = MISSIONS[mission]
-  const fill = ((day - 1) / (MISSION_DAYS - 1)) * 100
+  const fill = ((day - 1) / (m.days - 1)) * 100
 
   return (
     <div ref={box} className="relative">
@@ -54,7 +53,7 @@ export default function MissionMenu({
         <span className="leading-none">
           <span className="block font-cond text-[15px] font-medium whitespace-nowrap">{m.name}</span>
           <span className="mt-0.5 block font-cond text-[12px] whitespace-nowrap text-muted">
-            Day {day} of {MISSION_DAYS}
+            Day {day} of {m.days}
           </span>
         </span>
         <CaretDown
@@ -72,15 +71,15 @@ export default function MissionMenu({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.18, ease: EASE }}
-            className="glass-strong absolute right-0 z-50 mt-2 w-[min(25rem,calc(100vw-1.5rem))] p-5"
+            className="glass-strong absolute right-0 z-50 mt-2 max-h-[calc(100dvh-4.5rem)] w-[min(25rem,calc(100vw-1.5rem))] overflow-y-auto p-5"
           >
-            <p className="font-cond text-[13px] text-muted">Mission day</p>
+            <p className="font-cond text-[13px] text-muted">Mission day · Earth days</p>
             <div className="mt-1 flex items-center gap-3">
               <span className="display w-16 text-[34px]">{day}</span>
               <input
                 type="range"
                 min={1}
-                max={MISSION_DAYS}
+                max={m.days}
                 value={day}
                 onChange={(e) => onDay(Number(e.target.value))}
                 aria-label="Mission day"
@@ -89,6 +88,17 @@ export default function MissionMenu({
               />
             </div>
 
+            <p className="mt-1 text-[13px] leading-snug text-muted">
+              {m.durationBasis}{' '}
+              <a
+                href={m.durationSource}
+                target="_blank"
+                rel="noreferrer"
+                className="underline underline-offset-2"
+              >
+                NASA source
+              </a>
+            </p>
             <p className="mt-5 font-cond text-[13px] text-muted">Destination: sets gravity and radiation</p>
             <ul className="mt-2 grid gap-1">
               {MISSION_ORDER.map((id) => MISSIONS[id]).map((o) => (
@@ -112,7 +122,7 @@ export default function MissionMenu({
             </ul>
 
             <p className="mt-5 font-cond text-[13px] text-muted">
-              Habitat: the room you see. It never changes the body.
+              Habitat for the view and exercise equipment
             </p>
             <div className="mt-2 grid grid-cols-5 gap-1.5">
               {(Object.keys(HABITATS) as HabitatId[]).map((id) => (

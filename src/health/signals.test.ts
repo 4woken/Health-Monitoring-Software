@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { TEAM } from '../crew/roster'
-import { MISSION_ORDER } from '../mission/missions'
+import { MISSIONS, MISSION_ORDER } from '../mission/missions'
 import { GUIDE, NASA_RISK } from './guide'
 import { dayReport } from './readings'
 import { SOURCES } from './sources'
-import { MISSION_DAYS, cabinOn } from './simulation'
+import { cabinOn } from './simulation'
 import {
   SIGNAL_IDS,
   assess,
@@ -160,7 +160,7 @@ describe('guides and sources', () => {
   })
   it('every signal of every crew member, every day and everywhere, cites a known source', () => {
     for (const mission of MISSION_ORDER)
-      for (let day = 1; day <= MISSION_DAYS; day += 3)
+      for (let day = 1; day <= MISSIONS[mission].days; day += 3)
         for (const member of TEAM)
           for (const s of dayReport(member, day, mission).signals) {
             expect(s.sources.length).toBeGreaterThan(0)

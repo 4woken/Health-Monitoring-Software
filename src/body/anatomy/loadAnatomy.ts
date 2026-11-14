@@ -58,12 +58,17 @@ export const ORGAN_SIGNALS: Record<string, string[]> = {
   'right eyeball': ['opticNerve'],
   'left eyeball': ['opticNerve'],
   heart: ['oxygen'],
+  pancreas: ['bodyChecks'],
+  spleen: ['immunity'],
   'right lung': ['oxygen'],
   'left lung': ['oxygen'],
   lungs: ['oxygen'],
   aorta: ['redCells'],
   'blood vessels': ['redCells'],
   arteries: ['redCells'],
+  veins: ['redCells'],
+  'leg veins': ['redCells'],
+  'right internal jugular vein': ['neckVein'],
   'left internal jugular vein': ['neckVein'],
   'left kidney': ['hydration'],
   'right kidney': ['hydration'],
@@ -148,10 +153,7 @@ async function loadRegisteredBody(build: Build): Promise<Body> {
     organs,
     torsoCalibration: pack.torsoCalibration,
     attribution:
-      'Skin: MakeHuman Community and Margaret Toigo (CC0). Anatomy: ' +
-      (build === 'male'
-        ? 'BodyParts3D, © DBCLS (CC BY 4.0).'
-        : 'HuBMAP Human Reference Atlas and BodyParts3D, © DBCLS (CC BY 4.0).'),
+      'Base skin: MakeHuman Community and Margaret Toigo (CC0). Anatomy: BodyParts3D, © DBCLS, and HuBMAP Human Reference Atlas (CC BY 4.0). Leg veins: Z-Anatomy (CC BY-SA 4.0).',
     anchors: signalAnchors(organs, human.height, pack.anchors),
   }
 }
@@ -204,7 +206,7 @@ async function loadLegacyBody(build: Build): Promise<Body> {
   await loadSkinDetail(build, skin)
   return {
     build,
-    attribution: b.attribution,
+    attribution: b.attribution + '. Leg veins: Z-Anatomy (CC BY-SA 4.0).',
     height: b.height,
     skin,
     organs,

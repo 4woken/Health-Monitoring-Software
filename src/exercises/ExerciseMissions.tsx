@@ -1,5 +1,8 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { ArrowRight, CheckCircle } from '@phosphor-icons/react'
+import type { HabitatId } from '../mission/habitats'
+import EnvironmentExerciseDemo from './EnvironmentExerciseDemo'
+import type { OnExerciseDemo } from './demoVitals'
 import { Button } from '../ui'
 import ExerciseCheckInForm from './ExerciseCheckInForm'
 import { EXERCISES } from './exerciseCatalog'
@@ -56,10 +59,16 @@ export default function ExerciseMissions({
   memberId,
   person,
   interest,
+  habitat,
+  gravity,
+  onDemo,
 }: {
   memberId: string
   person: string
   interest?: ExerciseKind
+  habitat: HabitatId
+  gravity: number
+  onDemo: OnExerciseDemo
 }) {
   const [stage, setStage] = useState<Stage>({ step: interest ? 'form' : 'intro' })
   const [entry, setEntry] = useState<ExerciseCheckIn | null>(null)
@@ -156,7 +165,7 @@ export default function ExerciseMissions({
                   ? 'Suggested from your check-in today.'
                   : results.some((r) => completedToday(r))
                     ? 'Your completed missions are listed below. There are no further matches for this check-in.'
-                    : 'There are no matching missions for this check-in.'}
+                    : 'You can explore movement in your selected environment.'}
             </p>
             <button
               type="button"
@@ -166,6 +175,14 @@ export default function ExerciseMissions({
               Edit check-in
             </button>
           </div>
+          {!entry.unwell && (
+            <EnvironmentExerciseDemo
+              key={habitat + ':' + gravity}
+              habitat={habitat}
+              gravity={gravity}
+              onDemo={onDemo}
+            />
+          )}
           {(entry.stress || breathingSample !== null) && (
             <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-2 text-sm">
               {entry.stress && (
