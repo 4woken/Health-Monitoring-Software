@@ -116,12 +116,14 @@ function Shell() {
     setToast(null)
     setCameraView('portrait')
   }
-  const openProfile = (id: string) => {
+  const openMember = (id: string, destination: 'profile' | 'dashboard') => {
     leaveDashboard()
     crew.select(id)
     setAdding(false)
-    setPage('profile')
+    setPage(destination)
   }
+  const openDashboard = (id: string) => openMember(id, 'dashboard')
+  const openAvatarSetup = (id: string) => openMember(id, 'profile')
   const showIntro = () => {
     leaveDashboard()
     setAdding(false)
@@ -145,30 +147,22 @@ function Shell() {
   if (adding)
     return (
       <Suspense fallback={<Loading />}>
-        <NewMember onCancel={() => setAdding(false)} onDone={openProfile} />
+        <NewMember onCancel={() => setAdding(false)} onCreate={openDashboard} onSetupFace={openAvatarSetup} />
       </Suspense>
     )
   if (page === 'intro')
-    return <CrewPicker mission={mission} day={day} onPick={openProfile} onAdd={startAdding} />
+    return <CrewPicker mission={mission} day={day} onPick={openDashboard} onAdd={startAdding} />
   if (page === 'profile')
     return (
       <Suspense fallback={<Loading />}>
-        <CrewLogin
-          key={member.id}
-          initialMemberId={member.id}
-          onBack={showIntro}
-          onEnter={(id) => {
-            crew.select(id)
-            setPage('dashboard')
-          }}
-        />
+        <CrewLogin key={member.id} initialMemberId={member.id} onBack={showIntro} onEnter={openDashboard} />
       </Suspense>
     )
 
   const cameraOn = pulse.phase !== 'off' && pulse.phase !== 'error'
 
   return (
-    <div className="min-h-[100dvh]">
+    <div key={member.id} className="min-h-[100dvh]">
       <header className="fixed inset-x-0 top-0 z-30 border-b border-white/[0.06] bg-[#0d0f12]/80 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-[1680px] items-center gap-2 px-3 sm:gap-3 sm:px-6">
           <button
@@ -184,7 +178,13 @@ function Shell() {
             </span>
           </button>
           <span className="mx-1 hidden h-5 w-px bg-white/15 sm:block" aria-hidden="true" />
-          <CrewMenu onPick={openProfile} onAdd={startAdding} onFace={() => openProfile(member.id)} />
+          <CrewMenu
+            onPick={(id) => {
+              if (id !== member.id) openDashboard(id)
+            }}
+            onAdd={startAdding}
+            onFace={() => openAvatarSetup(member.id)}
+          />
 
           <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
             {cameraOn && (

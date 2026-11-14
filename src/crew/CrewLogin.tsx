@@ -137,7 +137,7 @@ function ProfileSetup({
           <video ref={input} autoPlay playsInline muted hidden aria-hidden="true" />
         </div>
         <form onSubmit={next} className="crew-login__form">
-          <h1>Crew sign-in</h1>
+          <h1>Avatar setup</h1>
           <p className="crew-login__member">
             {member.name}
             <span> · {member.role}</span>

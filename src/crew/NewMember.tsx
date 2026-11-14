@@ -22,10 +22,12 @@ const fieldClass =
 /** Add someone to the crew: who they are, then their face from the camera (optional). */
 export default function NewMember({
   onCancel,
-  onDone,
+  onCreate,
+  onSetupFace,
 }: {
   onCancel: () => void
-  onDone: (id: string) => void
+  onCreate: (id: string) => void
+  onSetupFace: (id: string) => void
 }) {
   const crew = useCrew()
   const [name, setName] = useState('')
@@ -67,7 +69,11 @@ export default function NewMember({
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
-    if (ready) onDone(create().id)
+    if (!ready) return
+    const submitter = (event.nativeEvent as SubmitEvent).submitter
+    const next =
+      submitter instanceof HTMLButtonElement && submitter.value === 'avatar' ? onSetupFace : onCreate
+    next(create().id)
   }
 
   return (
@@ -249,6 +255,9 @@ export default function NewMember({
         <div className="flex flex-wrap items-center gap-2">
           <Button kind="primary" type="submit" disabled={!ready}>
             <UserPlus size={16} />
+            Create profile
+          </Button>
+          <Button kind="ghost" type="submit" value="avatar" disabled={!ready}>
             Continue to face setup
           </Button>
           <Button kind="ghost" type="button" onClick={onCancel}>

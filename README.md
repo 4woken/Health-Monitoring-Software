@@ -19,7 +19,7 @@ npm ci
 npm run dev
 ```
 
-Open <http://localhost:5173>. **Who's on board?** lets you select Lucas, Enzo, Nassim or Youssef, or add a crew member. The next screen shows the profile’s 3D head. Choose a reference body, enter height and weight, and optionally use **Connect webcam** to fit your portrait. Once a stable face is captured, the camera stops. **Next** opens the dashboard with the same face. Profile selection is local and does not authenticate identity.
+Open <http://localhost:5173>. Select an existing crew member in **Who's on board?** to open their dashboard directly. When adding a member, **Create profile** opens the dashboard and **Continue to face setup** lets you personalise the 3D head first. You can also open avatar setup from the crew menu. **Connect webcam** fits the portrait locally and stops the camera after capture. **Next** opens the dashboard with the fitted face.
 
 New profiles can include a call sign, specialty, flight history, chest and waist measurements. Beside the dashboard avatar, **Avatar dimensions** updates height and weight. The crew menu also opens the full measurement editor. Height scales the model, weight approximates overall width, and chest and waist refine the torso. Measurements stay in the session unless you choose to remember them on this device.
 
