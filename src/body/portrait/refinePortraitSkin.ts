@@ -20,6 +20,7 @@ export function refinePortraitSkin(skin: BufferGeometry, head: HeadFrame): Buffe
     )
   }
 
+  const midpointSources: [number, number][] = []
   const midpoints = new Map<number, number>()
   const addedPositions: number[] = []
   const addedNormals: number[] = []
@@ -44,6 +45,7 @@ export function refinePortraitSkin(skin: BufferGeometry, head: HeadFrame): Buffe
     addedPositions.push((ax + bx) / 2, (ay + by) / 2, (az + bz) / 2)
     if (length > 1e-6) addedNormals.push(nx / length, ny / length, nz / length)
     else addedNormals.push(normal.getX(a), normal.getY(a), normal.getZ(a))
+    midpointSources.push([a, b])
     midpoints.set(key, id)
     return id
   }
@@ -80,6 +82,22 @@ export function refinePortraitSkin(skin: BufferGeometry, head: HeadFrame): Buffe
     values.set(source)
     values.set(extra, source.length)
     refined.setAttribute(attr, new BufferAttribute(values, 3))
+  }
+  // Keep source UV seams and baked skin-region weights on subdivided triangles.
+  for (const name of ['uv', 'skinDetail']) {
+    const source = skin.getAttribute(name)
+    if (!source) continue
+    const size = source.itemSize
+    const values =
+      name === 'skinDetail'
+        ? new Uint8Array((count + midpointSources.length) * size)
+        : new Float32Array((count + midpointSources.length) * size)
+    values.set(source.array)
+    midpointSources.forEach(([a, b], i) => {
+      for (let c = 0; c < size; c++)
+        values[(count + i) * size + c] = (source.array[a * size + c] + source.array[b * size + c]) * 0.5
+    })
+    refined.setAttribute(name, new BufferAttribute(values, size, source.normalized))
   }
   refined.setIndex(triangles)
   return refined

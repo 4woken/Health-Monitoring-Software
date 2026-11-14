@@ -9,3 +9,4 @@ legacy/
 .env
 public/face/wasm/
 .work/
+__pycache__/

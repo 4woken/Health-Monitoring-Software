@@ -41,12 +41,14 @@ NASA’s astronaut health surveillance tracks spaceflight exposure over time, in
 **Body.** The person stands in the room where they live, as a reference anatomical body with a marker for every signal. Amber means look again soon, red means act today, everything else stays white.
 
 - Point at the body to look under the skin.
-- Drag the **Depth** control from Skin to Vessels, Organs and Skeleton to peel the body layer by layer, as in an anatomy atlas. Vessels moves the camera to the heart and shows the blood pulsing through the vessels.
+- Choose **Skin**, **Vessels**, **Organs** or **Skeleton** to show that layer alone. Dragging the **Depth** slider blends adjacent layers. Vessels moves the camera to the heart and shows the blood pulsing through the vessels.
 - Click an organ to see it on its own: what it does, what spaceflight changes, and the signals followed there.
 - Click a marker, a vital sign or a body region to open its signal: the value, what it is, what it means here, how it is taken, what to do, its trend since launch and the sources behind the rule. **Add to today's check-up** puts the follow-up on the person's list.
 - The heart beats at the person's pulse. Start the camera and it beats at yours.
 
 **Mission effects.** Four known effects of spaceflight, computed day by day: fluid moving toward the head, loss of hip and spine bone, loss of calf muscle, and radiation dose. Change the gravity, the share of the exercise programme done and the dose rate, or load six months in orbit or a full Mars mission. Choose **Mission effects** beside the body to see the result on it. Every number has a source, and the [model description](docs/PHYSIOLOGY.md) explains each equation.
+
+**Personal mini-missions.** Open **Check-up → Find a mini-mission**, or follow a hand, leg, sleep or mood link from the body view. A personal check-in can suggest a camera-guided solar-panel assembly game, seated knee extensions on Earth, a five-signal reaction game or a one-minute breathing break when the person reports stress. An optional camera sample shows breaths per minute alongside the person's own answer. The video and breathing rate stay in memory. After the break, the person can say whether their stress feels lower, about the same or higher. Each suggestion explains its source and the reason it was offered. Completed activities and optional difficulty feedback are separate for each crew member. Result saving on this device is optional.
 
 **Check-up.** The tasks of the day for the person shown: exams that are due or out of date, a follow-up for each signal that needs one, and the daily routine (blood pressure, urine volume, mood, exercise, pulse with the camera). Tick them, remove them, add your own. The plan comes from simple rules on the signals, so every task can be traced to a value; the planner is built so that an AI model can take its place later without changing the screen.
 
@@ -103,5 +105,7 @@ Further reading: [architecture](docs/ARCHITECTURE.md), [research and rule source
 ## Credits
 
 Made in France by the team: **Lucas Baurianne** (team owner), **Enzo Baurianne**, **Nassim Arifette** and **Youssef Mir**.
+
+The two textured bodies use MakeHuman geometry and Margaret Toigo’s skin textures (CC0). Each loads independently and carries a calibrated portrait. [Human model sources](THIRD_PARTY_NOTICES.md).
 
 Anatomy models: BodyParts3D (© The Database Center for Life Science) and the HuBMAP HRA 3D Reference Organs, both CC BY 4.0. Face tracking: Google MediaPipe (Apache 2.0). Typeface: Barlow (SIL Open Font License). Habitat pictures: NASA photographs used under the NASA Images and Media Usage Guidelines, and generated interiors based on NASA images (credits in `public/environments/README.md`). Full list in [asset credits](docs/CREDITS.md).

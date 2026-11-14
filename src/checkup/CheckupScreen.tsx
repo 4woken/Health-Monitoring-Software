@@ -6,6 +6,8 @@ import { dayReport } from '../health/readings'
 import { MISSIONS, type MissionId } from '../mission/missions'
 import { Button } from '../ui'
 import type { Task, TaskKind } from './planner'
+import ExerciseMissions from '../exercises/ExerciseMissions'
+import type { ExerciseKind } from '../exercises/exercisePlan'
 import { useCheckup } from './useCheckup'
 
 const GROUPS: { kind: TaskKind; title: string }[] = [
@@ -21,12 +23,15 @@ export default function CheckupScreen({
   mission,
   day,
   onShow,
+  exerciseInterest,
 }: {
   member: Member
   mission: MissionId
   day: number
   /** Shows the part of the body a task is about. */
   onShow: (signal: SignalId) => void
+  /** An exercise asked from the body, opened first. */
+  exerciseInterest?: ExerciseKind
 }) {
   const report = useMemo(() => dayReport(member, day, mission), [member, day, mission])
   const checkup = useCheckup(report, mission)
@@ -58,6 +63,12 @@ export default function CheckupScreen({
       </div>
 
       <div className="pt-6">
+        <ExerciseMissions
+          key={`${member.id}:${mission}:${day}`}
+          memberId={member.id}
+          person={member.short}
+          interest={exerciseInterest}
+        />
         {checkup.planning && total === 0 && <p className="py-6 text-muted">Planning the day…</p>}
         {GROUPS.map(({ kind, title }) => {
           const tasks = checkup.tasks.filter((t) => t.kind === kind)

@@ -8,6 +8,7 @@ import { useCheckup } from '../checkup/useCheckup'
 import { CrewProvider, useCrew } from '../crew/CrewProvider'
 import CrewMenu from '../crew/CrewMenu'
 import type { Member } from '../crew/roster'
+import type { ExerciseKind } from '../exercises/exercisePlan'
 import { dayReport } from '../health/readings'
 import type { SignalId } from '../health/signals'
 import { DEFAULT_HABITAT, type HabitatId } from '../mission/habitats'
@@ -45,6 +46,8 @@ function Shell() {
   const crew = useCrew()
   const member = crew.current
   const [panel, setPanel] = useState<Panel | null>(null)
+  /** An exercise asked from the body, shown first in the check-up. */
+  const [exerciseInterest, setExerciseInterest] = useState<ExerciseKind>()
   const [day, setDay] = useState(60)
   const [mission, setMission] = useState<MissionId>('cruise')
   const [habitat, setHabitat] = useState<HabitatId>(DEFAULT_HABITAT.cruise)
@@ -79,6 +82,7 @@ function Shell() {
     setPanel('camera')
   }
   const toggle = (next: Panel) => {
+    setExerciseInterest(undefined)
     if (next === 'camera') {
       if (panel === 'camera') close()
       else openCamera()
@@ -97,11 +101,13 @@ function Shell() {
       clearBreath()
       setCameraView('portrait')
     }
+    setExerciseInterest(undefined)
     crew.select(id)
     setPanel((p) => (p === 'add' ? null : p))
   }
   // A new destination brings its usual habitat; the habitat menu can still pick another.
   const chooseMission = (next: MissionId) => {
+    setExerciseInterest(undefined)
     setMission(next)
     setHabitat(DEFAULT_HABITAT[next])
   }
@@ -149,7 +155,10 @@ function Shell() {
               habitat={habitat}
               onHabitat={setHabitat}
               day={day}
-              onDay={setDay}
+              onDay={(next) => {
+                setExerciseInterest(undefined)
+                setDay(next)
+              }}
             />
           </div>
         </div>
@@ -165,6 +174,10 @@ function Shell() {
             setDay={setDay}
             habitat={habitat}
             onOpenCamera={openCamera}
+            onOpenExercises={(kind) => {
+              setExerciseInterest(kind)
+              setPanel('checkup')
+            }}
             breath={recentBreath(breath, member.id, Date.now())}
             covered={panel === 'checkup' ? CHECKUP_WIDTH : 0}
             paused={panel === 'camera' || panel === 'add'}
@@ -184,6 +197,7 @@ function Shell() {
           >
             <Suspense fallback={<Loading />}>
               <CheckupScreen
+                exerciseInterest={exerciseInterest}
                 member={member}
                 mission={mission}
                 day={day}

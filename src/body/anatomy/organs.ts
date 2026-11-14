@@ -147,7 +147,7 @@ const NOTES: Record<string, OrganNote> = {
     name: 'Spinal cord',
     role: 'Carries nerve signals between the brain and the body.',
     inSpace: 'Back pain is common early in flight as the spine lengthens.',
-    layer: 'skeleton',
+    layer: 'organs',
   },
   skull: {
     name: 'Skull and jaw',
@@ -212,8 +212,8 @@ export function organNote(meshName: string): OrganNote {
 /** Depth stops from the outside in, as in anatomy atlases. */
 export const DEPTH_STOPS = ['Skin', 'Vessels', 'Organs', 'Skeleton'] as const
 
-/** A layer is fully visible until the depth slider passes its stop. */
-export function organOpacity(layer: DepthLayer, depth: number): number {
-  const stop = { vessels: 1, organs: 2, skeleton: 3 }[layer]
-  return 1 - Math.max(0, Math.min(1, depth - stop))
+/** At a stop only that layer is drawn. Dragging blends its two neighbours. */
+export function depthOpacity(layer: 'skin' | DepthLayer, depth: number): number {
+  const stop = { skin: 0, vessels: 1, organs: 2, skeleton: 3 }[layer]
+  return Math.max(0, 1 - Math.abs(depth - stop))
 }

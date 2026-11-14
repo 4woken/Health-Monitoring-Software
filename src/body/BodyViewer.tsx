@@ -12,12 +12,14 @@ import * as THREE from 'three'
 import { useMannequinDimensions } from '../crew/CrewProvider'
 import { hasSize, mannequinScale, type BodyDimensions } from '../crew/bodyDimensions'
 import { fitTorso } from '../crew/torsoFit'
-import { ORGAN_SIGNALS, loadAnatomy, type Body } from './anatomy/loadAnatomy'
+import { ORGAN_SIGNALS, loadBody, type Body } from './anatomy/loadAnatomy'
+import { createBodyGroom } from './groom/bodyGroom'
+import { createRestingEye } from './portrait/restingEye'
 import { createPersonalFace } from './portrait/skinPortrait'
 import type { Build, Vec3 } from './anatomy/bodyShape'
 import type { Level } from '../health/signals'
 import type { AvatarCapture, FaceCalibration } from '../camera/face/portrait'
-import { DEPTH_STOPS, organNote, organOpacity, type DepthLayer } from './anatomy/organs'
+import { DEPTH_STOPS, organNote, depthOpacity, type DepthLayer } from './anatomy/organs'
 import type { LiveFaceFrame } from '../camera/face/liveFace'
 import { Segmented } from '../ui'
 import { usePulse } from '../camera/pulse/pulseSession'
@@ -163,7 +165,6 @@ const LABEL_LEFT = new Set(['sleep', 'opticNerve'])
 
 type CalloutId = 'fluid' | 'heart' | 'bone' | 'muscle'
 const CALLOUT_LEFT = new Set<CalloutId>(['fluid', 'bone'])
-const clamp01 = (v: number) => Math.min(1, Math.max(0, v))
 
 // X-ray lens: a hole in the skin that follows the pointer, with a short trail. Coordinates are
 // drawing-buffer pixels. The edge is dithered so it reads as a soft cut, not a sticker.
@@ -321,14 +322,17 @@ function createStage(
   floor.position.y = 0.003
   body.add(floor)
 
-  let bodies: Record<Build, Body> | null = null
+  let reference: Body | null = null
   let current: Body | null = null
   let fitted: ReturnType<typeof fitTorso> | undefined
-  let build: Build = 'male'
+  let requestedBuild: Build | null = null
+  let requestRevision = 0
+  let groom: ReturnType<typeof createBodyGroom> | null = null
+  const restingEyes: ReturnType<typeof createRestingEye>[] = []
   let dimensions: BodyDimensions = {}
   function fitDimensions() {
     if (!current) return
-    const scale = mannequinScale(build, current.height, dimensions)
+    const scale = mannequinScale(current.build, current.height, dimensions)
     group.scale.set(scale.horizontal, scale.vertical, scale.horizontal)
   }
   let hot: Hotspot[] = []
@@ -351,11 +355,9 @@ function createStage(
     mesh: THREE.Mesh
     holder: THREE.Object3D
     level: Level
-    /** Shown amount, eased toward `target` each frame (0 hidden, 1 fully drawn). */
-    fade: number
-    target: number
+    opacity: number
   }[] = []
-  const skinFade = { value: 1, target: 1 }
+  let skinOpacity = 1
   const flow = { value: 0 }
   let depth = 0
   let isolated: string | null = null
@@ -413,9 +415,8 @@ function createStage(
   const refresh = () => {
     const physiologyView = layer === 'physiology'
     const d = physiologyView ? 0 : depth
-    // The skin dissolves as you go deeper; an isolated organ leaves only a faint outline.
-    skinFade.target = isolated ? 0.05 : 1 - 0.93 * clamp01(d)
-    face?.setVisible(skinFade.target > 0.9)
+    skinOpacity = isolated ? 0 : depthOpacity('skin', d)
+    face?.setVisible(skinOpacity > 0.9)
     shared.uFluid.value = physiologyView ? physio.fluidShiftShare : 0
     for (const o of organs) {
       const ids = ORGAN_SIGNALS[o.name] ?? []
@@ -423,9 +424,7 @@ function createStage(
       for (const h of hot) if (ids.includes(h.id) && RANK[h.level] > RANK[level]) level = h.level
       o.level = layer === 'signals' ? level : 'ok'
       const isActive = (active !== null && ids.includes(active)) || hovered === o.name || isolated === o.name
-      // Each layer stays until you pass it: vessels go between 1 and 2, organs between 2 and 3.
-      const shown = organOpacity(o.layer, d)
-      o.target = isolated ? (o.name === isolated ? 1 : 0.06) : shown
+      o.opacity = isolated ? Number(o.name === isolated) : depthOpacity(o.layer, d)
       o.mat.color.set(anatomyColour(o.name))
       o.mat.emissive.set(isActive && o.level === 'ok' ? '#3c3c3c' : FLAG_GLOW[o.level])
       o.mat.emissiveIntensity = o.level === 'ok' ? (isActive ? 1 : 0) : 0.6
@@ -433,12 +432,13 @@ function createStage(
   }
 
   const updatePortrait = () => {
-    face?.setPortrait(portrait)
+    if (current) face?.setPortrait(portrait)
     refresh()
   }
 
   const isolate = (name: string | null) => {
     isolated = name
+    pointerMoved = true
     refresh()
     if (!name || !current) return
     const o = organs.find((x) => x.name === name)
@@ -453,10 +453,19 @@ function createStage(
     )
   }
 
+  const clearSurfaceDetails = () => {
+    groom?.dispose()
+    groom = null
+    for (const eye of restingEyes.splice(0)) {
+      eye.removeFromParent()
+      eye.geometry.dispose()
+      eye.material.dispose()
+    }
+  }
   const show = () => {
-    if (!bodies) return
-    const reference = bodies[build]
-    const scale = mannequinScale(build, reference.height, dimensions)
+    if (!reference) return
+    const scale = mannequinScale(reference.build, reference.height, dimensions)
+    clearSurfaceDetails()
     fitted?.dispose()
     fitted =
       dimensions.chestCm !== undefined || dimensions.waistCm !== undefined
@@ -465,7 +474,20 @@ function createStage(
     current = fitted?.body ?? reference
     for (const o of organs) o.mat.dispose()
     organGroup.clear()
-    isolated = null
+    organGroup.visible = true
+    for (const socket of current.eyeSockets ?? []) {
+      const eye = createRestingEye(socket, current.build)
+      const appearance = eye.material.onBeforeCompile.bind(eye.material)
+      eye.material.onBeforeCompile = (shader, renderer) => {
+        appearance(shader, renderer)
+        patch(shader, false)
+      }
+      eye.material.customProgramCacheKey = () => 'pulsar-resting-eye-with-lens'
+      eye.userData.organ = socket.name
+      eye.visible = false
+      restingEyes.push(eye)
+      body.add(eye)
+    }
     organs = current.organs.map((o) => {
       const mat = new THREE.MeshStandardMaterial({
         color: anatomyColour(o.name),
@@ -477,7 +499,7 @@ function createStage(
       const vein = o.name.includes('vein')
       // The atlases intersect locally. An internal surface is visible through
       // opaque skin only at pixels cut out by the inspection lens.
-      if (!eye) {
+      if (!eye || restingEyes.length > 0) {
         mat.customProgramCacheKey = () => (flowing ? (vein ? 'vein' : 'artery') : 'internal')
         mat.onBeforeCompile = (shader) => {
           Object.assign(shader.uniforms, shared)
@@ -520,8 +542,7 @@ function createStage(
         mesh,
         holder,
         level: 'ok' as Level,
-        fade: 1,
-        target: 1,
+        opacity: 0,
       }
     })
     if (face) face.dispose()
@@ -533,19 +554,15 @@ function createStage(
     skin.geometry = face.geometry
     skin.material = skinMaterial = face.material
     skin.visible = true
+    groom = createBodyGroom(current, face.geometry, (shader) => patch(shader, false))
+    body.add(groom.object)
     shared.uHeight.value = current.height
     body.position.y = -current.height / 2
     fitDimensions()
-    onCredit(current.attribution)
+    onCredit(current.attribution.endsWith('.') ? current.attribution : current.attribution + '.')
     updatePortrait()
+    if (isolated) isolate(isolated)
   }
-
-  loadAnatomy().then((b) => {
-    if (disposed) return
-    if (!b) return onCredit('failed')
-    bodies = b
-    show()
-  })
 
   // Drag to turn. One finger or the mouse: turn (and slide when zoomed in). Two fingers: pinch to
   // zoom. Wheel: zoom. Pointing names an organ; a click selects it (or the nearest signal on skin).
@@ -580,7 +597,7 @@ function createStage(
   }
   // At the lens centre a strength of 0.88 clears even the last dithered skin pixel.
   const pointerSeesInside = () => {
-    if (!shared.uSolidSkin.value) return skinFade.value <= 0.6 || !!isolated
+    if (skinOpacity < 1) return skinOpacity <= 0.5
     const lens = shared.uLens.value
     const pr = renderer.getPixelRatio()
     return (
@@ -591,15 +608,16 @@ function createStage(
   }
   /** Pick only surfaces exposed at this pointer, including the reference eyes. */
   const pickAt = (cssX: number, cssY: number) => {
+    if (!current) return null
     const w = host.clientWidth || 1
     const h = host.clientHeight || 1
     ndc.set((cssX / w) * 2 - 1, -(cssY / h) * 2 + 1)
     raycaster.setFromCamera(ndc, camera)
     const inside = pointerSeesInside()
     const targets: THREE.Object3D[] = organs
-      .filter((o) => o.mesh.visible && o.fade > 0.4 && (inside || o.eye))
+      .filter((o) => o.mesh.visible && o.mat.opacity >= 0.5 && (inside || o.eye))
       .map((o) => o.mesh)
-    if (!inside) targets.push(skin)
+    if (!inside && skin.visible) targets.push(skin, ...restingEyes.filter((eye) => eye.visible))
     const hit = raycaster.intersectObjects(targets, false)[0]
     if (!hit) return null
     return { what: hit.object === skin ? 'skin' : (hit.object.userData.organ as string), point: hit.point }
@@ -755,7 +773,7 @@ function createStage(
       lensAt.x,
       lensAt.y,
       LENS_CSS_PX * pr,
-      !allowLens || skinFade.value < 0.995 ? 0 : lensAt.strength,
+      allowLens && skinOpacity === 1 ? lensAt.strength : 0,
     )
     const trail = shared.uTrail.value
     for (const p of trail) p.z *= Math.pow(0.04, dt)
@@ -778,35 +796,42 @@ function createStage(
     const bump = (c: number, w: number) => Math.exp(-(((phase - c) / w) ** 2))
     const beat = reduce || motion !== 'heart' ? 0 : bump(0, 0.07) + bump(1, 0.07) + 0.55 * bump(0.24, 0.08)
 
-    const k = reduce ? 1 : Math.min(1, dt * 5)
-    skinFade.value += (skinFade.target - skinFade.value) * k
-    const skinSeeThrough = skinFade.value < 0.995
+    skin.visible = !!current && skinOpacity > 0
+    const skinSeeThrough = skinOpacity < 1
     if (skinSeeThrough !== skinMaterial.transparent) {
       skinMaterial.transparent = skinSeeThrough
       skinMaterial.depthWrite = !skinSeeThrough
       skinMaterial.needsUpdate = true
     }
-    skinMaterial.opacity = skinFade.value
+    skinMaterial.opacity = skinOpacity
     shared.uSolidSkin.value = !skinSeeThrough
-    const internalsVisible = skinSeeThrough || shared.uLens.value.w > 0.12
+    const lensOpen = shared.uLens.value.w > 0.12
     flow.value = motion === 'heart' && skinSeeThrough ? 0.35 + 0.65 * beat : 0
+    if (current) face?.updateLive(liveFace?.current ?? null, calibration)
+    const portraitVisible = face?.portraitVisible ?? false
+    const surfaceVisible = !!current && !skinSeeThrough
+    for (const eye of restingEyes) eye.visible = surfaceVisible && !portraitVisible
+    if (groom) {
+      groom.object.visible = surfaceVisible
+      groom.sync(portraitVisible)
+    }
     for (const o of organs) {
       if (o.name === 'heart') o.holder.scale.setScalar(1 + 0.07 * beat)
       if (o.level !== 'ok' && !reduce) o.mat.emissiveIntensity = 0.35 + 0.35 * Math.sin(t * 3.2)
-      o.fade += (o.target - o.fade) * k
-      const partial = o.fade < 0.995
+      // On solid skin the fragment shader clips anatomy to the inspection lens.
+      const legacyEye = surfaceVisible && o.eye && !restingEyes.length
+      const opacity = legacyEye ? Number(!portraitVisible) : lensOpen ? 1 : o.opacity
+      o.mesh.visible = opacity > 0
+      if (!o.mesh.visible) continue
+      const partial = opacity < 1
       if (partial !== o.mat.transparent) {
         o.mat.transparent = partial
         o.mat.depthWrite = !partial
         o.mat.needsUpdate = true
       }
-      o.mat.opacity = o.fade
-      o.mesh.visible =
-        o.fade > 0.02 &&
-        (o.eye ? !(skinFade.target > 0.9 && (portrait !== null || liveFace?.current)) : internalsVisible)
+      o.mat.opacity = opacity
     }
 
-    face?.updateLive(liveFace?.current ?? null, calibration)
     renderer.render(scene, camera)
 
     // Naming the organ under the pointer, at most once a frame and only when organs show.
@@ -838,7 +863,8 @@ function createStage(
       const front = v.z > -0.03
       v.project(camera)
       node.style.transform = `translate(${((v.x + 1) / 2) * w}px, ${((1 - v.y) / 2) * h}px)`
-      node.style.visibility = Math.abs(v.x) < 1 && Math.abs(v.y) < 1 && !isolated ? 'visible' : 'hidden'
+      node.style.visibility =
+        current && Math.abs(v.x) < 1 && Math.abs(v.y) < 1 && !isolated ? 'visible' : 'hidden'
       node.style.opacity = always || front ? '1' : '0.3'
       node.style.zIndex = front ? '3' : '2'
     }
@@ -921,10 +947,24 @@ function createStage(
   frame()
 
   return {
-    setBuild: (b) => {
-      if (b === build && current) return
-      build = b
-      show()
+    setBuild: (build) => {
+      if (build === requestedBuild) return
+      requestedBuild = build
+      const revision = ++requestRevision
+      current = reference = null
+      skin.visible = organGroup.visible = false
+      clearSurfaceDetails()
+      onCredit('')
+      void loadBody(build).then((loaded) => {
+        if (disposed || requestRevision !== revision) return
+        if (!loaded) {
+          requestedBuild = null
+          onCredit('failed')
+          return
+        }
+        reference = loaded
+        show()
+      })
     },
     setDimensions: (next) => {
       const previous = dimensions
@@ -934,10 +974,8 @@ function createStage(
         previous.waistCm !== undefined ||
         next.chestCm !== undefined ||
         next.waistCm !== undefined
-      const selection = isolated
       if (needsRefit) show()
       else fitDimensions()
-      if (selection) isolate(selection)
     },
     setHotspots: (list) => {
       hot = list
@@ -954,6 +992,7 @@ function createStage(
     },
     setDepth: (d, fly) => {
       depth = Math.min(3, Math.max(0, d))
+      pointerMoved = true
       if (isolated) {
         isolated = null
         onOrganPick(null)
@@ -979,6 +1018,7 @@ function createStage(
     },
     setLayer: (l) => {
       layer = l
+      pointerMoved = true
       refresh()
     },
     setPhysiology: (p) => {
@@ -1026,6 +1066,7 @@ function createStage(
       el.removeEventListener('pointerleave', leave)
       el.removeEventListener('wheel', wheel)
       for (const o of organs) o.mat.dispose()
+      clearSurfaceDetails()
       face?.dispose()
       fitted?.dispose()
       if (!face) {
@@ -1122,34 +1163,34 @@ export default function BodyScan({
     }
   }, [studio])
 
-  useEffect(() => stage.current?.setBuild(build), [build])
+  useEffect(() => stage.current?.setBuild(build), [build, studio])
   useEffect(() => stage.current?.setDimensions(dimensions), [dimensions, studio])
-  useEffect(() => stage.current?.setHotspots(hotspots), [hotspots])
-  useEffect(() => stage.current?.setActive(activeId), [activeId])
-  useEffect(() => stage.current?.setFocus(focusId), [focusId])
-  useEffect(() => stage.current?.setOrgan(organ), [organ])
-  useEffect(() => stage.current?.setLayer(layer), [layer])
-  useEffect(() => stage.current?.setPhysiology(physiology), [physiology])
-  useEffect(() => stage.current?.setHeart(heart), [heart])
-  useEffect(() => stage.current?.setBreathingRate(breathingRate), [breathingRate])
-  useEffect(() => stage.current?.setMotion(motion), [motion])
-  useEffect(() => stage.current?.setAvatar(avatar), [avatar])
-  useEffect(() => stage.current?.setFaceOptions(liveFace, calibration), [liveFace, calibration])
-  useEffect(() => stage.current?.setView(initialView), [initialView])
+  useEffect(() => stage.current?.setHotspots(hotspots), [hotspots, studio])
+  useEffect(() => stage.current?.setActive(activeId), [activeId, studio])
+  useEffect(() => stage.current?.setFocus(focusId), [focusId, studio])
+  useEffect(() => stage.current?.setOrgan(organ), [organ, studio])
+  useEffect(() => stage.current?.setLayer(layer), [layer, studio])
+  useEffect(() => stage.current?.setPhysiology(physiology), [physiology, studio])
+  useEffect(() => stage.current?.setHeart(heart), [heart, studio])
+  useEffect(() => stage.current?.setBreathingRate(breathingRate), [breathingRate, studio])
+  useEffect(() => stage.current?.setMotion(motion), [motion, studio])
+  useEffect(() => stage.current?.setAvatar(avatar), [avatar, studio])
+  useEffect(() => stage.current?.setFaceOptions(liveFace, calibration), [liveFace, calibration, studio])
+  useEffect(() => stage.current?.setView(initialView), [initialView, studio])
   // The stage only needs the ids, anchors and sides; the cards themselves are React children.
   const pinKey = JSON.stringify(pins.map((p) => [p.id, p.at, p.side ?? '']))
   const latestPins = useRef(pins)
   latestPins.current = pins
   useEffect(() => {
     stage.current?.setPins(latestPins.current.map(({ id, at, side }) => ({ id, at, side })))
-  }, [pinKey])
-  useEffect(() => stage.current?.setSideInset(sideInset), [sideInset])
-  useEffect(() => stage.current?.setPaused(paused), [paused])
+  }, [pinKey, studio])
+  useEffect(() => stage.current?.setSideInset(sideInset), [sideInset, studio])
+  useEffect(() => stage.current?.setPaused(paused), [paused, studio])
   const avoidRight = pinAvoid?.right ?? 0
   const avoidBottom = pinAvoid?.bottom ?? 0
   useEffect(
     () => stage.current?.setPinBounds(insetBottom, { right: avoidRight, bottom: avoidBottom }),
-    [insetBottom, avoidRight, avoidBottom],
+    [insetBottom, avoidRight, avoidBottom, studio],
   )
 
   const goDepth = (d: number, fly: boolean) => {
@@ -1229,6 +1270,8 @@ export default function BodyScan({
       />
 
       {layer === 'signals' &&
+        depth === 0 &&
+        !organ &&
         hotspots.map((h) => {
           const flag = h.level !== 'ok'
           const active = h.id === activeId
@@ -1378,7 +1421,7 @@ export default function BodyScan({
         >
           {credit && credit !== 'failed' && (
             <p className="on-photo text-[10px] leading-tight text-white/65">
-              Reference body: {credit}.{' '}
+              Reference body: {credit}{' '}
               {backdrop?.href && (
                 <a
                   className="pointer-events-auto underline"
@@ -1481,7 +1524,7 @@ export default function BodyScan({
           style={{ bottom: insetBottom }}
         >
           {layer === 'physiology' ? 'Face and leg change exaggerated about tenfold. ' : ''}Reference body:{' '}
-          {credit}.{' '}
+          {credit}{' '}
           {backdrop &&
             (backdrop.href ? (
               <a

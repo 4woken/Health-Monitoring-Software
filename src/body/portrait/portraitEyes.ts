@@ -4,8 +4,11 @@ import openings from './portraitEyeOpenings.json'
 
 /** Fill the openings in the individual atlas behind its upper and lower lids.
  * The Blender bake records the rim relative to the centre in tenths of a millimetre. */
-export function portraitEyePatches(build: Build): BufferGeometry[] {
-  return Object.values<{ center: number[]; rim: number[][] }>(openings[build]).map(({ center, rim }) => {
+export function portraitEyePatches(
+  build: Build,
+  calibrated: Record<string, { center: number[]; rim: number[][] }> = openings[build],
+): BufferGeometry[] {
+  return Object.values(calibrated).map(({ center, rim }) => {
     const positions = [...center]
     const indices: number[] = []
     const rings = 5

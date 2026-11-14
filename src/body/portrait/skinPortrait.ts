@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { writeProfileUV } from './profileTexture'
 import { portraitEyePatches } from './portraitEyes'
 import { refinePortraitSkin } from './refinePortraitSkin'
+import { applySkinShading, setSkinFinish } from '../appearance/skinSurface'
 import { FaceLandmarker } from '@mediapipe/tasks-vision'
 import { faceContours, faceIndices } from '../../camera/face/faceMesh'
 import {
@@ -33,13 +34,18 @@ const holes = [
   ...faceContours(FaceLandmarker.FACE_LANDMARKS_LIPS),
 ]
 const DEFAULT_SKIN = new THREE.Color('#c79e83')
+// Median sRGB of the two 8 mm cheek patches in each neutral UV texture,
+// sampled at the same MediaPipe points (50 and 280) as the camera.
+const ALBEDO_CHEEKS = { male: new THREE.Color(0xe39b6b), female: new THREE.Color(0xe3a883) }
 
 /** One continuous skin mesh: a portrait is projected onto its head, never placed in front of it. */
 export function createPersonalFace(
   reference: Body,
   options: { patch?: (shader: THREE.WebGLProgramParametersWithUniforms) => void } = {},
 ) {
-  const eyes = reference.organs.filter((o) => o.name.includes('eyeball')).map((o) => o.center)
+  const eyes = (reference.eyeSockets ?? reference.organs.filter((o) => o.name.includes('eyeball'))).map(
+    (o) => o.center,
+  )
   const center =
     eyes.length === 2
       ? eyes.reduce((v, p) => v.add(new THREE.Vector3(...p)), new THREE.Vector3()).multiplyScalar(0.5)
@@ -50,10 +56,25 @@ export function createPersonalFace(
     eyeDistance: eyes.length === 2 ? Math.abs(eyes[0][0] - eyes[1][0]) : 0.064,
     eyeZ: center.z,
   }
-  const eyePatches = portraitEyePatches(reference.build)
+  const eyePatches = portraitEyePatches(reference.build, reference.referenceHead?.eyeOpenings)
   const skin = refinePortraitSkin(reference.skin, head)
   const skinVertexCount = skin.getAttribute('position').count
+  // Eye caps carry the projected portrait only. Keep every attribute aligned
+  // when merging them with a UV-mapped body and its normalized region weights.
+  for (const patch of eyePatches) {
+    const count = patch.getAttribute('position').count
+    if (skin.hasAttribute('uv'))
+      patch.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(count * 2), 2))
+    if (skin.hasAttribute('skinDetail'))
+      patch.setAttribute('skinDetail', new THREE.BufferAttribute(new Uint8Array(count * 4), 4, true))
+  }
   const geometry = mergeGeometries([skin, ...eyePatches])!
+  // Some offline tools still pass plain, unbaked reference geometries.
+  if (!geometry.hasAttribute('skinDetail'))
+    geometry.setAttribute(
+      'skinDetail',
+      new THREE.BufferAttribute(new Uint8Array(geometry.getAttribute('position').count * 4), 4, true),
+    )
   skin.dispose()
   eyePatches.forEach((patch) => patch.dispose())
   const base = Float32Array.from(geometry.attributes.position.array),
@@ -80,14 +101,17 @@ export function createPersonalFace(
     uLeftGain: { value: new THREE.Color(1, 1, 1) },
     uRightGain: { value: new THREE.Color(1, 1, 1) },
   }
+  const baseColor = reference.albedo ? new THREE.Color(0xffffff) : DEFAULT_SKIN
   const material = new THREE.MeshPhysicalMaterial({
-    color: DEFAULT_SKIN,
+    color: baseColor,
+    map: reference.albedo ?? null,
     roughness: 0.67,
     metalness: 0,
     clearcoat: 0.04,
     clearcoatRoughness: 0.7,
     side: THREE.DoubleSide,
   })
+  setSkinFinish(material)
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms)
     shader.vertexShader =
@@ -112,10 +136,11 @@ export function createPersonalFace(
           diffuseColor.rgb = mix(diffuseColor.rgb, color, clamp(vPortraitWeight,0.0,1.0));
         }`,
     )
+    applySkinShading(shader)
     options.patch?.(shader)
   }
-  material.customProgramCacheKey = () => 'three-view-portrait-v1'
-  const referenceFace = referenceHeads[reference.build]
+  material.customProgramCacheKey = () => 'three-view-portrait-skin-v2'
+  const referenceFace = reference.referenceHead ?? referenceHeads[reference.build]
   const template = registeredHeadTemplate(referenceFace.points, head)
   const restShape = template.map((p, i) => ({ ...p, z: referenceFace.normalised[i].z }))
 
@@ -220,7 +245,7 @@ export function createPersonalFace(
     geometry.attributes.normal.needsUpdate = true
   }
   const tint = (tone: AvatarCapture['skinTone'], adjustment?: FaceCalibration) => {
-    material.color.copy(DEFAULT_SKIN)
+    material.color.copy(baseColor)
     if (tone?.every(Number.isFinite)) {
       const colour = new THREE.Color().setRGB(
         tone[0] / 255,
@@ -228,6 +253,16 @@ export function createPersonalFace(
         tone[2] / 255,
         THREE.SRGBColorSpace,
       )
+      if (reference.albedo) {
+        // Albedo already contains skin colour; apply a bounded change relative
+        // to the base tone so its natural variations survive the colour match.
+        const cheek = ALBEDO_CHEEKS[reference.build]
+        colour.setRGB(
+          THREE.MathUtils.clamp(colour.r / cheek.r, 0.025, 3),
+          THREE.MathUtils.clamp(colour.g / cheek.g, 0.025, 3),
+          THREE.MathUtils.clamp(colour.b / cheek.b, 0.025, 3),
+        )
+      }
       material.color.lerp(colour, faceCalibration(adjustment).skinMatch)
     }
   }
@@ -254,7 +289,7 @@ export function createPersonalFace(
       geometry.attributes.position.needsUpdate = true
       ;(geometry.attributes.normal.array as Float32Array).set(baseNormals)
       geometry.attributes.normal.needsUpdate = true
-      material.color.copy(DEFAULT_SKIN)
+      material.color.copy(baseColor)
     }
     uniforms.uPortraitEnabled.value =
       visible && photo && photoImage?.complete && photoImage.naturalWidth > 0 ? 1 : 0
@@ -262,6 +297,9 @@ export function createPersonalFace(
   return {
     geometry,
     material,
+    get portraitVisible() {
+      return uniforms.uPortraitEnabled.value > 0
+    },
     setPortrait(value: AvatarCapture | null) {
       const sameImage = value?.imageUrl === photo?.imageUrl
       photo = value

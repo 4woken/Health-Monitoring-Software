@@ -2,15 +2,13 @@
 
 MediaPipe Face Landmarker is already part of this application. Its 468 surface landmarks are used for visual personalisation; the separate pulse experiment estimates an experimental camera pulse. Neither produces a personal medical scan.
 
-The capture, the framing guidance and the tracking are in `src/camera/face/`. The fit on the reference head is in `src/body/portrait/` (`headFit.ts` and `skinPortrait.ts`).
+The capture, framing guidance and tracking are in `src/camera/face/`. The fit on the reference head is in `src/body/portrait/` (`headFit.ts` and `skinPortrait.ts`).
 
 ## Registration
 
-`src/body/portrait/referenceHeads.json` contains landmark templates for the two licensed anatomy reference heads. `scripts/reference-heads.html` renders each reference in an orthographic frontal view and runs the installed MediaPipe model locally. It includes the source mesh normals and orientation correction used by the main renderer, plus neutral pupils to make the eye locations detectable. The saved templates were generated on 14 November 2026 with `@mediapipe/tasks-vision` 1.2.3 and the project's local `face_landmarker.task`.
+The two displayed MakeHuman heads have separate calibrations in `public/human/male-head.json` and `female-head.json`. Start the development server with `npm run dev` and open `/scripts/reference-heads.html` to regenerate them with the local Face Landmarker. The calibration uses the same skin texture, eye positions and view orientation as the viewer. It records 468 facial surface landmarks and the eyelid openings for the projected portrait. The original BodyParts3D and HuBMAP head templates in `src/body/portrait/referenceHeads.json` are used by the atlas fallback. [Sources and licences](../THIRD_PARTY_NOTICES.md)
 
-To reproduce them, start the local development server (`npm run dev`), open <http://localhost:5173/scripts/reference-heads.html>, and inspect the JSON result. Regenerate and review the templates if the reference geometry or face model changes. They are derived from the credited BodyParts3D and HuBMAP meshes; their original CC BY 4.0 attribution remains required.
-
-The templates are registered on both eye centres before a portrait is applied. Barycentric correspondence retargets the source eyes, nose, lips and outline onto the same head used in the Body view. The estimated personal shape displaces the front of the reference skin, with a single-view limit of 12 mm per axis and a smaller allowed displacement near the face boundary. The neck, scalp and back remain the reference. The default shape blend is 65%; **Auto-fit face** restores the automatic registration. The reference eyeballs are hidden while the portrait owns those surfaces. The BodyParts3D head has open eyelids. Two curved supports carry the portrait behind those openings. The HuBMAP head already has skin across both eyes and takes the portrait directly. To regenerate the supports from the credited meshes, run `blender -b --factory-startup --python-exit-code 1 --python scripts/fit-portrait-eyes.py`. Blender casts rays against the skin and the eyeballs to locate each eyelid edge.
+The templates are registered on both eye centres before a portrait is applied. Barycentric correspondence retargets the source eyes, nose, lips and outline onto the same head used in the Body view. The estimated personal shape displaces the front of the reference skin, with a single-view limit of 12 mm per axis and a smaller allowed displacement near the face boundary. The neck, scalp and back remain the reference. The default shape blend is 65%; **Auto-fit face** restores the automatic registration. The reference eyeballs are hidden while the portrait owns those surfaces. The fitted portrait uses curved supports under the eyelids of both MakeHuman heads. The original atlas uses its separately baked supports, which can be regenerated with `blender -b --factory-startup --python-exit-code 1 --python scripts/fit-portrait-eyes.py`.
 
 Long edges on the front of the reference face are split once before fitting the portrait, so the texture can follow the chin and cheeks between the original vertices. The portrait uses the atlas surface normals. As the face moves, neighbouring vertex displacements update the local lighting direction around each bound vertex. This keeps the jaw shading stable where triangles overlap in the source scan.
 
@@ -32,7 +30,7 @@ The oblique photos also supply cheek texture. A triangle gets more weight in a s
 
 ## Frame consistency
 
-Each video frame is copied to a canvas **before** inference. Landmarks, the canvas texture and the captured portrait all use these same frozen pixels. A constantly advancing `VideoTexture` must not be paired with landmarks from an earlier frame. The Pulse view of the Camera page also freezes and re-detects a frame when the user asks for a portrait with **Capture & check the fit**.
+Each video frame is copied to a canvas **before** inference. Landmarks, the canvas texture and the captured portrait all use these same frozen pixels. A constantly advancing `VideoTexture` must not be paired with landmarks from an earlier frame. The pulse page also freezes and re-detects a frame when the user requests a portrait.
 
 **Play sample motion** sends the fictional sample portrait through a moving, scaled canvas stream and the same video inference, fitting and capture path as the webcam. It requests no webcam permission. The sample remains explicitly labelled after capture and application. It is useful for checking registration while the face moves across the source image.
 

@@ -40,6 +40,12 @@ Each non-overlapping 60-second window came entirely from one study phase. The fo
 
 These are outcomes on a controlled laboratory protocol using two worn sensors. The preview scales against each participant’s full recording, including later phases. Real-time wearable deployment would need its own calibration and evaluation. An astronaut's stress level cannot be inferred from this experiment. The data owners permit scientific, noncommercial use with attribution. [Schmidt, Reiss, Duerichen, Marberger and Van Laerhoven (2018)](https://doi.org/10.1145/3242969.3242985)
 
+## Stress in the personal check-up
+
+The person can skip the stress question or report how they feel now. The answer stays in this tab for the current person and calendar day. Reporting some or a lot of stress makes a short breathing break available. Their optional answer after the break records how they felt afterwards. The check-in can also take one breathing-rate sample using chest motion. It waits for at least 32 seconds of continuous usable video and releases the camera as soon as a rate is available. Camera measurements do not select an exercise or populate the person's answer.
+
+A study of 252 people who completed questionnaires and a smartphone facial scan found weak associations between camera-derived indices and questionnaire responses. The authors did not establish individual predictive accuracy. Pulsar therefore reports only the physiological quantity its camera estimates. The one-minute break adapts the NHS guidance on comfortable, unforced breathing to a shorter activity. [Primary study on facial video and stress](https://www.mdpi.com/2227-9032/14/13/1893) · [NHS breathing exercises for stress](https://www.nhs.uk/mental-health/self-help/guides-tools-and-activities/breathing-exercises-for-stress/)
+
 ## Reproduce the runs
 
 The commands below use Python 3.13, approximately 55 MB of pulse inputs, and 480 MB of WESAD preview data. The pulse script checks SHA-256 for the six source and weight files and uses PyTorch's weights-only loader. The WESAD script reads the preview's numeric arrays as data.

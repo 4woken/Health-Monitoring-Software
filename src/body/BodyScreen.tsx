@@ -43,12 +43,19 @@ const PINNED = 3
 const LISTED = 6
 
 const LEVEL_WORD = { ok: 'Normal', watch: 'Needs a check today', act: 'Act now' } as const
+/** Short exercises that answer a signal, opened in the check-up. */
+const EXERCISE_FOR: Partial<Record<SignalId, { kind: ExerciseKind; label: string }>> = {
+  sleep: { kind: 'reaction', label: 'Check my sleep and reaction' },
+  mood: { kind: 'breathing', label: 'Check in on my stress' },
+}
 const PIN_STYLE = { act: 'bg-[#cd3a3a] text-white', watch: 'bg-[#f0a73a] text-[#1b1204]' } as const
 const PHASE_WORD: Record<Phase, string> = {
   flight: 'NASA in flight',
   ground: 'NASA before and after flight',
   career: 'NASA after the career',
 }
+
+import type { ExerciseKind } from '../exercises/exercisePlan'
 
 interface Props {
   member: Member
@@ -58,6 +65,7 @@ interface Props {
   setDay: (day: number) => void
   habitat: HabitatId
   onOpenCamera: (view?: CameraView) => void
+  onOpenExercises: (kind: ExerciseKind) => void
   breath: BreathReading | null
   /** Width covered on the right by a panel of the app, such as the check-up. */
   covered: number
@@ -79,6 +87,7 @@ export default function BodyScreen({
   setDay,
   habitat,
   onOpenCamera,
+  onOpenExercises,
   breath,
   covered,
   paused,
@@ -240,6 +249,16 @@ export default function BodyScreen({
   }
 
   const note = organ ? organNote(organ) : null
+  const exercise =
+    organ === 'arm bones'
+      ? 'assembly'
+      : organ === 'leg bones'
+        ? 'knee'
+        : focused?.id === 'sleep'
+          ? 'reaction'
+          : focused?.id === 'mood'
+            ? 'breathing'
+            : null
   const organSignals = organ ? signals.filter((s) => (ORGAN_SIGNALS[organ] ?? []).includes(s.id)) : []
   const caption =
     place.kind === 'generated'
@@ -259,6 +278,12 @@ export default function BodyScreen({
       onPlan={() => checkup.follow(picked)}
       onDetails={() => details(picked.id)}
       onClose={() => setSelected(null)}
+      exercise={
+        EXERCISE_FOR[picked.id] && {
+          label: EXERCISE_FOR[picked.id]!.label,
+          onOpen: () => onOpenExercises(EXERCISE_FOR[picked.id]!.kind),
+        }
+      }
     />
   )
   const pins: Pin[] = []
@@ -551,6 +576,23 @@ export default function BodyScreen({
                   ))}
                 </>
               )}
+              {exercise && (
+                <div className="px-5 pb-5">
+                  <button
+                    type="button"
+                    className="press min-h-10 rounded-full border border-white/30 px-4 text-sm hover:bg-white/10"
+                    onClick={() => onOpenExercises(exercise)}
+                  >
+                    {exercise === 'assembly'
+                      ? 'Explore hand coordination'
+                      : exercise === 'knee'
+                        ? 'Explore seated mobility'
+                        : exercise === 'breathing'
+                          ? 'Check in on my stress'
+                          : 'Check my sleep and reaction'}
+                  </button>
+                </div>
+              )}
             </div>
           </motion.aside>
         )}
@@ -602,6 +644,7 @@ function PartCard({
   onPlan,
   onDetails,
   onClose,
+  exercise,
 }: {
   signal: Signal
   advice?: Advice
@@ -610,6 +653,8 @@ function PartCard({
   onPlan: () => void
   onDetails: () => void
   onClose: () => void
+  /** A short exercise on the same question. */
+  exercise?: { label: string; onOpen: () => void }
 }) {
   const nasa = requirementsFor(signal.id)
   const reference = nasa.find((r) => r.phase === 'flight') ?? nasa[0]
@@ -661,6 +706,11 @@ function PartCard({
           <Button size="sm" kind="ghost" onClick={onPlan} disabled={planned}>
             {planned ? <CheckCircle size={15} weight="fill" /> : <ListPlus size={15} />}
             {planned ? 'In the check-up' : 'Add to the check-up'}
+          </Button>
+        )}
+        {exercise && (
+          <Button size="sm" kind="ghost" onClick={exercise.onOpen}>
+            {exercise.label}
           </Button>
         )}
       </div>

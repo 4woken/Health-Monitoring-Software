@@ -5,6 +5,13 @@ import type { BodyDimensions } from './bodyDimensions'
 
 // Reference heights were selected where the arms are separate from the rib cage
 // and waist on each atlas. Centimetres are the convex tape length at that plane.
+export interface TorsoCalibration {
+  waist: number
+  chest: number
+  waistCm: number
+  chestCm: number
+}
+
 export const TORSO_PLANES = {
   male: { waist: 0.62, chest: 0.68, waistCm: 78.55, chestCm: 89.98 },
   female: { waist: 0.64, chest: 0.7, waistCm: 93.34, chestCm: 105.3 },
@@ -17,8 +24,13 @@ function transition(a: number, b: number, t: number) {
 
 /** A smooth field with flat regions at the two measured planes. Outside the
  * torso the transformation is identity, including all portrait landmarks. */
-export function torsoShape(build: Build, height: number, horizontal: number, values: BodyDimensions) {
-  const ref = TORSO_PLANES[build]
+export function torsoShape(
+  build: Build,
+  height: number,
+  horizontal: number,
+  values: BodyDimensions,
+  ref: TorsoCalibration = TORSO_PLANES[build],
+) {
   const waist = values.waistCm === undefined ? 1 : values.waistCm / (ref.waistCm * horizontal)
   const chest = values.chestCm === undefined ? 1 : values.chestCm / (ref.chestCm * horizontal)
   const band = 0.011
@@ -63,7 +75,7 @@ function transformMesh(source: BufferGeometry, factor: (y: number) => number): B
 /** The cache stays immutable. The viewer owns only these disposable clones.
  * Raycasting, portrait placement, organ zoom and markers use these surfaces. */
 export function fitTorso(reference: Body, horizontal: number, values: BodyDimensions) {
-  const factor = torsoShape(reference.build, reference.height, horizontal, values)
+  const factor = torsoShape(reference.build, reference.height, horizontal, values, reference.torsoCalibration)
   const skin = transformMesh(reference.skin, factor)
   const organs = reference.organs.map((o) => ({
     ...o,

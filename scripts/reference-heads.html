@@ -1,4 +1,6 @@
-<!doctype html><meta charset="utf-8" /><title>Reference head calibration</title>
+<!doctype html>
+<meta charset="utf-8" />
+<title>Reference head calibration</title>
 <style>
   body {
     margin: 20px;
@@ -6,114 +8,161 @@
     font: 14px monospace;
   }
   canvas {
-    width: 400px;
-    height: 400px;
-  }
-  pre {
-    white-space: pre-wrap;
+    display: block;
+    width: 360px;
+    height: 360px;
   }
   section {
     display: inline-block;
     vertical-align: top;
+    margin: 12px;
   }
 </style>
 <h1>Reference head calibration</h1>
-<p>Local MediaPipe calibration of the licensed reference meshes. No camera.</p>
-<pre id="status">Loading…</pre>
+<p>
+  MediaPipe fits the same textured heads and resting eyes as the viewer. Download each calibration to
+  public/human.
+</p>
+<p id="status">Loading…</p>
 <div id="heads"></div>
-<pre id="results"></pre>
 <script type="module">
   import * as THREE from 'three'
-  import { normaliseFace } from '../src/camera/face/portrait'
-  import { orientTriangles } from '../src/body/anatomy/orientTriangles'
   import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision'
+  import { normaliseFace } from '../src/camera/face/portrait'
+  import { loadHumanSkin } from '../src/body/anatomy/loadHuman'
+  import { createRestingEye } from '../src/body/portrait/restingEye'
+
+  // Find the actual skin margin of each eye. The sphere supports photographed
+  // eyes underneath the lids; outer rings of the portrait patch close its edges.
+  function fitOpening(geometry, eye) {
+    const [x, y, z] = eye.center
+    const p = geometry.attributes.position
+    const triangles = []
+    for (let i = 0; i < geometry.index.count; i += 3) {
+      const abc = [0, 1, 2].map((j) => new THREE.Vector3().fromBufferAttribute(p, geometry.index.getX(i + j)))
+      if (
+        abc.every((a) => a.z < z) ||
+        abc.every((a) => a.x < x - 0.025) ||
+        abc.every((a) => a.x > x + 0.025) ||
+        abc.every((a) => a.y < y - 0.02) ||
+        abc.every((a) => a.y > y + 0.02)
+      )
+        continue
+      const [a, b, c] = abc,
+        u = b.sub(a),
+        v = c.sub(a)
+      const det = u.x * v.y - u.y * v.x
+      if (Math.abs(det) > 1e-12) triangles.push({ a, u, v, det })
+    }
+    const depth = (px, py) => {
+      let front = -Infinity
+      for (const { a, u, v, det } of triangles) {
+        const dx = px - a.x,
+          dy = py - a.y
+        const s = (dx * v.y - dy * v.x) / det,
+          t = (u.x * dy - u.y * dx) / det
+        if (s >= 0 && t >= 0 && s + t <= 1) front = Math.max(front, a.z + s * u.z + t * v.z)
+      }
+      return front
+    }
+    if (depth(x, y) > z) throw new Error('Eye centre covered by the skin')
+    const apex = z + eye.radius - 0.0015
+    const rim = Array.from({ length: 48 }, (_, i) => {
+      const angle = (2 * Math.PI * i) / 48,
+        dx = Math.cos(angle),
+        dy = Math.sin(angle)
+      const seesLid = (r) => depth(x + r * dx, y + r * dy) > z
+      let high = 0.00025
+      while (high <= 0.023 && !seesLid(high)) high += 0.00025
+      if (high > 0.023) throw new Error('Missing eyelid contour: ' + eye.name)
+      let low = high - 0.00025
+      for (let j = 0; j < 10; j++) {
+        const mid = (low + high) / 2
+        if (seesLid(mid)) high = mid
+        else low = mid
+      }
+      const surface = z + Math.sqrt(Math.max(0, eye.radius ** 2 - high ** 2))
+      const lid = depth(x + (high + 0.0001) * dx, y + (high + 0.0001) * dy)
+      return [high * dx, high * dy, Math.min(lid, surface) - 0.0015 - apex].map((v) => Math.round(v * 10000))
+    })
+    return { center: [x, y, apex], rim }
+  }
+
+  async function calibrate(build, tracker) {
+    const { skin, eyes, albedo } = await loadHumanSkin(build)
+    const eyeCenter = new THREE.Vector3()
+    for (const eye of eyes) eyeCenter.add(new THREE.Vector3(...eye.center))
+    eyeCenter.divideScalar(eyes.length)
+    const cx = eyeCenter.x,
+      cy = eyeCenter.y
+    const camera = new THREE.OrthographicCamera(cx - 0.15, cx + 0.15, cy + 0.135, cy - 0.165, 0.01, 4)
+    camera.position.z = 2
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true })
+    renderer.setSize(800, 800, false)
+    renderer.setClearColor('#a5a4a3')
+    renderer.outputColorSpace = THREE.SRGBColorSpace
+    renderer.toneMapping = THREE.ACESFilmicToneMapping
+    const scene = new THREE.Scene()
+    scene.add(new THREE.HemisphereLight(0xfff7ef, 0x817b78, 1.6))
+    const key = new THREE.DirectionalLight(0xfff5ec, 2.4)
+    key.position.set(-1, 3, 5)
+    scene.add(key)
+    const skinMaterial = new THREE.MeshStandardMaterial({
+      map: albedo,
+      roughness: 0.7,
+      side: THREE.DoubleSide,
+    })
+    scene.add(new THREE.Mesh(skin.geometry, skinMaterial))
+    const globes = eyes.map((eye) => createRestingEye(eye, build))
+    scene.add(...globes)
+    renderer.render(scene, camera)
+    const points = tracker.detect(renderer.domElement).faceLandmarks[0]?.slice(0, 468)
+    if (points?.length !== 468) throw new Error('Could not locate all facial landmarks on ' + build)
+    const result = {
+      camera: { left: camera.left, right: camera.right, top: camera.top, bottom: camera.bottom },
+      normalised: normaliseFace(points, 800, 800),
+      points: points.map((p) => ({
+        x: camera.left + p.x * (camera.right - camera.left),
+        y: camera.top - p.y * (camera.top - camera.bottom),
+        z: p.z,
+      })),
+      eyeOpenings: Object.fromEntries(eyes.map((eye) => [eye.name, fitOpening(skin.geometry, eye)])),
+    }
+    const encoded =
+      JSON.stringify(result, (_key, v) => (typeof v === 'number' ? Number(v.toFixed(7)) : v)) + '\n'
+    const section = document.createElement('section')
+    const canvas = document.createElement('canvas')
+    canvas.width = canvas.height = 800
+    canvas.getContext('2d').drawImage(renderer.domElement, 0, 0)
+    const link = document.createElement('a')
+    link.download = build + '-head.json'
+    link.href = URL.createObjectURL(new Blob([encoded], { type: 'application/json' }))
+    link.textContent = 'Download ' + link.download
+    section.append(build, canvas, link)
+    document.querySelector('#heads').append(section)
+    skin.geometry.dispose()
+    skinMaterial.dispose()
+    albedo.dispose()
+    for (const globe of globes) {
+      globe.geometry.dispose()
+      globe.material.dispose()
+    }
+    renderer.dispose()
+  }
+
   const status = document.querySelector('#status')
   try {
-    const [manifest, buffer, files] = await Promise.all([
-      fetch('/anatomy/anatomy.json').then((r) => r.json()),
-      fetch('/anatomy/anatomy.bin').then((r) => r.arrayBuffer()),
-      FilesetResolver.forVisionTasks('/face/wasm'),
-    ])
+    const files = await FilesetResolver.forVisionTasks('/face/wasm')
     const tracker = await FaceLandmarker.createFromOptions(files, {
       baseOptions: { modelAssetPath: '/face/face_landmarker.task', delegate: 'CPU' },
       runningMode: 'IMAGE',
       numFaces: 1,
     })
-    const results = {}
-    for (const [name, data] of Object.entries(manifest.bodies)) {
-      const eyes = data.organs.filter((o) => o.name.includes('eyeball'))
-      const cx = (eyes[0].center[0] + eyes[1].center[0]) / 2,
-        cy = (eyes[0].center[1] + eyes[1].center[1]) / 2
-      const camera = new THREE.OrthographicCamera(cx - 0.16, cx + 0.16, cy + 0.15, cy - 0.17, 0.01, 4)
-      camera.position.set(0, 0, 2)
-      camera.lookAt(0, 0, 0)
-      camera.updateMatrixWorld()
-      const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true })
-      renderer.setSize(800, 800)
-      renderer.setClearColor('#c9cbd0')
-      renderer.outputColorSpace = THREE.SRGBColorSpace
-      const scene = new THREE.Scene()
-      scene.add(new THREE.HemisphereLight(0xffffff, 0x686565, 2))
-      const light = new THREE.DirectionalLight(0xffffff, 3)
-      light.position.set(-1, 3, 5)
-      scene.add(light)
-      const geometry = (m) => {
-        const g = new THREE.BufferGeometry()
-        g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(buffer, m.pos, m.verts * 3), 3))
-        const indices = new Uint32Array(buffer, m.idx, m.tris * 3)
-        if (m.nrm !== undefined) {
-          const normals = new Float32Array(buffer, m.nrm, m.verts * 3)
-          g.setAttribute('normal', new THREE.BufferAttribute(normals, 3))
-          g.setIndex(
-            new THREE.BufferAttribute(orientTriangles(g.attributes.position.array, normals, indices), 1),
-          )
-        } else {
-          g.setIndex(new THREE.BufferAttribute(indices, 1))
-          g.computeVertexNormals()
-        }
-        return g
-      }
-      const skin = new THREE.Mesh(
-        geometry(data.skin),
-        new THREE.MeshStandardMaterial({ color: '#c79e83', roughness: 0.8, side: THREE.DoubleSide }),
-      )
-      scene.add(skin)
-      for (const eye of eyes) {
-        scene.add(
-          new THREE.Mesh(
-            geometry(eye),
-            new THREE.MeshStandardMaterial({ color: '#eeede7', side: THREE.DoubleSide }),
-          ),
-        )
-        const pupil = new THREE.Mesh(
-          new THREE.SphereGeometry(0.004, 24, 16),
-          new THREE.MeshBasicMaterial({ color: '#25201c' }),
-        )
-        pupil.position.set(eye.center[0], eye.center[1], eye.center[2] + 0.012)
-        scene.add(pupil)
-      }
-      renderer.render(scene, camera)
-      const section = document.createElement('section')
-      section.append(name, renderer.domElement)
-      document.querySelector('#heads').append(section)
-      const points = tracker.detect(renderer.domElement).faceLandmarks[0]
-      if (!points) {
-        results[name] = { error: 'No face found' }
-        continue
-      }
-      // Orthographic front projection: render-space coordinates locate points on the actual head.
-      results[name] = {
-        normalised: normaliseFace(points, 800, 800),
-        camera: { left: camera.left, right: camera.right, top: camera.top, bottom: camera.bottom },
-        points: points.slice(0, 468).map((p) => ({
-          x: camera.left + p.x * (camera.right - camera.left),
-          y: camera.top - p.y * (camera.top - camera.bottom),
-          z: p.z,
-        })),
-      }
+    try {
+      for (const build of ['female', 'male']) await calibrate(build, tracker)
+    } finally {
+      tracker.close()
     }
-    tracker.close()
-    document.querySelector('#results').textContent = JSON.stringify(results)
     status.textContent = 'Complete'
   } catch (e) {
     status.textContent = 'ERROR: ' + e.message

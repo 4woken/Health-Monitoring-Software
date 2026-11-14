@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
 import type { AvatarCapture, PersonalAvatar } from '../camera/face/portrait'
 import { EMPTY_SIZE, loadSize, saveSize, type BodyDimensions, type SizeSetting } from './bodyDimensions'
+import { clearExerciseHistory } from '../exercises/exercisePlan'
 import { ROLES, TEAM, memberForStorage, readProfileDetails, type Member } from './roster'
 
 /** Added people (name, role, body) are kept in this browser. Faces are not: they stay in memory. */
@@ -112,6 +113,7 @@ export function CrewProvider({ children }: { children: ReactNode }) {
       return next
     })
     saveSize(id, {}, false)
+    clearExerciseHistory(id)
     setSizes(({ [id]: _size, ...rest }) => rest)
     setFaces(({ [id]: _gone, ...rest }) => rest)
     setCurrentId((selected) => (selected === id ? null : selected))

@@ -6,7 +6,11 @@ Owner: Youssef Mir.
 
 The goal is for the 3D bodies to look like real people (skin detail, navel, nails, head hair, eyebrows and eyelashes, body hair on the male body) while the anatomy layers (vessels, organs, skeleton) stay aligned with the skin.
 
-### Where things are today
+### Implemented in the body viewer
+
+Both bodies now load separately, with CC0 MakeHuman geometry and textured skin. The groom adds hair, brows and lashes at skin depth, with sparse short body hair on the male body. Portrait fitting uses the 468 landmarks and eyelid openings measured on each new head. The medical layers use the registered reference organs and skeleton, with a female HRA pelvis. The remaining transferred female bones are approximations. [Model sources and build steps](../public/human/SOURCES.md)
+
+### Starting point
 
 - **Male body**: the BodyParts3D skin (41,258 vertices, with stored normals), its organs, and the full skeleton and vessels added by `scripts/add-bodyparts3d.mjs`.
 - **Female body**: the HuBMAP HRA skin (43,086 vertices, normals computed at load) and organs. Her skeleton and vessels are the male ones, bent into her body by `scripts/fit-female-body.mjs`.
@@ -28,7 +32,7 @@ The goal is for the 3D bodies to look like real people (skin detail, navel, nail
 3. **Face fitting.** Redo the reference head templates for the new heads (`scripts/reference-heads.html`, see `docs/FACE_FITTING.md`).
 4. **Licences.** Update `docs/CREDITS.md` and the credit shown under the body.
 
-### Known limits to fix along the way
+### Limits identified in the original plan
 
 - The female pelvis keeps the male shape, only widened. A female skeleton source would be better.
 - `public/anatomy/anatomy.bin` is 18 MB with both bodies. Loading only the body on screen, or storing positions as 16-bit integers, would cut the first load.

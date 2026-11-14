@@ -1,9 +1,10 @@
 # Third-party components and resources
 
+- Both exterior skin models use MakeHuman geometry and skin textures by Margaret Toigo (CC0). The displayed female pelvis comes from the female Human Reference Atlas v1.10. [Model credits](../THIRD_PARTY_NOTICES.md)
 - Male anatomy: **BodyParts3D**, © The Database Center for Life Science, licence **CC BY 4.0**. The attribution is also shown in the 3D view.
   Skeleton (skull, rib cage, shoulders, arms, pelvis, legs), arteries and veins added from BodyParts3D 4.0: meshes simplified with meshoptimizer (MIT) and placed on the reference body by `scripts/add-bodyparts3d.mjs`. Because BodyParts3D contains only a short segment of the right internal jugular vein, both internal jugular veins are drawn along the carotid arteries; this path is not traced from anatomical data. The genitals of the skin are smoothed into a plain surface by `scripts/smooth-male-skin.mjs`.
 - Female anatomy: **HRA 3D Reference Organs / Visible Human female**, **HuBMAP Consortium**, licence **CC BY 4.0**. The attribution is also shown in the 3D view.
-  Skeleton, arteries and veins: the BodyParts3D meshes of the male body above, fitted to her body by `scripts/fit-female-body.mjs`. The result is an approximation, not a female skeleton: the pelvis, for example, keeps the male shape, only widened.
+  Skeleton, arteries and veins: the BodyParts3D meshes of the male body above, fitted to her body by `scripts/fit-female-body.mjs`. The displayed model replaces the transferred pelvis with the female HRA pelvis. The remaining transferred bones are approximations.
 - Face tracking: **Google MediaPipe**, a library under the **Apache-2.0** licence. See [the licence](https://github.com/google-ai-edge/mediapipe/blob/master/LICENSE) and [the notes on the local files](../public/face/README.md).
 - **React**, **Three.js**, **Vite**, **Tailwind CSS**, **Motion** and the other dependencies remain under their own licences, available in the npm packages.
 - Typeface: **Barlow** and **Barlow Semi Condensed** (Jeremy Tribby), licence **SIL Open Font License 1.1**, served locally through the `@fontsource` packages.

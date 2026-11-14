@@ -1,10 +1,22 @@
 import type { FaceLandmarker } from '@mediapipe/tasks-vision'
-import { createTracker } from '../face/faceModel'
 import { BreathWindow, MIN_SECONDS, type BreathingEstimate } from './breathRate'
 import { chestFlow, grayscale, torsoRegions, type Regions } from './opticalFlow'
 
 export type CameraState =
   'off' | 'permission' | 'loading' | 'frame' | 'collect' | 'texture' | 'motion' | 'weak' | 'reading' | 'error'
+export const BREATH_STATUS: Record<CameraState, string> = {
+  off: 'Camera off',
+  permission: 'Waiting for camera permission',
+  loading: 'Loading face tracking',
+  frame: 'Frame one person, with face and upper chest in view',
+  collect: 'Collecting chest motion',
+  texture: 'More detail needed. Light your face and chest evenly. Clothing with a pattern can help.',
+  motion: 'Movement interrupted the reading. Keep your head and camera still.',
+  weak: 'No clear breathing rhythm yet. Keep your chest in view and breathe normally.',
+  reading: 'Repeated chest motion detected',
+  error: 'Camera stopped',
+}
+
 export interface BreathPreview extends BreathingEstimate {
   state: CameraState
   error?: string
@@ -97,6 +109,8 @@ export function startBreathingSession(video: HTMLVideoElement, update: (preview:
       await video.play()
       if (stopped) return
       emit('loading')
+      const { createTracker } = await import('../face/faceModel')
+      if (stopped) return
       const model = await createTracker('VIDEO', 2)
       if (stopped) {
         model.close()

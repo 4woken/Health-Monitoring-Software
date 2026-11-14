@@ -103,3 +103,34 @@ describe.each(['male', 'female'] as Build[])('torso fitting on the %s atlas', (b
     heart.geometry.dispose()
   })
 })
+
+it.each(['male', 'female'] as Build[])(
+  'uses the measured waist and chest of the displayed %s skin',
+  (build) => {
+    const prefix = 'public/human/' + build
+    const { skin: spec, height } = JSON.parse(readFileSync(prefix + '.json', 'utf8'))
+    const { torsoCalibration } = JSON.parse(readFileSync(prefix + '-organs.json', 'utf8'))
+    const buf = Uint8Array.from(readFileSync(prefix + '.bin')).buffer
+    const skin = new BufferGeometry()
+    skin.setAttribute('position', new BufferAttribute(new Float32Array(buf, spec.pos, spec.verts * 3), 3))
+    skin.setAttribute('normal', new BufferAttribute(new Float32Array(buf, spec.nrm, spec.verts * 3), 3))
+    skin.setIndex(new BufferAttribute(new Uint16Array(buf, spec.idx, spec.tris * 3), 1))
+    const dimensions = { heightCm: 182, weightKg: 83, chestCm: 108, waistCm: 85 }
+    const { horizontal } = mannequinScale(build, height, dimensions)
+    const result = fitTorso(
+      { build, skin, height, torsoCalibration, organs: [], anchors: {}, attribution: '' },
+      horizontal,
+      dimensions,
+    )
+    for (const region of ['chest', 'waist'] as const) {
+      const field = region === 'chest' ? 'chestCm' : 'waistCm'
+      const y = height * torsoCalibration[region]
+      expect(tapeLength(skin, y, 0.155)).toBeCloseTo(torsoCalibration[field], 1)
+      expect(
+        Math.abs(horizontal * tapeLength(result.body.skin, y, 0.155 * result.factor(y)) - dimensions[field]),
+      ).toBeLessThan(0.25)
+    }
+    result.dispose()
+    skin.dispose()
+  },
+)

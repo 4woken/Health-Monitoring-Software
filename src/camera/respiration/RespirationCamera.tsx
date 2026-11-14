@@ -3,25 +3,7 @@ import { Wind, VideoCamera, VideoCameraSlash } from '@phosphor-icons/react'
 import { Button, Panel } from '../../ui'
 import type { BreathReading } from '../breathReading'
 import { MIN_SECONDS } from './breathRate'
-import {
-  EMPTY_PREVIEW,
-  startBreathingSession,
-  type BreathPreview,
-  type CameraState,
-} from './breathingSession'
-
-const STATUS: Record<CameraState, string> = {
-  off: 'Camera off',
-  permission: 'Waiting for camera permission',
-  loading: 'Loading face tracking',
-  frame: 'Frame one person, with face and upper chest in view',
-  collect: 'Collecting chest motion',
-  texture: 'More detail needed. Light your face and chest evenly. Clothing with a pattern can help.',
-  motion: 'Movement interrupted the reading. Keep your head and camera still.',
-  weak: 'No clear breathing rhythm yet. Keep your chest in view and breathe normally.',
-  reading: 'Repeated chest motion detected',
-  error: 'Camera stopped',
-}
+import { EMPTY_PREVIEW, startBreathingSession, type BreathPreview, BREATH_STATUS } from './breathingSession'
 
 export function RespirationCamera({
   onReading,
@@ -116,7 +98,7 @@ export function RespirationCamera({
             )}
           </div>
           <p className="border-t border-line px-4 py-3 text-[14px]" role="status">
-            {preview.error || STATUS[preview.state]}
+            {preview.error || BREATH_STATUS[preview.state]}
           </p>
         </Panel>
         <Panel className="p-5">
