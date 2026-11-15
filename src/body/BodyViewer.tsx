@@ -1002,7 +1002,11 @@ function createStage(
       follow.multiplyScalar(THREE.MathUtils.smoothstep(zoom, 1, 3))
     }
     const cameraOffsetX = shiftX + rowCentreZ * Math.sin(yaw) + follow.x
-    const cameraOffsetY = rowCentreY + cameraZ * Math.sin(tilt) + follow.y
+    // The whole-body view rises with the float, so the head stays clear of the top bar; the sway
+    // around it still shows.
+    const floatLift =
+      drift * 0.052 * (current?.height ?? 1.75) * group.scale.y * (1 - THREE.MathUtils.smoothstep(zoom, 1, 3))
+    const cameraOffsetY = rowCentreY + cameraZ * Math.sin(tilt) + follow.y + floatLift
     const nextCameraZ = cameraZ * Math.cos(tilt) + rowCentreZ * Math.cos(yaw) + follow.z
     if (zoomAnchor) {
       // Intersect the pointer ray with the anchor's depth to keep the same

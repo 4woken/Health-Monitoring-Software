@@ -1,6 +1,6 @@
 # Pulsar
 
-![Day 97 of the cruise to Mars: three things to do today point at the eyes, the kidneys and the air](docs/screenshots/dashboard.jpg)
+![Day 97 of the cruise to Mars: the controls on the left, three things to do today on the right, the markers on the body](docs/screenshots/dashboard.jpg)
 
 Pulsar is a health monitor for astronauts. It shows your body in the place you live (the station, the ship to Mars, a base on the Moon or on Mars) and points at what needs looking after today. Click any part of the body and it tells you what it is, what your numbers say and what to do about it.
 
@@ -31,7 +31,7 @@ Four crew members are on board, each with their own story over the mission. Pick
 
 The dashboard is the whole app. The controls sit down the left side: how deep to look, the view and the NASA reference. The things to do today run down the right side, most urgent first, red for now and amber for today. Every part that Pulsar follows has a marker on the body: white when it's fine, amber or red when it isn't.
 
-![Clicking the air marker opens a card: cabin CO2 at 3.4 mmHg, above the 3 mmHg limit, check the CO2 scrubber](docs/screenshots/part.jpg)
+![Clicking the air notice opens a card on the body: cabin CO2 at 3.4 mmHg, above the 3 mmHg limit, check the CO2 scrubber](docs/screenshots/part.jpg)
 
 Click a marker or a line of the list. The camera flies to that part and a card opens beside it with the value, its trend over the last 30 days, what to do, and the exam NASA runs in flight for the same question. If it's already on your check-up, **In the check-up** takes you there.
 
