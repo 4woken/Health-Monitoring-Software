@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { chestFlow, torsoRegions, type FrameFlow } from './opticalFlow'
-import { BreathWindow } from './breathRate'
+import { BreathWindow, MIN_SECONDS } from './breathRate'
 
 const width = 118
 const height = 90
@@ -66,13 +66,37 @@ describe('webcam chest optical flow', () => {
     expect(torsoRegions([face], width, height)?.chest.y).toBeGreaterThan(0.42 * height)
     expect(torsoRegions([], width, height)).toBeNull()
     expect(torsoRegions([face, face], width, height)).toBeNull()
+    face[152].y = 0.54
+    const clipped = torsoRegions([face], width, height)
+    expect(clipped?.chest).toBeDefined()
+    expect(clipped!.chest.y + clipped!.chest.h).toBeCloseTo(height - 2)
     face[152].y = 0.76
     expect(torsoRegions([face], width, height)).toBeNull()
+  })
+  it.each([
+    { chestAmplitude: 0.34, rate: 17 },
+    { chestAmplitude: 0, rate: null },
+  ])('separates shallow breathing from common sway ($chestAmplitude px)', ({ chestAmplitude, rate }) => {
+    const signal = new BreathWindow()
+    let previous = scene(0)
+    for (let i = 1; i <= 174; i++) {
+      const t = i / 12
+      const current = scene(
+        chestAmplitude * Math.sin((t * 17 * Math.PI) / 30 + 0.14 * Math.sin(0.7 * t)),
+        0.46 * Math.sin(0.84 * t),
+        7 * Math.sin(0.8 * t),
+      )
+      // Coarse intensity steps approximate quantization on a dim camera.
+      for (let j = 0; j < current.length; j++) current[j] = Math.round(current[j] / 3) * 3
+      signal.add(t, chestFlow(previous, current, width, regions))
+      previous = current
+    }
+    expect(signal.estimate().rate).toBe(rate)
   })
   it('measures 17 breaths/min directly from a rendered grayscale chest sequence', () => {
     const signal = new BreathWindow()
     let previous = scene(0)
-    for (let i = 1; i <= 390; i++) {
+    for (let i = 1; i <= 145; i++) {
       const t = i / 10
       const current = scene(
         0.72 * Math.sin(((t * 17) / 60) * 2 * Math.PI),
@@ -93,17 +117,65 @@ describe('breathing estimate quality checks', () => {
   it.each(['head', 'camera', 'oneSide'])('rejects %s motion as a breathing signal', (mode) => {
     expect(periodic(16, 40, mode).signal.estimate().rate).toBeNull()
   })
-  it('suppresses frozen, out-of-band, interrupted, and short captures', () => {
+  it.each([12, 18, 26, 36])('recognizes a clear %i/min signal in a short attempt', (rate) => {
+    expect(periodic(rate, MIN_SECONDS + 0.5).signal.estimate().rate).toBe(rate)
+  })
+  it('waits for two cycles of slower breathing', () => {
+    expect(periodic(6, 14).signal.estimate().rate).toBeNull()
+    expect(periodic(6, 22).signal.estimate().rate).toBe(6)
+  })
+  it('suppresses frozen, out-of-band, and short captures', () => {
     for (const rate of [0, 3, 49]) expect(periodic(rate).signal.estimate().rate).toBeNull()
-    expect(periodic(16, 20).signal.estimate().rate).toBeNull()
+    expect(periodic(16, MIN_SECONDS - 1).signal.estimate().rate).toBeNull()
+  })
+  it('pauses on isolated tracking interruptions without using a stale estimate', () => {
     for (const status of ['texture', 'motion'] as const) {
       const { signal, t } = periodic(16)
+      const previous = signal.estimate()
       signal.add(t + 0.08, { status })
-      expect(signal.estimate()).toEqual({ rate: null, seconds: 0, wave: [] })
+      expect(signal.estimate()).toEqual({ ...previous, rate: null })
     }
     const { signal, t } = periodic(16)
-    signal.add(t + 0.95, track(0))
+    signal.interrupt(t + 3)
+    expect(signal.estimate()).toEqual({ rate: null, seconds: 0, wave: [] })
+  })
+  it('recovers the tempo after a short occlusion and isolated bad frames, excluding lost time', () => {
+    const signal = new BreathWindow()
+    const position = (t: number) => 0.85 * Math.sin((t * 17 * Math.PI) / 30)
+    for (let i = 0; i <= 165; i++) {
+      const t = i / 10
+      if ((i >= 70 && i < 78) || i === 32 || i === 111) signal.interrupt(t)
+      else signal.add(t, track(position(t) - position(t - 0.1)))
+    }
+    const reading = signal.estimate()
+    expect(reading.seconds).toBeCloseTo(15.2, 2)
+    expect(reading.rate).toBe(17)
+  })
+  it('does not accept repeatedly missing frames or join people across a long absence', () => {
+    const signal = new BreathWindow()
+    for (let i = 0; i < 255; i++) {
+      const t = i / 10
+      if (i % 5 === 0) signal.interrupt(t)
+      else signal.add(t, track(0.15 * Math.cos((t * Math.PI) / 2)))
+    }
     expect(signal.estimate().rate).toBeNull()
+    signal.add(30, track(0.4))
+    expect(signal.estimate()).toEqual({ rate: null, seconds: 0, wave: [] })
+  })
+  it('rejects noisy chest displacements that resemble a slow wave after integration', () => {
+    for (const seed of [104, 121, 204]) {
+      let state = seed
+      const noise = (scale: number) => {
+        state = (Math.imul(1664525, state) + 1013904223) >>> 0
+        return (state / 2 ** 32 - 0.5) * scale
+      }
+      const signal = new BreathWindow()
+      for (let i = 0; i <= 180; i++) {
+        const common = noise(0.5)
+        signal.add(i / 12, track(common + noise(0.04), common + noise(0.04), noise(0.02)))
+      }
+      expect(signal.estimate().rate).toBeNull()
+    }
   })
   it('withdraws a previous estimate when motion stops', () => {
     const { signal, t } = periodic(16)

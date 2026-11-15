@@ -11,7 +11,7 @@ export const BREATH_STATUS: Record<CameraState, string> = {
   frame: 'Frame one person, with face and upper chest in view',
   collect: 'Collecting chest motion',
   texture: 'More detail needed. Light your face and chest evenly. Clothing with a pattern can help.',
-  motion: 'Movement interrupted the reading. Keep your head and camera still.',
+  motion: 'Movement detected. Settle back into position and keep breathing normally.',
   weak: 'No clear breathing rhythm yet. Keep your chest in view and breathe normally.',
   reading: 'Repeated chest motion detected',
   error: 'Camera stopped',
@@ -41,6 +41,7 @@ export function startBreathingSession(video: HTMLVideoElement, update: (preview:
   let previous: Uint8Array | null = null
   let buffer: Uint8Array = new Uint8Array(0)
   let regions: Regions | null = null
+  let lastSubject: Regions | null = null
   let box: BreathPreview['box']
   let sourceWidth = 0
   let sourceHeight = 0
@@ -51,9 +52,26 @@ export function startBreathingSession(video: HTMLVideoElement, update: (preview:
     lastState = state
     update({ ...EMPTY_PREVIEW, box, ...extra, state })
   }
-  function interrupt(state: CameraState) {
+  function resetTracking() {
     trace.clear()
-    if (lastState !== state) emit(state)
+    previous = null
+    regions = null
+    lastSubject = null
+    lastDetection = -Infinity
+    box = undefined
+  }
+  function report(now: number, issue?: 'motion' | 'texture' | 'frame') {
+    // Limit hints to a readable cadence when a few bad frames interrupt an otherwise usable signal.
+    if (now - lastUi < 500 && !(issue && lastState === 'reading')) return
+    lastUi = now
+    const reading = trace.estimate()
+    const state =
+      issue ?? (reading.rate !== null ? 'reading' : reading.seconds >= MIN_SECONDS ? 'weak' : 'collect')
+    emit(state, reading)
+  }
+  function interrupt(now: number, issue: 'motion' | 'texture' | 'frame') {
+    trace.interrupt(now / 1000)
+    report(now, issue)
   }
   function release() {
     if (stopped) return
@@ -79,11 +97,8 @@ export function startBreathingSession(video: HTMLVideoElement, update: (preview:
   }
   function visibility() {
     if (document.hidden) {
-      previous = null
-      regions = null
-      box = undefined
-      lastDetection = -Infinity
-      interrupt('frame')
+      resetTracking()
+      emit('frame')
     }
   }
 
@@ -120,6 +135,7 @@ export function startBreathingSession(video: HTMLVideoElement, update: (preview:
       const ctx = canvas.getContext('2d', { willReadFrequently: true })
       if (!ctx) throw new Error('This browser cannot read camera frames.')
       document.addEventListener('visibilitychange', visibility)
+      emit('frame')
       function tick(now: number) {
         if (stopped) return
         frameId = requestAnimationFrame(tick)
@@ -130,45 +146,50 @@ export function startBreathingSession(video: HTMLVideoElement, update: (preview:
             regions = null
             box = undefined
             lastDetection = -Infinity
-            interrupt('frame')
+            interrupt(now, 'frame')
           }
           return
         }
         try {
-          if (
-            now - lastFrameAt > 500 ||
-            sourceWidth !== video.videoWidth ||
-            sourceHeight !== video.videoHeight
-          ) {
-            previous = null
-            regions = null
-            box = undefined
-            lastDetection = -Infinity
-            interrupt('frame')
-          }
-          lastVideoTime = video.currentTime
-          lastFrameAt = now
           if (sourceWidth !== video.videoWidth || sourceHeight !== video.videoHeight) {
+            resetTracking()
             sourceWidth = video.videoWidth
             sourceHeight = video.videoHeight
             const scale = 256 / Math.max(sourceWidth, sourceHeight)
             canvas.width = Math.round(sourceWidth * scale)
             canvas.height = Math.round(sourceHeight * scale)
             buffer = new Uint8Array(canvas.width * canvas.height)
+          } else if (now - lastFrameAt > 500) {
+            // There is no valid displacement across a stalled video frame.
+            previous = null
+            lastDetection = -Infinity
+            interrupt(now, 'frame')
           }
+          lastVideoTime = video.currentTime
+          lastFrameAt = now
           const { width, height } = canvas
           if (now - lastDetection >= 320) {
-            const next = torsoRegions(model.detectForVideo(video, now).faceLandmarks, width, height)
-            if (
-              regions &&
-              next &&
-              (Math.abs(regions.chest.x - next.chest.x) > 0.1 * regions.chest.w ||
-                Math.abs(regions.chest.y - next.chest.y) > 0.1 * regions.chest.h ||
-                Math.abs(regions.chest.w - next.chest.w) > 0.12 * regions.chest.w)
-            ) {
-              previous = null
-              interrupt('motion')
+            const faces = model.detectForVideo(video, now).faceLandmarks
+            const next = torsoRegions(faces, width, height)
+            if (faces.length > 1) {
+              resetTracking()
+              if (lastState !== 'frame') emit('frame')
+            } else if (lastSubject && next) {
+              const a = lastSubject.chest
+              const b = next.chest
+              const dx = Math.abs(b.x + b.w / 2 - a.x - a.w / 2) / a.w
+              const dy = Math.abs(b.y + b.h / 2 - a.y - a.h / 2) / a.h
+              const sizeChange = Math.max(b.w / a.w, a.w / b.w, b.h / a.h, a.h / b.h)
+              if (dx > 0.6 || dy > 0.8 || sizeChange > 1.6) {
+                // A face reappearing in a different location or at a different scale may be another person.
+                resetTracking()
+                emit('frame')
+              } else if (dx > 0.17 || dy > 0.23 || sizeChange > 1.2) {
+                previous = null
+                interrupt(now, 'motion')
+              }
             }
+            if (next) lastSubject = next
             regions = next
             const c = next?.chest
             box = c
@@ -178,23 +199,15 @@ export function startBreathingSession(video: HTMLVideoElement, update: (preview:
           }
           if (!regions) {
             previous = null
-            interrupt('frame')
+            interrupt(now, 'frame')
             return
           }
           ctx!.drawImage(video, 0, 0, width, height)
           grayscale(ctx!.getImageData(0, 0, width, height).data, buffer)
           if (previous) {
             const flow = chestFlow(previous, buffer, width, regions)
-            trace.add(lastVideoTime, flow)
-            if (flow.status !== 'tracking') interrupt(flow.status)
-            else if (now - lastUi >= 800) {
-              lastUi = now
-              const reading = trace.estimate()
-              emit(
-                reading.rate !== null ? 'reading' : reading.seconds >= MIN_SECONDS ? 'weak' : 'collect',
-                reading,
-              )
-            }
+            trace.add(now / 1000, flow)
+            report(now, flow.status === 'tracking' ? undefined : flow.status)
           }
           const spare = previous
           previous = buffer

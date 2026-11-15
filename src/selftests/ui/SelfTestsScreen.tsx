@@ -6,7 +6,7 @@ import type { SignalId } from '../../health/signals'
 import { useDayReport } from '../../health/useDayReport'
 import type { MissionId } from '../../mission/missions'
 import { Button, Chip } from '../../ui'
-import { EXERCISES, SELF_TESTS, TESTS, USE_LABEL } from '../catalog'
+import { EXERCISES, SELF_TESTS, TESTS, testDuration, USE_LABEL } from '../catalog'
 import { CAUSE_LABEL, dueTests, type DueTest } from '../due'
 import type { SelfTestId } from '../ids'
 import { BASELINE_RUNS, baselineOf, clearResults, useResults, type TestResult } from '../results'
@@ -212,7 +212,7 @@ function DueCard({ due, onOpen }: { due: DueTest; onOpen: () => void }) {
         </div>
       </div>
       <div className="mt-3 flex items-center justify-between gap-2 pl-9">
-        <span className="text-[13px] text-dim">About {t.minutes} min</span>
+        <span className="text-[13px] text-dim">{testDuration(t)}</span>
         {due.done ? (
           <span className="inline-flex items-center gap-1.5 text-[13px] text-white/75">
             <CheckCircle size={16} weight="fill" />
@@ -272,7 +272,7 @@ function TestCard({
             </span>
             <span className="mt-1 block text-[14px] leading-snug text-white/75">{t.summary}</span>
             <span className="mt-2 block font-cond text-[12.5px] text-white/55">
-              About {t.minutes} min ·{' '}
+              {testDuration(t)} ·{' '}
               {t.uses
                 .filter((u) => u !== 'phone' && u !== 'strap')
                 .map((u) => USE_LABEL[u])

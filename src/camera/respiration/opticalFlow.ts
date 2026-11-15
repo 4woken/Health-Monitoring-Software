@@ -25,10 +25,14 @@ export function torsoRegions(
   const fw = Math.abs(right.x - left.x) * width
   const fh = (chin.y - top.y) * height
   if (![cx, fw, fh].every(Number.isFinite) || fw < 17 || fh < 20) return null
-  const chest = { x: cx - 0.87 * fw, y: chin.y * height + 0.28 * fh, w: 1.74 * fw, h: 0.86 * fh }
+  const chestY = chin.y * height + 0.28 * fh
+  // A seated laptop view often clips the bottom or one edge of the nominal chest box.
+  // Keep comparable left/right patches as long as enough of the upper chest is still visible.
+  const halfWidth = Math.min(0.87 * fw, cx - 2, width - 2 - cx)
+  const chestHeight = Math.min(0.86 * fh, height - 2 - chestY)
   const face = { x: cx - 0.37 * fw, y: top.y * height + 0.16 * fh, w: 0.74 * fw, h: 0.63 * fh }
-  if (chest.y + chest.h > height - 2 || chest.x < 2 || chest.x + chest.w > width - 2 || face.y < 2)
-    return null
+  if (halfWidth < 0.65 * fw || chestHeight < 0.55 * fh || face.y < 2) return null
+  const chest = { x: cx - halfWidth, y: chestY, w: 2 * halfWidth, h: chestHeight }
   return { chest, face }
 }
 

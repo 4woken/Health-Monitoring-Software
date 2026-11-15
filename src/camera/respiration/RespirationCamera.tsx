@@ -3,6 +3,7 @@ import { Wind, VideoCamera, VideoCameraSlash } from '@phosphor-icons/react'
 import { Button, Panel } from '../../ui'
 import type { BreathReading } from '../breathReading'
 import { MIN_SECONDS } from './breathRate'
+import { ChestMotionTrace } from './ChestMotionTrace'
 import { EMPTY_PREVIEW, startBreathingSession, type BreathPreview, BREATH_STATUS } from './breathingSession'
 
 export function RespirationCamera({
@@ -42,15 +43,6 @@ export function RespirationCamera({
   }
 
   const box = preview.box
-  const amplitude = Math.max(0.28, ...preview.wave.map(Math.abs))
-  const trace = preview.wave
-    .map(
-      (value, i) =>
-        ((i * 360) / Math.max(1, preview.wave.length - 1)).toFixed(1) +
-        ',' +
-        (36 - (value * 30) / amplitude).toFixed(1),
-    )
-    .join(' ')
   return (
     <div className="mx-auto max-w-[1480px] px-4 py-6 sm:px-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
@@ -110,31 +102,16 @@ export function RespirationCamera({
             <span className="text-sm text-muted">breaths/min</span>
           </p>
           {running && (
-            <p className="mt-2 text-sm text-muted">{Math.floor(preview.seconds)} s of continuous tracking</p>
+            <p className="mt-2 text-sm text-muted">{Math.floor(preview.seconds)} s of usable chest motion</p>
           )}
-          {preview.wave.length > 1 && (
-            <figure className="mt-4">
-              <svg viewBox="0 0 360 72" aria-hidden="true" className="h-16 w-full">
-                <polyline
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  className="text-holo"
-                  points={trace}
-                />
-              </svg>
-              <figcaption className="text-xs text-dim">
-                Relative vertical chest movement · last 12 s
-              </figcaption>
-            </figure>
-          )}
+          <ChestMotionTrace wave={preview.wave} />
           <h3 className="mt-5 border-t border-line pt-4 font-cond text-[17px] font-semibold">
             Take a reading
           </h3>
           <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-sm leading-relaxed text-muted">
             <li>Rest the camera on a fixed surface and sit facing it.</li>
             <li>Step back until the outline covers your upper chest. Keep your face in view.</li>
-            <li>Keep still and breathe normally for at least {MIN_SECONDS} seconds.</li>
+            <li>Breathe normally. An estimate needs at least {MIN_SECONDS} seconds of usable motion.</li>
           </ol>
           <p className="mt-4 text-xs leading-relaxed text-dim">
             Experimental estimate, designed for 6–36 breaths/min. Talking or swaying can look like breathing.

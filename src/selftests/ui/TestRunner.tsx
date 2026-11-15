@@ -23,7 +23,7 @@ import type { MissionId } from '../../mission/missions'
 import { Button, Chip, LEVEL_LINE, Sparkline } from '../../ui'
 import { CONDITIONS } from '../balance/balance'
 import { probeMotion } from '../balance/phone'
-import { SELF_TESTS, USE_LABEL } from '../catalog'
+import { SELF_TESTS, testDuration, USE_LABEL } from '../catalog'
 import { CAUSE_LABEL, type DueTest } from '../due'
 import { connectStrap, disconnectStrap, useStrap } from '../heart/strap'
 import type { SelfTestId } from '../ids'
@@ -171,6 +171,8 @@ function resultLines(r: TestResult): string[] {
         `Ruffier-Dickson index ${d('dickson')}`,
         `${d('squats')} squats counted, pulse read with ${r.details.source === 'strap' ? 'the strap' : 'the camera'}`,
       ]
+    case 'breathingRate':
+      return Number.isFinite(d('seconds')) ? [`Chest motion tracked for ${d('seconds')} s`] : []
     case 'restingPulse':
       return [`Read with ${r.details.source === 'strap' ? 'the strap' : 'the camera'} over ${d('seconds')} s`]
     case 'squats':
@@ -292,8 +294,8 @@ export default function TestRunner({
         </span>
         <div className="min-w-0">
           <p className="font-cond text-[13px] text-white/60">
-            {test.family === 'test' ? 'Self-test' : 'Exercise'} · about {test.minutes} min · {member.short},
-            day {day}
+            {test.family === 'test' ? 'Self-test' : 'Exercise'} · {testDuration(test)} · {member.short}, day{' '}
+            {day}
           </p>
           <h1
             ref={heading}
