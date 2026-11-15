@@ -1,5 +1,4 @@
 
-https://github.com/user-attachments/assets/45a869f7-ce86-4abd-939f-bcef396fe121
 <p align="center">
   <img src="public/brand/pulsar-mark.svg" alt="" width="96" height="96" />
 </p>
