@@ -1,5 +1,7 @@
 # Pulsar
 
+[Open the live Pulsar demo on Vercel](https://pulsar-crew-health.vercel.app/)
+
 ![Day 97 of the cruise to Mars: the controls on the left, three things to do today on the right, the markers on the body](docs/screenshots/dashboard.jpg)
 
 Pulsar is a health monitor for astronauts. It shows your body in the place you live (the station, the ship to Mars, a base on the Moon or on Mars) and points at what needs looking after today. Click any part of the body and it tells you what it is, what your numbers say and what to do about it.
