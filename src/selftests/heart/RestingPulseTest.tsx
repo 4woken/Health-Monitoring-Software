@@ -15,7 +15,7 @@ export default function RestingPulseTest({ mode, onDone, onCancel }: RunProps) {
   const strap = useStrap()
   const readings = useRef<number[]>([])
   const [count, setCount] = useState(0)
-  const [cue, setCue] = useState('Sit still, facing the camera, and breathe normally.')
+  const [problem, setProblem] = useState('')
   const finished = useRef(false)
   const usesStrap = mode === 'strap'
   const strapRef = useRef(strap)
@@ -28,12 +28,19 @@ export default function RestingPulseTest({ mode, onDone, onCancel }: RunProps) {
     if (!usesStrap) void startPulse()
     const settleUntil = performance.now() + 5000
     const id = window.setInterval(() => {
-      if (finished.current) return
-      const bpm = usesStrap
-        ? freshStrapBpm(strapRef.current)
-        : getPulse().phase === 'measuring'
-          ? getPulse().bpm
-          : null
+      if (finished.current || document.hidden) return
+      const pulse = getPulse()
+      if (usesStrap && strapRef.current.status !== 'connected') {
+        clearInterval(id)
+        setProblem('The strap disconnected. Reconnect it before starting a new reading.')
+        return
+      }
+      if (!usesStrap && (pulse.phase === 'error' || pulse.phase === 'off')) {
+        clearInterval(id)
+        setProblem(pulse.message)
+        return
+      }
+      const bpm = usesStrap ? freshStrapBpm(strapRef.current) : pulse.phase === 'measuring' ? pulse.bpm : null
       if (bpm === null || performance.now() < settleUntil) return
       readings.current.push(bpm)
       setCount(readings.current.length)
@@ -43,7 +50,6 @@ export default function RestingPulseTest({ mode, onDone, onCancel }: RunProps) {
         const score = Math.round(median(readings.current))
         if (!usesStrap) stopPulse()
         void say(`${score} beats a minute.`)
-        setCue('Done.')
         onDone({ score, details: { source: usesStrap ? 'strap' : 'camera', seconds: NEEDED_S } })
       }
     }, 1000)
@@ -64,13 +70,18 @@ export default function RestingPulseTest({ mode, onDone, onCancel }: RunProps) {
         <PulsePreview />
       )}
       <aside className="space-y-4">
-        <Cue>{cue}</Cue>
+        <Cue>
+          {problem ||
+            (usesStrap
+              ? 'Sit still and breathe normally.'
+              : 'Sit still, facing the camera, and breathe normally.')}
+        </Cue>
         <Progress value={count / NEEDED_S} label="Good readings" />
         <p className="text-[14px] text-muted">
           {count} of {NEEDED_S} seconds of good readings. Movement and light behind you pause the reading.
         </p>
         <Button size="sm" kind="ghost" onClick={onCancel}>
-          Leave the test
+          {problem ? 'Back to setup' : 'Leave the test'}
         </Button>
       </aside>
     </section>

@@ -6,6 +6,8 @@
 // need calibrated headphones.
 
 export const DIN = { trials: 24, startSnr: 0, stepDb: 2, scoredFrom: 5 } as const
+const REFERENCE_VOLUME = 0.3
+const MAX_SNR = 20 * Math.log10(1 / REFERENCE_VOLUME)
 /** One-syllable digits only: "seven" and "zero" have two. */
 export const DIGITS = [1, 2, 3, 4, 5, 6, 8, 9] as const
 
@@ -29,7 +31,7 @@ export const startDin = (): DinState => ({ snrs: [DIN.startSnr], correct: [] })
 export function answer(state: DinState, right: boolean): DinState {
   const current = state.snrs[state.snrs.length - 1]
   const correct = [...state.correct, right]
-  return { snrs: [...state.snrs, current + (right ? -DIN.stepDb : DIN.stepDb)], correct }
+  return { snrs: [...state.snrs, Math.min(MAX_SNR, current + (right ? -DIN.stepDb : DIN.stepDb))], correct }
 }
 
 export const dinDone = (state: DinState) => state.correct.length >= DIN.trials
@@ -47,5 +49,5 @@ export function srt(state: DinState): number {
  * Loudness of the voice for a ratio, 0 to 1, against a fixed noise. At 0 dB the voice is at
  * `reference`; it can rise 10 dB above that before reaching full volume.
  */
-export const voiceVolume = (snr: number, reference = 0.3) =>
+export const voiceVolume = (snr: number, reference = REFERENCE_VOLUME) =>
   Math.min(1, Math.max(0, reference * 10 ** (snr / 20)))

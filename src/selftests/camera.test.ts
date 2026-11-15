@@ -8,7 +8,7 @@ import {
   balanceDetails,
 } from './balance/balance'
 import type { Landmark } from './camera/landmarks'
-import { layout, pinchTracker } from './dexterity/pinch'
+import { layout, pinchTracker, targetExtent } from './dexterity/pinch'
 import { heelRaiseTracker, sitToStandTracker, squatTracker } from './movement/movement'
 import { sideOn, standing } from './testing'
 import {
@@ -149,6 +149,18 @@ describe('balance', () => {
     const hold = feed(holdTracker(CONDITIONS[0], 0), 0, 25, (t) => (t < 3000 ? standing() : null))
     expect(hold?.interrupted).toBe(true)
   })
+  it('does not award the final seconds if tracking or the stance was lost before the deadline', () => {
+    const c = CONDITIONS[0]
+    const end = c.seconds * 1000
+    const lost = feed(holdTracker(c, 0), 0, c.seconds + 2, (t) => (t < end - 800 ? standing() : null))
+    expect(lost?.interrupted).toBe(true)
+    expect(lost?.heldS).toBeLessThan(c.seconds)
+    const moved = feed(holdTracker(c, 0), 0, c.seconds + 2, (t) =>
+      t < end - 200 ? standing() : standing({ 28: { x: 0.56 } }),
+    )
+    expect(moved?.completed).toBe(false)
+    expect(moved?.reason).toMatch(/foot/)
+  })
 
   it('flags a one-leg stance under 15 seconds before the usual result is set', () => {
     const holds = CONDITIONS.map((c) => ({
@@ -168,6 +180,36 @@ describe('balance', () => {
 describe('legs', () => {
   const seated = sideOn([0.45, 0.55], [0.6, 0.56], [0.6, 0.8])
   const up = sideOn([0.58, 0.4], [0.6, 0.6], [0.6, 0.8])
+
+  it('requires the seated start at go and a fresh observed sit after losing the leg', () => {
+    const t = sitToStandTracker(1)
+    t.update(seated, WIDE, 0)
+    expect(t.update(seated, WIDE, 1000).phase).toBe('ready')
+    expect(t.update(up, WIDE, 1100).phase).toBe('seat')
+    t.go(1200)
+    expect(t.update(up, WIDE, 1300).phase).toBe('seat')
+    t.update(seated, WIDE, 1400)
+    t.update(seated, WIDE, 2400)
+    t.go(2400)
+    t.update(null, WIDE, 2500)
+    expect(t.update(up, WIDE, 2700).stands).toBe(0)
+    t.update(seated, WIDE, 2900)
+    expect(t.update(up, WIDE, 3400).timeS).toBe(1)
+  })
+
+  it('discards partially observed squats and heel raises', () => {
+    const squat = squatTracker()
+    squat.update(up, WIDE)
+    squat.update(sideOn([0.45, 0.6], [0.6, 0.62], [0.57, 0.82]), WIDE)
+    squat.update(null, WIDE)
+    expect(squat.update(up, WIDE).reps).toBe(0)
+    const heel = heelRaiseTracker()
+    const toes = sideOn([0.6, 0.38], [0.6, 0.58], [0.6, 0.775])
+    heel.update(up, WIDE)
+    heel.update(toes, WIDE)
+    heel.update(null, WIDE)
+    expect(heel.update(up, WIDE).reps).toBe(0)
+  })
 
   it('times five stands from go to the fifth time up', () => {
     const t = sitToStandTracker(5)
@@ -248,5 +290,25 @@ describe('hand dexterity', () => {
     const dropped = step(next.from.x, next.from.y, false)
     expect(dropped.drops).toBe(1)
     expect(dropped.count).toBe(1)
+  })
+  it('matches the full drawn socket on landscape and portrait cameras', () => {
+    for (const aspect of [16 / 9, 9 / 16]) {
+      const t = pinchTracker(1)
+      const { from, to, radius } = layout(0)
+      const ext = targetExtent(radius, aspect)
+      expect(ext.x * aspect).toBeCloseTo(ext.y)
+      let now = 0
+      const frame = (x: number, y: number, closed: boolean) =>
+        t.update(hand(1 - x, y, closed), 'Right', aspect, (now += 100))
+      frame(from.x, from.y, false)
+      frame(from.x, from.y, false)
+      frame(from.x, from.y, true)
+      expect(frame(from.x, from.y, true).carrying).toBe(true)
+      expect(frame(0.5, from.y, true).carrying).toBe(true)
+      const x = to.x + ext.x * 0.8,
+        y = to.y + ext.y * 0.8
+      frame(x, y, false)
+      expect(frame(x, y, false).count).toBe(1)
+    }
   })
 })

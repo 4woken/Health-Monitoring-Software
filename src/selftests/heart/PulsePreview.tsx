@@ -10,7 +10,13 @@ export function PulsePreview() {
   useEffect(() => {
     const source = getPulseVideo()?.srcObject ?? null
     const el = video.current
-    if (!el || !source || el.srcObject === source) return
+    if (!el) return
+    if (!source) {
+      el.srcObject = null
+      setAttached(false)
+      return
+    }
+    if (el.srcObject === source) return
     el.srcObject = source
     void el.play().catch(() => undefined)
     setAttached(true)
@@ -27,7 +33,7 @@ export function PulsePreview() {
         />
         {!attached && (
           <span className="absolute inset-0 flex items-center justify-center text-sm text-white/70">
-            Starting the camera…
+            {pulse.phase === 'off' || pulse.phase === 'error' ? 'Camera off' : 'Starting the camera…'}
           </span>
         )}
       </div>

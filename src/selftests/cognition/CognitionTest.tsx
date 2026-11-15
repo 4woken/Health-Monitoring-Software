@@ -47,13 +47,16 @@ export default function CognitionTest({ onDone, onCancel }: RunProps) {
   const [seq] = useState(() => nBackSequence())
   const [index, setIndex] = useState(-1)
   const [visible, setVisible] = useState(false)
+  const [paused, setPaused] = useState(false)
+  const remainingMs = useRef(0)
   const pressed = useRef<boolean[]>([])
   const [, redraw] = useState(0)
   const result = useRef<{ correct: number; errors: number } | null>(null)
 
   const answer = useCallback(
     (digit: number) => {
-      if (phase !== 'symbols' && phase !== 'symbolsPractice') return
+      if (paused || document.hidden || (phase !== 'symbols' && phase !== 'symbolsPractice')) return
+      if (phase === 'symbols' && performance.now() >= endAt.current) return
       const right = digitFor(key, symbol) === digit
       if (phase === 'symbolsPractice') {
         setFeedback(right ? 'Right.' : `Not quite: this symbol is ${digitFor(key, symbol)}.`)
@@ -70,16 +73,36 @@ export default function CognitionTest({ onDone, onCancel }: RunProps) {
       setSymbol((s) => nextSymbol(s))
       redraw((n) => n + 1)
     },
-    [phase, key, symbol],
+    [phase, key, symbol, paused],
   )
 
   useEffect(() => {
+    const hide = () => {
+      if (
+        !document.hidden ||
+        paused ||
+        !(phase === 'symbols' || phase === 'letters' || phase === 'lettersPractice')
+      )
+        return
+      remainingMs.current = Math.max(0, endAt.current - performance.now())
+      setPaused(true)
+    }
+    document.addEventListener('visibilitychange', hide)
+    return () => document.removeEventListener('visibilitychange', hide)
+  }, [phase, paused])
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (/^[1-9]$/.test(e.key)) {
+      if (paused || document.hidden || e.repeat || e.altKey || e.ctrlKey || e.metaKey) return
+      if ((phase === 'symbols' || phase === 'symbolsPractice') && /^[1-9]$/.test(e.key)) {
         e.preventDefault()
         answer(Number(e.key))
       }
-      if ((phase === 'letters' || phase === 'lettersPractice') && (e.key === ' ' || e.key === 'Enter')) {
+      if (
+        (phase === 'letters' || phase === 'lettersPractice') &&
+        (e.key === ' ' || e.key === 'Enter') &&
+        !(e.target instanceof HTMLElement && e.target.closest('button, a, input, select, textarea'))
+      ) {
         e.preventDefault()
         match()
       }
@@ -90,7 +113,7 @@ export default function CognitionTest({ onDone, onCancel }: RunProps) {
 
   // The 90 seconds of symbols.
   useEffect(() => {
-    if (phase !== 'symbols') return
+    if (phase !== 'symbols' || paused) return
     const id = window.setInterval(() => {
       const remaining = Math.max(0, Math.ceil((endAt.current - performance.now()) / 1000))
       setLeft(remaining)
@@ -102,12 +125,12 @@ export default function CognitionTest({ onDone, onCancel }: RunProps) {
       }
     }, 200)
     return () => clearInterval(id)
-  }, [phase])
+  }, [phase, paused])
 
   // Letters: each one shown for 1.5 seconds, then half a second of blank.
   const letters = phase === 'lettersPractice' ? PRACTICE_LETTERS : seq
   useEffect(() => {
-    if (phase !== 'letters' && phase !== 'lettersPractice') return
+    if (paused || (phase !== 'letters' && phase !== 'lettersPractice')) return
     if (index >= letters.length) {
       if (phase === 'lettersPractice') {
         setFeedback('')
@@ -147,7 +170,7 @@ export default function CognitionTest({ onDone, onCancel }: RunProps) {
       clearTimeout(hide)
       clearTimeout(next)
     }
-  }, [phase, index, letters, seq, onDone])
+  }, [phase, index, letters, seq, onDone, paused])
 
   function match() {
     if ((phase !== 'letters' && phase !== 'lettersPractice') || index < 0 || index >= letters.length) return
@@ -173,7 +196,21 @@ export default function CognitionTest({ onDone, onCancel }: RunProps) {
 
   return (
     <section aria-label="Thinking test" className="mx-auto max-w-3xl space-y-5">
-      {(phase === 'symbolsIntro' || phase === 'symbolsPractice' || phase === 'symbols') && (
+      {paused && (
+        <div className="space-y-3">
+          <Cue>Paused while this tab was hidden.</Cue>
+          <Button
+            kind="primary"
+            onClick={() => {
+              if (phase === 'symbols') endAt.current = performance.now() + remainingMs.current
+              setPaused(false)
+            }}
+          >
+            Resume test
+          </Button>
+        </div>
+      )}
+      {!paused && (phase === 'symbolsIntro' || phase === 'symbolsPractice' || phase === 'symbols') && (
         <>
           <div className="flex items-center justify-between gap-3">
             <p className="font-cond text-[15px] text-white/70">Part 1 of 2 · Symbols</p>
@@ -219,7 +256,7 @@ export default function CognitionTest({ onDone, onCancel }: RunProps) {
         </>
       )}
 
-      {(phase === 'lettersIntro' || phase === 'lettersPractice' || phase === 'letters') && (
+      {!paused && (phase === 'lettersIntro' || phase === 'lettersPractice' || phase === 'letters') && (
         <>
           <div className="flex items-center justify-between gap-3">
             <p className="font-cond text-[15px] text-white/70">Part 2 of 2 · Letters</p>

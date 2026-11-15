@@ -15,7 +15,7 @@ import {
   type Condition,
   type Hold,
 } from './balance'
-import { allowMotion, listenMotion, phoneHold } from './phone'
+import { allowMotion, measurePhoneHold } from './phone'
 
 const Coach = lazy(() => import('../coach/Coach'))
 
@@ -24,8 +24,8 @@ const MOVE_OF: Record<Condition['id'], Move> = {
   togetherClosed: 'together',
   nod: 'nod',
   tandem: 'tandem',
-  leftLeg: 'oneLeg',
-  rightLeg: 'oneLeg',
+  leftLeg: 'leftLeg',
+  rightLeg: 'rightLeg',
 }
 
 type Stage = 'position' | 'countdown' | 'hold' | 'rest' | 'done'
@@ -74,7 +74,12 @@ function CameraBalance({ onDone, onCancel }: Pick<RunProps, 'onDone' | 'onCancel
   const [cue, setCue] = useState(CONDITIONS[0].instruction)
   const [left, setLeft] = useState(CONDITIONS[0].seconds)
   const [holds, setHolds] = useState<Hold[]>([])
-  const live = useRef({ index: 0, stage: 'position' as Stage, okSince: null as number | null, attempts: 0 })
+  const live = useRef({
+    index: 0,
+    stage: 'position' as Stage,
+    okSince: null as number | null,
+    countdownId: 0,
+  })
   const tracker = useRef<ReturnType<typeof holdTracker> | null>(null)
   const done = useRef<Hold[]>([])
   const cancelled = useRef(false)
@@ -87,10 +92,18 @@ function CameraBalance({ onDone, onCancel }: Pick<RunProps, 'onDone' | 'onCancel
     camera.start(onFrame)
     return () => {
       cancelled.current = true
+      live.current.countdownId++
       camera.stop()
     }
     // Set once: the frame handler keeps its state in refs.
   }, [])
+
+  useEffect(() => {
+    if (camera.stopped) {
+      cancelled.current = true
+      live.current.countdownId++
+    }
+  }, [camera.stopped])
 
   function setStageBoth(s: Stage) {
     live.current.stage = s
@@ -115,7 +128,7 @@ function CameraBalance({ onDone, onCancel }: Pick<RunProps, 'onDone' | 'onCancel
         onDone({ score: totalHeld(done.current), details: balanceDetails(done.current, 'camera') })
         return
       }
-      live.current = { ...live.current, index: i, okSince: null, attempts: 0 }
+      live.current = { ...live.current, index: i, okSince: null }
       setIndex(i)
       setLeft(CONDITIONS[i].seconds)
       setCue(CONDITIONS[i].instruction)
@@ -127,20 +140,27 @@ function CameraBalance({ onDone, onCancel }: Pick<RunProps, 'onDone' | 'onCancel
   function onFrame(frame: CameraFrame) {
     const s = live.current
     const c = CONDITIONS[s.index]
-    if (s.stage === 'position') {
+    if (s.stage === 'position' || s.stage === 'countdown') {
       const check = checkStance(frame.body, c.stance, frame.aspect)
-      setCue(check.ok ? `${c.title}: hold it…` : check.hint)
       if (!check.ok) {
+        if (s.stage === 'countdown') {
+          s.countdownId++
+          setStageBoth('position')
+        }
         s.okSince = null
+        setCue(check.hint)
         return
       }
+      if (s.stage === 'countdown') return
+      setCue(`${c.title}: hold it…`)
       s.okSince ??= frame.now
       if (frame.now - s.okSince < 1500) return
       setStageBoth('countdown')
+      const id = ++s.countdownId
       void countdown(
         3,
         (n) => setCue(n ? String(n) : c.eyes === 'closed' ? 'Close your eyes' : 'Hold still'),
-        () => cancelled.current,
+        () => cancelled.current || document.hidden || s.countdownId !== id,
       ).then((go) => {
         if (!go) return
         if (c.eyes === 'closed') void say('Close your eyes.')
@@ -160,8 +180,7 @@ function CameraBalance({ onDone, onCancel }: Pick<RunProps, 'onDone' | 'onCancel
     if (r.warning) setCue(r.warning)
     else setCue(c.eyes === 'closed' ? 'Eyes closed. Hold still.' : 'Hold still.')
     if (!r.done) return
-    if (r.done.interrupted && s.attempts < 1) {
-      s.attempts++
+    if (r.done.interrupted) {
       tracker.current = null
       s.okSince = null
       void say('I lost sight of you. Get back into view, and we will try this stance again.')
@@ -193,9 +212,8 @@ function CameraBalance({ onDone, onCancel }: Pick<RunProps, 'onDone' | 'onCancel
           </div>
         </Suspense>
         <Stances index={index} holds={holds} />
-        {camera.stopped && <p className="text-[14px] text-check">{camera.stopped}</p>}
         <Button size="sm" kind="ghost" onClick={onCancel}>
-          Leave the test
+          {camera.stopped ? 'Try again' : 'Leave the test'}
         </Button>
       </aside>
     </section>
@@ -210,62 +228,80 @@ function PhoneBalance({ onDone, onCancel }: Pick<RunProps, 'onDone' | 'onCancel'
   const [left, setLeft] = useState(CONDITIONS[0].seconds)
   const [holds, setHolds] = useState<Hold[]>([])
   const [error, setError] = useState('')
-  const cancelled = useRef(false)
-  useEffect(
-    () => () => {
-      cancelled.current = true
-    },
-    [],
-  )
+  const active = useRef<AbortController | null>(null)
+  useEffect(() => {
+    const hide = () => {
+      if (!document.hidden || !active.current) return
+      active.current.abort()
+      active.current = null
+      setStarted(false)
+      setError('The balance test stopped when you left this tab. Choose Begin to try again.')
+    }
+    document.addEventListener('visibilitychange', hide)
+    return () => {
+      document.removeEventListener('visibilitychange', hide)
+      active.current?.abort()
+      active.current = null
+    }
+  }, [])
 
   async function run() {
-    if (!(await allowMotion())) {
+    if (active.current) return
+    const session = new AbortController()
+    active.current = session
+    const { signal } = session
+    setError('')
+    const allowed = await allowMotion()
+    if (signal.aborted) return
+    if (!allowed) {
+      active.current = null
       setError('Motion access was declined. Allow it in the browser settings, or use the camera instead.')
       return
     }
     setStarted(true)
     const result: Hold[] = []
+    setHolds([])
     for (let i = 0; i < CONDITIONS.length; i++) {
-      if (cancelled.current) return
+      if (signal.aborted) return
       const c = CONDITIONS[i]
       setIndex(i)
       setLeft(c.seconds)
       setStage('position')
       setCue(c.instruction)
       await say(`${c.instruction} Hold the phone flat on your chest.`, { force: true })
+      if (signal.aborted) return
       await new Promise((r) => setTimeout(r, 3000))
+      if (signal.aborted) return
       setStage('countdown')
       if (
         !(await countdown(
           3,
           (n) => setCue(n ? String(n) : 'Hold still'),
-          () => cancelled.current,
+          () => signal.aborted,
         ))
       )
         return
       if (c.eyes === 'closed') void say('Close your eyes.', { force: true })
       setStage('hold')
-      const startAt = performance.now()
-      const tracker = phoneHold(c, startAt)
-      const hold = await new Promise<Hold>((resolve) => {
-        const stop = listenMotion((s) => {
-          const now = performance.now()
-          const r = tracker.update(s, now)
-          setLeft(Math.max(0, Math.ceil(c.seconds - r.elapsedS)))
-          if (r.done) {
-            stop()
-            resolve(r.done)
-          }
-        })
-      })
+      const hold = await measurePhoneHold(c, signal, setLeft)
+      if (signal.aborted) return
+      if (!hold) {
+        active.current = null
+        setStarted(false)
+        setError('Motion readings stopped. Check the sensor permission or choose the camera.')
+        return
+      }
       result.push(hold)
       setHolds([...result])
       beep(520, 260, 0.18, true)
       setStage('rest')
       setCue(hold.completed ? 'Well held. Relax.' : `${hold.reason} Relax.`)
       await say(hold.completed ? 'Stop. Well held.' : `Stop. ${hold.reason}`, { force: true })
+      if (signal.aborted) return
       await new Promise((r) => setTimeout(r, 2000))
     }
+    if (signal.aborted) return
+    active.current = null
     setStage('done')
     void say('Balance test complete.', { force: true })
     onDone({ score: totalHeld(result), details: balanceDetails(result, 'phone') })

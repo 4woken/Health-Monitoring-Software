@@ -19,24 +19,36 @@ export default function Coach({
   const stage = useRef<ReturnType<typeof coachStage> | null>(null)
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
 
+  const failed = state === 'error'
   useEffect(() => {
-    if (!canvas.current) return
-    const s = coachStage(
-      canvas.current,
-      () => setState('ready'),
-      () => setState('error'),
-    )
+    if (failed || !canvas.current) return
+    let s: ReturnType<typeof coachStage>
+    try {
+      s = coachStage(
+        canvas.current,
+        () => setState('ready'),
+        () => setState('error'),
+      )
+    } catch {
+      setState('error')
+      return
+    }
     stage.current = s
     return () => {
       s.dispose()
       stage.current = null
     }
-  }, [])
+  }, [failed])
   useEffect(() => {
     stage.current?.play(move, eyesClosed)
   }, [move, eyesClosed, state])
 
-  if (state === 'error') return null
+  if (state === 'error')
+    return (
+      <p role="status" className="text-sm text-muted">
+        The 3D demonstration could not load. Follow the written movement instructions.
+      </p>
+    )
   return (
     <figure className={small ? '' : 'rounded-2xl bg-white/[0.03] p-2'}>
       <div className="relative aspect-[3/4] w-full">

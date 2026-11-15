@@ -8,9 +8,11 @@ interface MotionPermission {
   requestPermission?: () => Promise<'granted' | 'denied'>
 }
 
-/** True once the device has sent one motion reading with values. Desktops never do. */
+/** iOS exposes its permission prompt before it can deliver samples. Elsewhere wait for a reading. */
 export function probeMotion(timeoutMs = 1200): Promise<boolean> {
   if (typeof window === 'undefined' || !('DeviceMotionEvent' in window)) return Promise.resolve(false)
+  if ((window.DeviceMotionEvent as unknown as MotionPermission)?.requestPermission)
+    return Promise.resolve(true)
   return new Promise((resolve) => {
     const done = (value: boolean) => {
       window.removeEventListener('devicemotion', listen)
@@ -19,7 +21,7 @@ export function probeMotion(timeoutMs = 1200): Promise<boolean> {
     }
     const listen = (e: DeviceMotionEvent) => {
       const a = e.accelerationIncludingGravity
-      if (a && a.x !== null && a.y !== null && a.z !== null) done(true)
+      if (a && [a.x, a.y, a.z].every(Number.isFinite)) done(true)
     }
     const timer = setTimeout(() => done(false), timeoutMs)
     window.addEventListener('devicemotion', listen)
@@ -28,10 +30,10 @@ export function probeMotion(timeoutMs = 1200): Promise<boolean> {
 
 /** Phones that ask first (iOS) need a tap before motion readings start. */
 export async function allowMotion(): Promise<boolean> {
-  const request = (window.DeviceMotionEvent as unknown as MotionPermission | undefined)?.requestPermission
-  if (!request) return true
+  const sensor = window.DeviceMotionEvent as unknown as MotionPermission | undefined
+  if (!sensor?.requestPermission) return true
   try {
-    return (await request()) === 'granted'
+    return (await sensor.requestPermission()) === 'granted'
   } catch {
     return false
   }
@@ -47,11 +49,44 @@ export interface MotionSample {
 export function listenMotion(onSample: (s: MotionSample) => void): () => void {
   const listen = (e: DeviceMotionEvent) => {
     const a = e.accelerationIncludingGravity
-    if (!a || a.x === null || a.y === null || a.z === null) return
+    if (!a || a.x === null || a.y === null || a.z === null || ![a.x, a.y, a.z].every(Number.isFinite)) return
     onSample({ t: e.timeStamp, x: a.x, y: a.y, z: a.z })
   }
   window.addEventListener('devicemotion', listen)
   return () => window.removeEventListener('devicemotion', listen)
+}
+
+/** A missing or frozen motion stream cannot supply a timed balance result. */
+export function measurePhoneHold(
+  condition: Condition,
+  signal: AbortSignal,
+  showLeft: (seconds: number) => void,
+): Promise<Hold | null> {
+  return new Promise((resolve) => {
+    if (signal.aborted) return resolve(null)
+    const start = performance.now()
+    let last = start
+    const tracker = phoneHold(condition, start)
+    const finish = (hold: Hold | null) => {
+      stop()
+      clearInterval(watchdog)
+      signal.removeEventListener('abort', abort)
+      resolve(hold)
+    }
+    const abort = () => finish(null)
+    const watchdog = setInterval(() => {
+      if (performance.now() - last > 1500) abort()
+    }, 250)
+    const stop = listenMotion((sample) => {
+      const now = performance.now()
+      if (now - last > 1500) return abort()
+      last = now
+      const result = tracker.update(sample, now)
+      showLeft(Math.max(0, Math.ceil(condition.seconds - result.elapsedS)))
+      if (result.done) finish(result.done)
+    })
+    signal.addEventListener('abort', abort, { once: true })
+  })
 }
 
 /**

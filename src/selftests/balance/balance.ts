@@ -179,7 +179,7 @@ export function holdTracker(condition: Condition, startAt: number, torsoCm = 52)
   let feet: { left: Landmark; right: Landmark } | null = null
   let footSince: number | null = null
   let eyesSince: number | null = null
-  let lostSince: number | null = null
+  let lastSeen = startAt
   let eyesChecked = false
   let nods = 0
   let pitchHigh: boolean | null = null
@@ -220,18 +220,19 @@ export function holdTracker(condition: Condition, startAt: number, torsoCm = 52)
       if (done) return { elapsedS: done.heldS, done }
       const { now, aspect, body } = frame
       const elapsedS = (now - startAt) / 1000
-      if (elapsedS >= condition.seconds) return { elapsedS, done: finish(now) }
-
+      if (now - lastSeen > 1500)
+        return {
+          elapsedS,
+          done: finish(lastSeen, {
+            completed: false,
+            reason: 'The camera lost sight of your body.',
+            interrupted: true,
+          }),
+        }
       if (!body || !wholeBody(body, 0.4)) {
-        lostSince ??= now
-        if (now - lostSince > 1500)
-          return {
-            elapsedS,
-            done: finish(now, { reason: 'The camera lost sight of your body.', interrupted: true }),
-          }
         return { elapsedS, warning: 'Stay in view of the camera.' }
       }
-      lostSince = null
+      lastSeen = now
       const g = geometry(body, aspect)
       if (!feet) feet = { left: g.left, right: g.right }
 
@@ -263,7 +264,7 @@ export function holdTracker(condition: Condition, startAt: number, torsoCm = 52)
           if (now - eyesSince >= 1000)
             return { elapsedS, done: finish(eyesSince, { reason: 'Your eyes opened.' }) }
         } else eyesSince = null
-      }
+      } else eyesSince = null
 
       // Head nods: the nose moves below and above the line of the ears.
       let warning: string | undefined
@@ -289,6 +290,13 @@ export function holdTracker(condition: Condition, startAt: number, torsoCm = 52)
         const s = mid(body[BODY.leftShoulder], body[BODY.rightShoulder])
         sway.push({ x: sx.push((s.x * aspect) / g.torso), y: sy.push(s.y / g.torso) })
       }
+      const endAt = startAt + condition.seconds * 1000
+      if (
+        now >= endAt &&
+        (footSince === null || footSince >= endAt) &&
+        (eyesSince === null || eyesSince >= endAt)
+      )
+        return { elapsedS, done: finish(now) }
       return { elapsedS, warning }
     },
   }

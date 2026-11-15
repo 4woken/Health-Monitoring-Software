@@ -216,28 +216,40 @@ export default function TestRunner({
   const strap = useStrap()
   const choices = choicesFor(id, motion, strap.status !== 'unsupported')
   const [mode, setMode] = useState(() => choicesFor(id, false, false)?.options[0].id ?? 'default')
+  const modeChosen = useRef(false)
   const [saved, setSaved] = useState<TestResult | null>(null)
   const heading = useRef<HTMLHeadingElement>(null)
+  // A completion belongs to the attempt that started it. A cancelled sensor callback can arrive late.
+  const attempt = useRef(0)
+  const runNumber = attempt.current
 
   useEffect(() => {
-    if (id !== 'balance') return
+    if (id !== 'balance' || step !== 'prepare') return
     let live = true
     void probeMotion().then((ok) => {
       if (!live) return
       setMotion(ok)
-      if (ok) setMode('phone')
+      if (ok && !modeChosen.current) setMode('phone')
     })
     return () => {
       live = false
     }
-  }, [id])
+  }, [id, step])
   useEffect(() => {
     heading.current?.focus({ preventScroll: true })
     window.scrollTo?.({ top: 0 })
   }, [step])
-  useEffect(() => () => hush(), [])
+  useEffect(
+    () => () => {
+      attempt.current++
+      hush()
+    },
+    [],
+  )
 
   const finish = (run: RunValues) => {
+    if (step !== 'do' || runNumber !== attempt.current || !Number.isFinite(run.score)) return
+    attempt.current++
     hush()
     const judged = test.judge(run, earlier)
     const result = saveResult({
@@ -325,7 +337,16 @@ export default function TestRunner({
                 {test.safety}
               </p>
             )}
-            {choices && <ChoiceRow choice={choices} value={mode} onChange={setMode} />}
+            {choices && (
+              <ChoiceRow
+                choice={choices}
+                value={mode}
+                onChange={(value) => {
+                  modeChosen.current = true
+                  setMode(value)
+                }}
+              />
+            )}
             {mode === 'strap' && (
               <div className="flex flex-wrap items-center gap-3">
                 {strap.status === 'connected' ? (
@@ -355,7 +376,10 @@ export default function TestRunner({
               <Button
                 kind="primary"
                 size="lg"
-                onClick={() => setStep('do')}
+                onClick={() => {
+                  attempt.current++
+                  setStep('do')
+                }}
                 disabled={mode === 'strap' && strap.status !== 'connected'}
               >
                 Start
@@ -450,6 +474,7 @@ export default function TestRunner({
               mode={id === 'squats' || id === 'heelRaises' ? `${id}:${mode}` : mode}
               onDone={finish}
               onCancel={() => {
+                attempt.current++
                 hush()
                 setStep('prepare')
               }}
@@ -528,6 +553,7 @@ function ResultView({
   const test = SELF_TESTS[result.test]
   const last = earlier[earlier.length - 1]
   const scores = [...earlier.slice(-11), result].map((r) => r.score)
+  const usual = result.usual ?? baselineOf([...earlier, result]).usual
   const signal = test.signal
   return (
     <div className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_400px]">
@@ -572,16 +598,18 @@ function ResultView({
         <div className="rounded-2xl bg-white/[0.04] p-4">
           <p className="font-cond text-[13px] text-white/60">Compared with</p>
           <p className="mt-1 text-[14px] leading-relaxed">
-            {result.usual !== undefined
-              ? `Your usual result: ${test.score.format(result.usual)}.`
-              : `Your usual result is not set yet: ${Math.min(BASELINE_RUNS, earlier.length + 1)} of ${BASELINE_RUNS} runs.`}
+            {test.family === 'exercise'
+              ? `Completed ${earlier.length + 1} time${earlier.length === 0 ? '' : 's'}.`
+              : usual !== undefined
+                ? `Your usual result: ${test.score.format(usual)}.`
+                : `Your usual result is not set yet: ${earlier.length + 1} of ${BASELINE_RUNS} runs.`}
             {last ? ` Last time, day ${last.day}: ${test.score.format(last.score)}.` : ''}
           </p>
           {scores.length > 1 && (
             <div className="mt-3">
               <Sparkline
                 values={scores}
-                baseline={result.usual}
+                baseline={test.family === 'test' ? usual : undefined}
                 color={LEVEL_LINE[result.level]}
                 width={300}
                 height={44}

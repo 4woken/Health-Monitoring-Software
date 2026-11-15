@@ -150,7 +150,9 @@ export function CameraStage({
       {(!running || status) && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/40 px-6 text-center text-white/75">
           {!running && <VideoCamera size={32} weight="light" aria-hidden="true" />}
-          <span className="text-sm">{running ? status : idle}</span>
+          <span role="status" className="text-sm">
+            {running ? status : camera.stopped || idle}
+          </span>
         </div>
       )}
     </div>

@@ -6,7 +6,7 @@ import type { CameraFrame } from '../camera/session'
 import type { Point } from '../camera/landmarks'
 import { Big, Cue, type RunProps } from '../ui/parts'
 import { beep, say } from '../voice'
-import { layout, pinchTracker, TRANSFERS, type PinchView } from './pinch'
+import { layout, pinchTracker, targetExtent, TRANSFERS, type PinchView } from './pinch'
 
 const at = (p: Point): CSSProperties => ({
   left: `${p.x * 100}%`,
@@ -50,7 +50,9 @@ export default function DexterityTest({ onDone, onCancel }: RunProps) {
     }
   }
 
-  const { from, to } = layout(view.count)
+  const { from, to, radius } = layout(view.count)
+  const extent = targetExtent(radius, camera.frame?.aspect ?? 4 / 3)
+  const size = { width: extent.x * 200 + '%', height: extent.y * 200 + '%' }
   return (
     <section
       aria-label="Hand dexterity test"
@@ -58,14 +60,14 @@ export default function DexterityTest({ onDone, onCancel }: RunProps) {
     >
       <CameraStage camera={camera} showBody={false} showHands idle="Starting the camera…">
         <span
-          className="absolute grid h-[17%] w-[13%] place-items-center rounded-md border-2 border-dashed border-white/90 bg-black/30 text-white"
-          style={at(to)}
+          className="absolute grid place-items-center rounded-md border-2 border-dashed border-white/90 bg-black/30 text-white"
+          style={{ ...at(to), ...size }}
         >
           <Nut size={23} />
         </span>
         <span
-          className="absolute grid h-[17%] w-[13%] place-items-center rounded-md border border-cyan-100 bg-sky-900/90 text-cyan-100 shadow-lg"
-          style={at(view.carrying && view.cursor ? view.cursor : from)}
+          className="absolute grid place-items-center rounded-md border border-cyan-100 bg-sky-900/90 text-cyan-100 shadow-lg"
+          style={{ ...at(view.carrying && view.cursor ? view.cursor : from), ...size }}
         >
           <SolarPanel size={27} />
         </span>
@@ -85,9 +87,8 @@ export default function DexterityTest({ onDone, onCancel }: RunProps) {
         <p className="text-[14px] leading-relaxed text-muted">
           The clock starts with your first pinch. One hand only, facing the camera, in good light.
         </p>
-        {camera.stopped && <p className="text-[14px] text-check">{camera.stopped}</p>}
         <Button size="sm" kind="ghost" onClick={onCancel}>
-          Leave the test
+          {camera.stopped ? 'Try again' : 'Leave the test'}
         </Button>
       </aside>
     </section>

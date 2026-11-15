@@ -36,13 +36,14 @@ export default function RepsExercise({ mode, onDone, onCancel }: RunProps) {
 
   // The rest between sets.
   useEffect(() => {
-    if (rest <= 0) return
+    if (rest <= 0 || camera.stopped) return
     const id = window.setTimeout(() => {
       setRest((r) => r - 1)
       if (rest === 1) {
         live.current.resting = false
         tracker.current = make()
         live.current.last = 0
+        setSet(live.current.set)
         setCount(0)
         beep(990, 200)
         void say(`Set ${live.current.set}. Go.`)
@@ -50,7 +51,7 @@ export default function RepsExercise({ mode, onDone, onCancel }: RunProps) {
       }
     }, 1000)
     return () => clearTimeout(id)
-  }, [rest])
+  }, [rest, camera.stopped])
 
   function onFrame(frame: CameraFrame) {
     const s = live.current
@@ -73,7 +74,6 @@ export default function RepsExercise({ mode, onDone, onCancel }: RunProps) {
     }
     s.set++
     s.resting = true
-    setSet(s.set)
     setRest(REST_S)
     setCue(`Rest ${REST_S} seconds.`)
     void say(`Rest ${REST_S} seconds.`)
@@ -101,9 +101,8 @@ export default function RepsExercise({ mode, onDone, onCancel }: RunProps) {
             />
           </div>
         </Suspense>
-        {camera.stopped && <p className="text-[14px] text-check">{camera.stopped}</p>}
         <Button size="sm" kind="ghost" onClick={onCancel}>
-          Stop the exercise
+          {camera.stopped ? 'Try again' : 'Stop the exercise'}
         </Button>
       </aside>
     </section>

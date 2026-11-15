@@ -50,7 +50,8 @@ export default function VisionTest({ onDone, onCancel }: RunProps) {
     0,
     lines.findIndex((l) => l.logMAR <= 0.5),
   )
-  const [line, setLine] = useState(first)
+  const [lineOffset, setLineOffset] = useState(0)
+  const line = first + lineOffset
   const [letter, setLetter] = useState(() => DIRECTIONS[Math.floor(Math.random() * 4)])
   const tally = useRef({ shown: 0, right: 0, wrong: 0 })
   const correctByLine = useRef<number[]>([])
@@ -67,6 +68,8 @@ export default function VisionTest({ onDone, onCancel }: RunProps) {
     camera.start((frame) => {
       if (!frame.face) {
         setFaceSeen(false)
+        distances.current = []
+        setDistance(null)
         return
       }
       setFaceSeen(true)
@@ -76,20 +79,26 @@ export default function VisionTest({ onDone, onCancel }: RunProps) {
       const open: Eye | 'both' =
         cover.right && !cover.left ? 'left' : cover.left && !cover.right ? 'right' : 'both'
       const d = irisDistanceMm(frame.face.points, frame.width, frame.height, open)
-      if (d === null) return
+      if (d === null) {
+        distances.current = []
+        setDistance(null)
+        return
+      }
       distances.current = [...distances.current.slice(-9), d]
       setDistance(median(distances.current))
     })
     return () => camera.stop()
   }, [cameraNeeded, camera.start, camera.stop])
 
-  const inRange = manual || (distance !== null && Math.abs(distance - target) / target <= TOLERANCE)
+  const inRange =
+    manual ||
+    (camera.running && faceSeen && distance !== null && Math.abs(distance - target) / target <= TOLERANCE)
   const coverOk = manual || (covered[OTHER[eye]] && !covered[eye])
   const ready = inRange && (step !== 'acuity' && step !== 'amsler' ? true : coverOk)
 
   // Distance step: hold the right distance for a moment, then go on.
   useEffect(() => {
-    if (step !== 'distance') return
+    if (step !== 'distance' || manual) return
     if (!inRange) {
       setSteady(0)
       return
@@ -100,7 +109,7 @@ export default function VisionTest({ onDone, onCancel }: RunProps) {
       void say(`Good. Cover your ${OTHER[eye]} eye with your palm.`)
     }
     return () => clearTimeout(id)
-  }, [step, inRange, steady, eye])
+  }, [step, inRange, steady, eye, manual])
 
   useEffect(() => {
     if (step === 'distance') void say(`Sit about ${Math.round(target / 10)} centimetres from the screen.`)
@@ -110,9 +119,10 @@ export default function VisionTest({ onDone, onCancel }: RunProps) {
     scores.current[eye] = eyeScore(lines.slice(first), correctByLine.current)
     correctByLine.current = []
     tally.current = { shown: 0, right: 0, wrong: 0 }
-    setLine(first)
+    setLineOffset(0)
     if (eye === 'right') {
       setEye('left')
+      setLetter(DIRECTIONS[Math.floor(Math.random() * DIRECTIONS.length)])
       void say('Now cover your right eye.')
     } else {
       setEye('right')
@@ -132,7 +142,7 @@ export default function VisionTest({ onDone, onCancel }: RunProps) {
       const passed = t.wrong < 3 && t.right >= 3
       tally.current = { shown: 0, right: 0, wrong: 0 }
       if (!passed || line + 1 >= lines.length) return nextEyeOrGrid()
-      setLine((l) => l + 1)
+      setLineOffset((offset) => offset + 1)
     }
     let next = DIRECTIONS[Math.floor(Math.random() * 4)]
     if (next === letter) next = DIRECTIONS[(DIRECTIONS.indexOf(next) + 1 + Math.floor(Math.random() * 3)) % 4]
@@ -149,7 +159,7 @@ export default function VisionTest({ onDone, onCancel }: RunProps) {
     }
     const onKey = (e: KeyboardEvent) => {
       const d = keys[e.key]
-      if (!d) return
+      if (!d || e.repeat || e.altKey || e.ctrlKey || e.metaKey) return
       e.preventDefault()
       answer(d)
     }
@@ -191,7 +201,9 @@ export default function VisionTest({ onDone, onCancel }: RunProps) {
   }
 
   const guidance = manual
-    ? null
+    ? step === 'acuity' || step === 'amsler'
+      ? `Cover your ${OTHER[eye]} eye and keep your ${eye} eye open.`
+      : null
     : !camera.running
       ? camera.stopped || 'Starting the camera…'
       : !faceSeen
@@ -281,7 +293,7 @@ export default function VisionTest({ onDone, onCancel }: RunProps) {
                 </Cue>
                 {ready ? (
                   <Amsler
-                    distanceMm={manual ? target : (distance ?? target)}
+                    distanceMm={target}
                     cssPxPerMm={scale}
                     marked={marked}
                     onToggle={(cell) =>
