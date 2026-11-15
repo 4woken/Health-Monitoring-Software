@@ -1,118 +1,52 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { ArrowLeft, Crosshair, Eye, EyeSlash } from '@phosphor-icons/react'
+import {
+  ArrowLeft,
+  BatteryHigh,
+  Bluetooth,
+  Broadcast,
+  Crosshair,
+  Eye,
+  EyeSlash,
+  Heart,
+  WarningCircle,
+} from '@phosphor-icons/react'
 import type { Member } from '../crew/roster'
-import { advise, KIND_LABEL } from '../health/advice'
 import type { Level } from '../health/signals'
 import { useDayReport } from '../health/useDayReport'
 import { MISSION_ORDER, MISSIONS, type MissionId } from '../mission/missions'
-import { EASE, LEVEL_LINE } from '../ui'
-import { clockText, EVA_START_S, evaVitals } from './evaVitals'
+import { EASE, LEVEL_LINE, Logo } from '../ui'
+import { EVA_START_S, evaVitals, nextDrinkMinutes } from './evaVitals'
 import { useGaze } from './useGaze'
 
-/** What the crew member sees outside the helmet on a spacewalk, for each destination. NASA photographs. */
-const OUTSIDE: Record<MissionId, { src: string; position: string }> = {
-  orbit: { src: '/environments/eva/nasa-earth-limb-iss.jpg', position: '50% 62%' },
-  cruise: { src: '/environments/eva/nasa-orion-earth-moon.jpg', position: '50% 35%' },
-  moon: { src: '/environments/references/nasa-moon.jpg', position: '50% 55%' },
-  mars: { src: '/environments/eva/nasa-mars-curiosity.jpg', position: '50% 38%' },
+/** Generated EVA scenery; provenance and prompts live in public/environments/eva/GENERATION.md. */
+const OUTSIDE: Record<MissionId, string> = {
+  orbit: '/environments/eva/concept-eva-orbit-v1.png',
+  cruise: '/environments/eva/concept-eva-cruise-v1.png',
+  moon: '/environments/eva/concept-eva-moon-v1.png',
+  mars: '/environments/eva/concept-eva-mars-v1.png',
 }
+/** The helmet seen from inside, with a transparent visor opening the scenery shows through. */
+const HELMET = '/environments/eva/concept-eva-helmet-v1.png'
 const HOLO = '#6fd0ec'
+/** Short names, so the menu fits the top of the glass. */
+const SHORT: Record<MissionId, string> = { orbit: 'Orbit', moon: 'Moon', cruise: 'Cruise', mars: 'Mars' }
 
-/**
- * The helmet, seen from inside: the brim above and the lower rim below, too close to the eye to be in
- * focus, so they are dark and soft. A faint sheen lies on the glass.
- */
-function Helmet() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 1600 1000"
-      preserveAspectRatio="none"
-      className="pointer-events-none fixed inset-0 z-[3] h-full w-full"
-    >
-      <defs>
-        <filter id="ar-soft" x="-10%" y="-30%" width="120%" height="160%">
-          <feGaussianBlur stdDeviation="9" />
-        </filter>
-        <linearGradient id="ar-brim" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#020304" />
-          <stop offset="0.7" stopColor="#0d1014" />
-          <stop offset="1" stopColor="#1d232a" />
-        </linearGradient>
-        <linearGradient id="ar-rim" x1="0" y1="1" x2="0" y2="0">
-          <stop offset="0" stopColor="#020304" />
-          <stop offset="0.7" stopColor="#0c0f13" />
-          <stop offset="1" stopColor="#1b2027" />
-        </linearGradient>
-        <linearGradient id="ar-sheen" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#ffffff" stopOpacity="0.1" />
-          <stop offset="0.4" stopColor="#ffffff" stopOpacity="0.02" />
-          <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      {/* A soft sheen across the glass, from the top left. */}
-      <path d="M 0 0 L 900 0 L 0 760 Z" fill="url(#ar-sheen)" />
-      <g filter="url(#ar-soft)">
-        {/* The brim: thicker at the sides, where the helmet curves round. */}
-        <path
-          d="M -40 -40 H 1640 V 150 C 1350 70 1050 55 800 55 C 550 55 250 70 -40 150 Z"
-          fill="url(#ar-brim)"
-        />
-        {/* The lower rim, rising at the corners towards the shoulders. */}
-        <path
-          d="M -40 1040 H 1640 V 820 C 1380 925 1080 950 800 950 C 520 950 220 925 -40 820 Z"
-          fill="url(#ar-rim)"
-        />
-        {/* The inner edge of the glass catches a little light. */}
-        <path
-          d="M -40 158 C 250 78 550 63 800 63 C 1050 63 1350 78 1640 158"
-          fill="none"
-          stroke="#8fa3b5"
-          strokeOpacity="0.28"
-          strokeWidth="2"
-          vectorEffect="non-scaling-stroke"
-        />
-        <path
-          d="M -40 812 C 220 917 520 942 800 942 C 1080 942 1380 917 1640 812"
-          fill="none"
-          stroke="#8fa3b5"
-          strokeOpacity="0.22"
-          strokeWidth="2"
-          vectorEffect="non-scaling-stroke"
-        />
-      </g>
-    </svg>
-  )
-}
-
-/** A block of the head-up display: cut corners and a faint glass backing. */
-function Pane({ title, children, delay = 0 }: { title: string; children: ReactNode; delay?: number }) {
-  return (
-    <motion.section
-      aria-label={title}
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.45, delay, ease: EASE }}
-      className="ar-pane relative px-4 py-3"
-    >
-      <h3 className="ar-glow font-cond text-[11.5px] tracking-[0.22em] text-holo uppercase">{title}</h3>
-      <div className="mt-2">{children}</div>
-    </motion.section>
-  )
-}
-
-function Reading({ label, value, unit }: { label: string; value: string; unit: string }) {
-  return (
-    <div className="flex items-baseline justify-between gap-4 py-1">
-      <span className="font-cond text-[12px] tracking-[0.12em] text-white/70 uppercase">{label}</span>
-      <span className="ar-glow font-cond text-white tabular-nums">
-        <span className="text-[26px] leading-none font-semibold">{value}</span>
-        <span className="ml-1 text-[12px] text-holo/80">{unit}</span>
-      </span>
-    </div>
-  )
+/** Readings handed in by the mission simulation, in place of the spacewalk demonstration. */
+export interface LiveReadings {
+  bpm: number
+  spo2Pct: number
+  systolic: number
+  diastolic: number
+  coreTempC: number
+  glucoseMgDl: number
+  sleepHours: number
+  /** Minutes to the next drink, or null when none is planned. */
+  nextDrinkMin: number | null
+  /** Shown at the foot of the view, such as "Simulation · 11:10 · Climbing the crater rim". */
+  caption: string
+  /** The newest warning of the simulation, shown under the menu. */
+  alert: { level: Level; text: string } | null
 }
 
 /** A heartbeat trace that scrolls at the pulse rate. */
@@ -120,15 +54,15 @@ function Trace({ bpm }: { bpm: number }) {
   const beat = 'l 14 0 l 4 -6 l 4 6 l 6 0 l 3 4 l 5 -34 l 5 40 l 4 -10 l 8 0 l 6 -8 l 6 8 l 15 0'
   const path = `M 0 50 ${Array.from({ length: 8 }, () => beat).join(' ')}`
   return (
-    <svg viewBox="0 0 320 70" aria-hidden="true" className="h-12 w-full overflow-hidden">
+    <svg viewBox="0 0 320 70" aria-hidden="true" className="h-full w-full overflow-hidden">
       <g className="ar-ecg" style={{ animationDuration: `${(4 * 60) / Math.max(30, bpm)}s` }}>
-        <path d={path} fill="none" stroke={HOLO} strokeWidth="2" strokeLinejoin="round" />
+        <path d={path} fill="none" stroke={HOLO} strokeWidth="2.2" strokeLinejoin="round" />
         <path
           d={path}
           transform="translate(320 0)"
           fill="none"
           stroke={HOLO}
-          strokeWidth="2"
+          strokeWidth="2.2"
           strokeLinejoin="round"
         />
       </g>
@@ -137,8 +71,53 @@ function Trace({ bpm }: { bpm: number }) {
 }
 
 /**
+ * One reading of the head-up display, placed on the visor glass in hundredths of the helmet frame,
+ * so it keeps its place along the rim on every screen.
+ */
+function Reading({
+  left,
+  top,
+  label,
+  value,
+  unit,
+  level = 'ok',
+  icon,
+  children,
+}: {
+  left: number
+  top: number
+  label: string
+  value: string
+  unit?: string
+  level?: Level
+  icon?: ReactNode
+  children?: ReactNode
+}) {
+  return (
+    <div className="absolute" style={{ left: `${left}%`, top: `${top}%` }}>
+      <p className="ar-label flex items-center gap-[0.35em]">
+        {icon}
+        {label}
+      </p>
+      <p className="ar-value" style={level === 'ok' ? undefined : { color: LEVEL_LINE[level] }}>
+        {value}
+        {unit && <span className="ar-unit">{unit}</span>}
+      </p>
+      {children}
+    </div>
+  )
+}
+
+const pulseLevel = (bpm: number): Level => (bpm >= 170 ? 'act' : bpm >= 150 ? 'watch' : 'ok')
+const oxygenLevel = (pct: number): Level => (pct < 90 ? 'act' : pct < 94 ? 'watch' : 'ok')
+const heatLevel = (c: number): Level => (c >= 38.5 ? 'act' : c >= 38 ? 'watch' : 'ok')
+const sugarLevel = (mg: number): Level => (mg < 54 ? 'act' : mg < 70 || mg > 180 ? 'watch' : 'ok')
+
+/**
  * A simulated augmented-reality view: what a crew member could see inside the helmet visor on a
- * spacewalk, their health over the world outside. Hiding the readings leaves the view clear.
+ * spacewalk, their health over the world outside. The readings run along the lower rim of the glass,
+ * as a head-up display would place them, and hiding them leaves the view clear. The mission
+ * simulation can hand in its own readings.
  */
 export default function ArVisor({
   member,
@@ -146,24 +125,44 @@ export default function ArVisor({
   day,
   onMission,
   onClose,
+  live,
 }: {
   member: Member
   mission: MissionId
   day: number
-  onMission: (mission: MissionId) => void
+  /** Changes the destination; without it, the menu has no missions. */
+  onMission?: (mission: MissionId) => void
   onClose: () => void
+  live?: LiveReadings
 }) {
   const report = useDayReport(member, day, mission)
-  const advice = advise(report, mission).slice(0, 3)
-  const counts = { act: 0, watch: 0 }
-  for (const s of report.signals) if (s.level !== 'ok') counts[s.level]++
-  const status: Level = counts.act ? 'act' : counts.watch ? 'watch' : 'ok'
+  const r = report.readings
   const [hud, setHud] = useState(true)
   const [seconds, setSeconds] = useState(EVA_START_S)
   const opened = useRef(performance.now())
   const back = useRef<HTMLButtonElement>(null)
-  const eva = evaVitals(report.readings.restingPulseBpm, MISSIONS[mission].gravity, seconds)
-  const outside = OUTSIDE[mission]
+  // The latest close handler, so a parent rendering often does not restart the effect below.
+  const close = useRef(onClose)
+  close.current = onClose
+  const eva = evaVitals(r.restingPulseBpm, MISSIONS[mission].gravity, seconds, {
+    systolic: r.systolic,
+    diastolic: r.diastolic,
+    glucoseMgDl: r.glucoseMgDl,
+  })
+  const shown = live ?? {
+    bpm: eva.bpm,
+    spo2Pct: eva.spo2Pct,
+    systolic: eva.systolic,
+    diastolic: eva.diastolic,
+    coreTempC: eva.coreTempC,
+    glucoseMgDl: eva.glucoseMgDl,
+    sleepHours: r.sleepHours,
+    nextDrinkMin: nextDrinkMinutes(seconds),
+    caption: 'AI-generated environment · simulated spacewalk readings, built from the resting pulse',
+    alert: null,
+  }
+  // The suit battery runs about eight hours.
+  const battery = Math.max(5, Math.round(100 - (seconds / 3600) * 12))
   // Eye control starts with the view; the mouse and the keyboard keep working beside it.
   const gaze = useGaze({ auto: true })
   const gazing = gaze.state !== 'off' && gaze.state !== 'error'
@@ -173,7 +172,7 @@ export default function ArVisor({
 
   useEffect(() => {
     back.current?.focus({ preventScroll: true })
-    const key = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    const key = (e: KeyboardEvent) => e.key === 'Escape' && close.current()
     document.addEventListener('keydown', key)
     const id = window.setInterval(
       () => setSeconds(EVA_START_S + (performance.now() - opened.current) / 1000),
@@ -183,13 +182,10 @@ export default function ArVisor({
       document.removeEventListener('keydown', key)
       clearInterval(id)
     }
-  }, [onClose])
+  }, [])
 
-  /** A control of the visor; with eye control on, the buttons grow and spread so the gaze can tell them apart. */
-  const control = (selected = false) =>
-    `press inline-flex items-center justify-center gap-2 rounded-full border font-cond tracking-wide backdrop-blur-md ${
-      selected ? 'border-holo bg-holo/25 text-white' : 'border-holo/50 bg-black/40 text-holo hover:bg-holo/15'
-    } ${gazing ? 'h-12 min-w-[124px] px-5 text-[15px]' : 'h-10 px-4 text-[14px]'}`
+  const corner =
+    'press inline-flex h-10 items-center gap-2 rounded-full border border-holo/45 bg-black/55 px-4 font-cond text-[14px] tracking-wide text-holo backdrop-blur-md hover:bg-holo/15'
   return (
     <motion.div
       role="dialog"
@@ -201,154 +197,184 @@ export default function ArVisor({
       transition={{ duration: 0.55, ease: EASE }}
       className="fixed inset-0 z-50 overflow-hidden bg-black text-white"
     >
-      {/* The world outside, sharp in the middle; the readings soften it a little. */}
-      <AnimatePresence initial={false}>
-        <motion.div
-          key={mission}
-          aria-hidden="true"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.6 }}
-          className="pointer-events-none fixed inset-0"
-        >
-          <img
-            src={outside.src}
-            alt=""
-            style={{ objectPosition: outside.position }}
-            className={`h-full w-full scale-[1.03] object-cover transition-[filter] duration-700 ${hud ? 'blur-[1.5px] brightness-[0.82]' : ''}`}
-          />
-          {/* The edges of a curved visor are out of focus. */}
-          <img
-            src={outside.src}
-            alt=""
-            style={{ objectPosition: outside.position }}
-            className="ar-periphery absolute inset-0 h-full w-full scale-[1.03] object-cover blur-[6px]"
-          />
-        </motion.div>
-      </AnimatePresence>
-      {hud && <div aria-hidden="true" className="ar-scan pointer-events-none fixed inset-0" />}
-
-      <div className="absolute inset-x-[5%] top-[13%] bottom-[11%] z-[4] flex flex-col">
-        <AnimatePresence>
-          {hud && (
-            <motion.div
-              key="hud"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
-              className="flex flex-1 flex-col"
-            >
-              <p className="ar-glow mx-auto text-center font-cond text-[13px] tracking-[0.26em] uppercase">
-                <span style={{ color: status === 'ok' ? HOLO : LEVEL_LINE[status] }}>
-                  {status === 'act'
-                    ? `Health · ${counts.act} urgent`
-                    : status === 'watch'
-                      ? `Health · ${counts.watch} to check`
-                      : 'Health · nominal'}
-                </span>
-                <span className="text-white/60"> · EVA {clockText(seconds)}</span>
-              </p>
-              <div className="mt-4 grid flex-1 content-center gap-5 md:grid-cols-2 md:items-center">
-                <div className="w-full max-w-[340px] space-y-4">
-                  <Pane title="Heart · on the spacewalk" delay={0.1}>
-                    <div className="flex items-end justify-between gap-3">
-                      <p
-                        className="ar-glow font-cond tabular-nums"
-                        style={{ color: eva.bpm > 150 ? LEVEL_LINE.watch : '#fff' }}
-                      >
-                        <span className="text-[56px] leading-none font-semibold">{eva.bpm}</span>
-                        <span className="ml-1 text-[14px] text-holo/80">bpm</span>
-                      </p>
-                      <div className="w-1/2">
-                        <Trace bpm={eva.bpm} />
-                      </div>
-                    </div>
-                    <p className="mt-1 font-cond text-[12px] tracking-wide text-white/55">
-                      {report.readings.restingPulseBpm} bpm at rest this morning
-                    </p>
-                  </Pane>
-                  <Pane title="Body" delay={0.2}>
-                    <Reading label="Breathing" value={String(eva.breathsPerMinute)} unit="/min" />
-                    <Reading label="Oxygen" value={String(eva.spo2Pct)} unit="%" />
-                    <Reading label="Core temp." value={eva.coreTempC.toFixed(1)} unit="°C" />
-                    <Reading label="Effort" value={String(eva.kcalPerHour)} unit="kcal/h" />
-                    <Reading label="Suit CO2" value={eva.suitCo2MmHg.toFixed(1)} unit="mmHg" />
-                  </Pane>
-                </div>
-                <div className="w-full max-w-[340px] md:justify-self-end">
-                  {advice.length > 0 && (
-                    <Pane title="To check today" delay={0.3}>
-                      <ul className="space-y-2.5">
-                        {advice.map((a) => (
-                          <li key={a.id} className="flex gap-2.5">
-                            <span
-                              className="mt-1 w-[3px] shrink-0 rounded-full"
-                              style={{ background: LEVEL_LINE[a.level] }}
-                            />
-                            <span>
-                              <span
-                                className="block font-cond text-[11px] tracking-[0.12em] uppercase"
-                                style={{ color: LEVEL_LINE[a.level] }}
-                              >
-                                {KIND_LABEL[a.kind]} · {a.level === 'act' ? 'now' : 'today'}
-                              </span>
-                              <span className="block text-[15px] leading-snug font-medium">{a.title}</span>
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    </Pane>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          )}
+      {/* The helmet frame and everything on its glass share one box, sized like the frame picture. */}
+      <div className="ar-stage">
+        <AnimatePresence initial={false}>
+          <motion.div
+            key={mission}
+            aria-hidden="true"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.6 }}
+            className="pointer-events-none absolute inset-0"
+          >
+            <img
+              src={OUTSIDE[mission]}
+              alt=""
+              className={`h-full w-full object-cover transition-[filter] duration-700 ${hud ? 'brightness-[0.9]' : ''}`}
+            />
+            {/* The edges of a curved visor are out of focus. */}
+            <img
+              src={OUTSIDE[mission]}
+              alt=""
+              className="ar-periphery absolute inset-0 h-full w-full object-cover blur-[5px]"
+            />
+          </motion.div>
         </AnimatePresence>
-        {!hud && <div className="flex-1" />}
+        {/* A darker band along the lower rim keeps the readings legible over a bright Earth. */}
+        {hud && <div aria-hidden="true" className="ar-shade pointer-events-none absolute inset-0" />}
+        <img
+          src={HELMET}
+          alt=""
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 h-full w-full select-none"
+        />
 
+        {/* The top of the glass: the brand, the menu, the suit's links and battery. */}
+        <p className="ar-brand absolute flex items-center gap-[0.5em]" style={{ left: '21.5%', top: '7.4%' }}>
+          <Logo size={20} />
+          PULSAR
+        </p>
         <div
-          className={`mt-4 flex flex-wrap items-center justify-center ${gazing ? 'gap-x-4 gap-y-3' : 'gap-2'}`}
+          role="group"
+          aria-label="Visor menu"
+          data-big={gazing || undefined}
+          className="ar-menu absolute flex items-center gap-[0.6em]"
+          style={{ left: '50%', top: '12.6%', transform: 'translateX(-50%)' }}
         >
-          {/* Back is left to the mouse and the keyboard, so a glance cannot close the view. */}
-          <button ref={back} onClick={onClose} className={control()}>
-            <ArrowLeft size={16} />
-            Back
-          </button>
-          <button data-gaze="hud" onClick={() => setHud((h) => !h)} aria-pressed={!hud} className={control()}>
-            {hud ? <EyeSlash size={16} /> : <Eye size={16} />}
+          <button data-gaze="hud" onClick={() => setHud((h) => !h)} aria-pressed={!hud}>
+            {hud ? <EyeSlash size="1.15em" /> : <Eye size="1.15em" />}
             {hud ? 'Hide info' : 'Show info'}
           </button>
-          <div
-            role="group"
-            aria-label="Mission"
-            className={`flex flex-wrap items-center justify-center ${gazing ? 'gap-x-4 gap-y-3' : 'gap-1.5'}`}
-          >
-            {MISSION_ORDER.map((id) => (
+          {onMission &&
+            MISSION_ORDER.map((id) => (
               <button
                 key={id}
                 data-gaze={`mission:${id}`}
                 onClick={() => onMission(id)}
                 aria-pressed={mission === id}
-                className={control(mission === id)}
+                aria-label={MISSIONS[id].name}
               >
-                {MISSIONS[id].name}
+                {SHORT[id]}
               </button>
             ))}
-          </div>
-          <button
-            onClick={gazing ? gaze.stop : gaze.start}
-            aria-pressed={gazing}
-            title="Press the buttons by looking at them, with the webcam"
-            className={control(gazing)}
-          >
-            <Crosshair size={16} />
-            {gazing ? 'Eye control on' : 'Eye control off'}
-          </button>
         </div>
+        {hud && (
+          <div
+            className="ar-status absolute flex items-center gap-[0.7em]"
+            style={{ right: '20%', top: '7.6%' }}
+            title="Biosensor link, voice link to the crew and suit battery (simulated)"
+          >
+            <Bluetooth size="1.25em" />
+            <Broadcast size="1.25em" />
+            <span className="flex items-center gap-[0.25em]">
+              <BatteryHigh size="1.45em" />
+              {battery}%
+            </span>
+          </div>
+        )}
+        {hud && shown.alert && (
+          <p
+            role="alert"
+            className="ar-alert absolute flex items-center gap-[0.5em]"
+            style={{ left: '50%', top: '21%', color: LEVEL_LINE[shown.alert.level] }}
+          >
+            <WarningCircle size="1.3em" weight="fill" />
+            {shown.alert.text}
+          </p>
+        )}
+
+        {/* The readings, along the lower rim of the glass. */}
+        <AnimatePresence>
+          {hud && (
+            <motion.div
+              key="readings"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.4, ease: EASE }}
+              className="absolute inset-0"
+              aria-label="Health readings"
+            >
+              <Reading
+                left={17.6}
+                top={60}
+                label="Heart rate /"
+                value={String(shown.bpm)}
+                unit="bpm"
+                level={pulseLevel(shown.bpm)}
+                icon={<Heart size="1.05em" weight="fill" />}
+              >
+                <div className="mt-[0.25em] h-[3.8em] w-[15em]">
+                  <Trace bpm={shown.bpm} />
+                </div>
+              </Reading>
+              <Reading
+                left={23.2}
+                top={77}
+                label="Blood oxygen /"
+                value={String(shown.spo2Pct)}
+                unit="%"
+                level={oxygenLevel(shown.spo2Pct)}
+              />
+              <Reading
+                left={42.4}
+                top={74.6}
+                label="Blood pressure /"
+                value={`${shown.systolic}/${shown.diastolic}`}
+                unit="mmHg"
+              />
+              {shown.nextDrinkMin !== null && (
+                <Reading
+                  left={58.6}
+                  top={75.2}
+                  label="Next drink in:"
+                  value={shown.nextDrinkMin <= 0 ? 'Now' : String(Math.round(shown.nextDrinkMin))}
+                  unit={shown.nextDrinkMin <= 0 ? undefined : 'min'}
+                  level={shown.nextDrinkMin <= 0 ? 'watch' : 'ok'}
+                />
+              )}
+              <Reading
+                left={73}
+                top={58.6}
+                label="Temperature /"
+                value={shown.coreTempC.toFixed(1)}
+                unit="°C"
+                level={heatLevel(shown.coreTempC)}
+              />
+              <Reading
+                left={72}
+                top={69.2}
+                label="Glucose level /"
+                value={String(shown.glucoseMgDl)}
+                unit="mg/dL"
+                level={sugarLevel(shown.glucoseMgDl)}
+              />
+              <Reading
+                left={68.6}
+                top={78.6}
+                label="Sleep /"
+                value={shown.sleepHours.toFixed(1)}
+                unit="h a night"
+                level={shown.sleepHours < 6 ? 'watch' : 'ok'}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Outside the glass, in the corners: leaving the view, and eye control. */}
+      <button ref={back} onClick={onClose} className={`${corner} fixed bottom-4 left-4 z-[6]`}>
+        <ArrowLeft size={16} />
+        Back
+      </button>
+      <div className="fixed right-4 bottom-4 z-[6] flex max-w-[min(420px,calc(100vw-140px))] flex-col items-end gap-2">
         {gaze.state !== 'off' && gaze.state !== 'calibrating' && (
-          <p className="mt-2 text-center font-cond text-[13px] tracking-wide text-holo/90" aria-live="polite">
+          <p
+            className="rounded-2xl bg-black/60 px-3 py-2 text-right font-cond text-[13px] leading-snug tracking-wide text-holo/90 backdrop-blur-md"
+            aria-live="polite"
+          >
             {gaze.state === 'on'
               ? gaze.lost
                 ? 'Face not found: look at the screen, with your face in the light.'
@@ -364,14 +390,19 @@ export default function ArVisor({
             )}
           </p>
         )}
-        {hud && (
-          <p className="mt-2 text-center font-cond text-[11px] tracking-wide text-white/45">
-            Simulated view: spacewalk readings are a demonstration built from the resting pulse.
-          </p>
-        )}
+        <button
+          onClick={gazing ? gaze.stop : gaze.start}
+          aria-pressed={gazing}
+          title="Press the buttons by looking at them, with the webcam"
+          className={`${corner} ${gazing ? 'border-holo text-white' : ''}`}
+        >
+          <Crosshair size={16} />
+          {gazing ? 'Eye control on' : 'Eye control off'}
+        </button>
       </div>
-
-      <Helmet />
+      <p className="pointer-events-none fixed bottom-1.5 left-1/2 z-[5] w-[min(560px,60vw)] -translate-x-1/2 text-center font-cond text-[11px] tracking-wide text-white/50">
+        {shown.caption}
+      </p>
 
       {/* Calibration: nine dots, one after the other, each with a ring that closes on it. */}
       <AnimatePresence>

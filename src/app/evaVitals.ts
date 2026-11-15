@@ -15,7 +15,24 @@ export interface EvaVitals {
   kcalPerHour: number
   /** CO2 in the suit's air, mmHg. */
   suitCo2MmHg: number
+  /** Arm pressure, mmHg: the top number rises with the effort, the bottom one barely moves. */
+  systolic: number
+  diastolic: number
+  /** Blood sugar, mg/dL: it drifts down slowly over hours of work between meals. */
+  glucoseMgDl: number
 }
+
+/** The person's own values at rest, from the morning checks. */
+export interface RestValues {
+  systolic: number
+  diastolic: number
+  glucoseMgDl: number
+}
+
+const REST: RestValues = { systolic: 115, diastolic: 75, glucoseMgDl: 90 }
+
+/** Minutes to the next sip from the suit's drink bag, one every half hour from the start of the walk. */
+export const nextDrinkMinutes = (seconds: number, every = 30) => every - (Math.floor(seconds / 60) % every)
 
 /** The spacewalk has been going on for this long when the view opens, seconds. */
 export const EVA_START_S = 72 * 60
@@ -24,17 +41,24 @@ export const EVA_START_S = 72 * 60
  * Readings `seconds` into a spacewalk: the work comes in tasks of about a minute and a half, and
  * walking under gravity on the Moon or Mars costs more than moving hand over hand in weightlessness.
  */
-export function evaVitals(restingBpm: number, gravity: number, seconds: number): EvaVitals {
+export function evaVitals(restingBpm: number, gravity: number, seconds: number, rest = REST): EvaVitals {
   const work = 0.55 + 0.45 * (0.5 + 0.5 * Math.sin((2 * Math.PI * seconds) / 90))
   const surface = gravity > 0 ? 1.15 : 1
   const wobble = Math.sin(seconds / 7) * 2 + Math.sin(seconds / 2.3)
+  const bpm = Math.round(restingBpm + (28 + 42 * work) * surface + wobble)
+  const rise = Math.max(0, bpm - restingBpm)
   return {
-    bpm: Math.round(restingBpm + (28 + 42 * work) * surface + wobble),
+    bpm,
     breathsPerMinute: Math.round(15 + 9 * work * surface),
     spo2Pct: work > 0.85 ? 98 : 99,
     coreTempC: Number((37 + 0.35 * Math.min(1, seconds / 3600) + 0.15 * work).toFixed(1)),
     kcalPerHour: Math.round((140 + 180 * work) * surface),
     suitCo2MmHg: Number((1.1 + 1.7 * work).toFixed(1)),
+    systolic: Math.round(rest.systolic + Math.min(45, 0.45 * rise)),
+    diastolic: Math.round(rest.diastolic + 0.08 * rise),
+    glucoseMgDl: Math.round(
+      rest.glucoseMgDl - 6 * Math.min(1, seconds / (4 * 3600)) + 2 * Math.sin(seconds / 600),
+    ),
   }
 }
 

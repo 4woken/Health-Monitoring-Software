@@ -44,7 +44,7 @@ The challenge's resources tab lists five pages: NASA's Human Research Program ha
 
 ## Gaps to be honest about
 
-- The mission records are simulated. The self-tests measure the person at the computer and feed the signals, but they are screening versions, not clinical tests: a screen is not an eye chart, a webcam is not a force platform, and the limits that flag a result are our assumptions. The spacewalk readings of the AR view are a demonstration.
+- The mission records are simulated. The self-tests measure the person at the computer and feed the signals, but they are screening versions, not clinical tests: a screen is not an eye chart, a webcam is not a force platform, and the limits that flag a result are our assumptions. The spacewalk readings of the AR view and the days of the mission simulation are demonstrations.
 - The app cannot contact flight surgeons or send reports to Earth.
 - It gives no treatment or medication advice, on purpose.
 - Immune function and nutrition are covered by three signals (immune cells, vitamin D, body mass). The limits for white cells, lymphocytes and body mass are our assumptions; the vitamin D limit follows a NASA protocol.

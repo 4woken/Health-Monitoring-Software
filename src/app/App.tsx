@@ -1,6 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { Camera, Check, Eyeglasses, Heartbeat, ListChecks } from '@phosphor-icons/react'
+import { Camera, Check, Eyeglasses, Heartbeat, ListChecks, PlayCircle } from '@phosphor-icons/react'
 import { BREATH_REPLAY_MS, recentBreath, type BreathReading } from '../camera/breathReading'
 import { stopPulse, usePulse } from '../camera/pulse/pulseSession'
 import { useCheckup } from '../checkup/useCheckup'
@@ -24,9 +24,10 @@ const SelfTestsScreen = lazy(() => import('../selftests/ui/SelfTestsScreen'))
 const CrewLogin = lazy(() => import('../crew/CrewLogin'))
 const NewMember = lazy(() => import('../crew/NewMember'))
 const ArVisor = lazy(() => import('./ArVisor'))
+const SimulationScreen = lazy(() => import('../simulation/SimulationScreen'))
 
 /** Panels that open over the body. There is no other page. */
-type Panel = 'checkup' | 'tests'
+type Panel = 'checkup' | 'tests' | 'simulation'
 type Page = 'intro' | 'profile' | 'dashboard'
 
 const CHECKUP_WIDTH = 560
@@ -194,6 +195,9 @@ function Shell() {
                 </span>
               </button>
             )}
+            <HeaderButton on={panel === 'simulation'} onClick={() => toggle('simulation')} label="Simulation">
+              <PlayCircle size={17} />
+            </HeaderButton>
             <HeaderButton on={ar} onClick={() => setAr(true)} label="AR view">
               <Eyeglasses size={17} />
             </HeaderButton>
@@ -230,7 +234,7 @@ function Shell() {
             onOpenTest={openTest}
             breath={recentBreath(breath, member.id, Date.now())}
             covered={panel === 'checkup' ? CHECKUP_WIDTH : 0}
-            paused={panel === 'tests' || ar}
+            paused={panel === 'tests' || panel === 'simulation' || ar}
             request={request}
           />
         </Suspense>
@@ -262,6 +266,13 @@ function Shell() {
               />
             </Suspense>
           </Drawer>
+        )}
+        {panel === 'simulation' && (
+          <Cover key="simulation" title={`Mission simulation, ${member.short}`} onClose={close}>
+            <Suspense fallback={<Loading />}>
+              <SimulationScreen member={member} mission={mission} days={days} onStartTest={openTest} />
+            </Suspense>
+          </Cover>
         )}
         {panel === 'tests' && (
           <Cover key="tests" title={`Self-tests, ${member.short}`} onClose={close}>

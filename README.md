@@ -1,6 +1,6 @@
 # Pulsar
 
-Pulsar shows each crew member's body in space, in the place they live. What they should do today points at the body, a click on any part says what it shows, and everything else opens over the same screen: the check-up of the day, the self-tests a crew member takes with the camera, the keyboard or headphones, what the mission does to the body, NASA's own medical requirements for astronauts, and a simulated AR view of the helmet visor.
+Pulsar shows each crew member's body in space, in the place they live. What they should do today points at the body, a click on any part says what it shows, and everything else opens over the same screen: the check-up of the day, the self-tests a crew member takes with the camera, the keyboard or headphones, what the mission does to the body, NASA's own medical requirements for astronauts, a simulated mission day, and a simulated AR view of the helmet visor.
 
 A pulsar is a star whose beam sweeps past at a perfectly regular rhythm, the most regular pulse in the sky. The name fits an app built around a heartbeat.
 
@@ -75,7 +75,9 @@ Each test shows why it is due today, what NASA does and how this version differs
 
 **Lab.** At the foot of **Tests**, the Lab keeps the camera tools behind the tests, all processed on your computer. **Face fitting studio** frames your face, shows it live on the 3D head and lays the captured portrait on the body ([how the fit works](docs/FACE_FITTING.md)). **Pulse camera** estimates your pulse from small colour changes in the skin of your face; you can download the numbers as a CSV file and compare them with a finger pulse oximeter, as in [the validation protocol](docs/VALIDATION.md). **Avatar comparison** is described above.
 
-**AR view.** **AR view** in the top bar shows what a crew member could see inside the helmet visor on a spacewalk: the Earth from outside the station, deep space from Orion, the Moon or Mars, with only the health readings over it. The spacewalk readings (pulse, breathing, core temperature, effort, suit CO2) are a demonstration built from the person's resting pulse, at the levels NASA reports for suited work. **Hide info** clears the view and the mission buttons change the destination. Eye control starts with the view: after nine calibration dots, look at a button for a second to press it, with the webcam and no eye tracker. A ring follows the gaze, the button under it lights up, and each mouse click refines the calibration. [How eye control works](docs/EYE_CONTROL.md)
+**Simulation.** **Simulation** in the top bar plays a day of the destination minute by minute for the person shown: a CO2 scrubber that stops on the station, a moonwalk cut short, a solar storm on the way to Mars, a dust storm on Mars. The heart rate climbs with each effort, blood pressure, core temperature, blood sugar, water, cabin CO2 and radiation follow, and Pulsar's rules turn the values into alerts and tasks. The list for the day mixes the person's own check-up with the mission plan and changes as the day goes: tasks tick themselves, rules add new ones, a storm moves others. Play it at 2 to 15 minutes a second, jump to the next event, or open the visor at that moment. [How the simulation works](docs/SIMULATION.md)
+
+**AR view.** **AR view** in the top bar shows what a crew member could see inside the helmet on a spacewalk: a photographic helmet frame with the microphones in front, generated views outside (a station above the Earth, a transit ship with Mars in the distance, the lunar south pole, Gale crater on Mars), and the health readings along the lower rim of the glass, as in a head-up display: heart rate and its trace, blood oxygen, blood pressure, the next drink, temperature, blood sugar and sleep. The spacewalk readings are a demonstration built from the person's resting pulse and morning checks, at the levels NASA reports for suited work. **Hide info** clears the view and the menu at the top of the glass changes the destination. Eye control starts with the view: after nine calibration dots, look at a button for a second to press it, with the webcam and no eye tracker. A ring follows the gaze, the button under it lights up, and each mouse click refines the calibration. [How eye control works](docs/EYE_CONTROL.md)
 
 ### Destination and habitat
 
@@ -95,7 +97,7 @@ The **destination** sets what the body lives with: gravity and radiation dose ra
 
 - **Real:** measured radiation dose rates for orbit, the Moon, the cruise to Mars and the Martian surface; the career dose limit; published bone, muscle, fluid-shift and blood figures from spaceflight; NASA's risk pages for each signal; the NASA photographs.
 - **Real:** your own self-test results, measured on this device.
-- **Simulated:** mission health records, their charts, the four crew storylines, the pulse and breathing shown during an avatar exercise demo, and the spacewalk readings of the AR view.
+- **Simulated:** mission health records, their charts, the four crew storylines, the pulse and breathing shown during an avatar exercise demo, the spacewalk readings of the AR view, and the days of the mission simulation.
 - **Our own choices:** some warning levels and the behaviour in partial gravity, which nobody has measured over long stays. The interface marks them as our assumptions wherever they are used.
 
 Sources are listed in each signal's detail, in [docs/RESEARCH.md](docs/RESEARCH.md) and in `src/health/sources.ts`.
@@ -118,6 +120,7 @@ src/
   health/     signals, simulated readings, recommendations, the NASA reference, metrics, sources
   mission/    destinations, habitats, the physiology engine and its simulator
   checkup/    the daily check-up: planner and panel
+  simulation/ the mission simulation: four days, the body model and the monitoring rules
   selftests/  the self-tests: catalogue, results and usual result, what is due, camera and sensors, screens
   exercises/  the habitat exercise demo played by the avatar
   camera/     face fitting, VRM expressions, pulse and breathing estimates, the face studio
@@ -127,7 +130,7 @@ public/       anatomy models, habitat pictures and the face-tracking model, serv
 docs/         architecture, research notes, physiology model, face fitting, eye control, validation
 ```
 
-Further reading: [architecture](docs/ARCHITECTURE.md), [NASA reference](docs/NASA_REFERENCE.md), [research and rule sources](docs/RESEARCH.md), [physiology model](docs/PHYSIOLOGY.md), [pulse validation](docs/VALIDATION.md), [eye control](docs/EYE_CONTROL.md), [third-party components and licences](docs/CREDITS.md).
+Further reading: [architecture](docs/ARCHITECTURE.md), [NASA reference](docs/NASA_REFERENCE.md), [research and rule sources](docs/RESEARCH.md), [physiology model](docs/PHYSIOLOGY.md), [pulse validation](docs/VALIDATION.md), [eye control](docs/EYE_CONTROL.md), [mission simulation](docs/SIMULATION.md), [third-party components and licences](docs/CREDITS.md).
 
 ## Credits
 
@@ -135,4 +138,4 @@ Made in France by the team: **Lucas Baurianne** (team owner), **Enzo Baurianne**
 
 The two textured bodies use MakeHuman geometry and Margaret Toigo’s skin textures (CC0). Each loads independently and carries a calibrated portrait. [Human model sources](THIRD_PARTY_NOTICES.md).
 
-Anatomy models: BodyParts3D (© The Database Center for Life Science) and the HuBMAP HRA 3D Reference Organs, both CC BY 4.0. Face tracking: Google MediaPipe (Apache 2.0). Typeface: Barlow (SIL Open Font License). Habitat and spacewalk pictures: NASA photographs used under the NASA Images and Media Usage Guidelines, and generated interiors based on NASA images (credits in `public/environments/README.md`). The 3D coach of the self-tests is the sample VRM of the avatar lab. Full list in [asset credits](docs/CREDITS.md).
+Anatomy models: BodyParts3D (© The Database Center for Life Science) and the HuBMAP HRA 3D Reference Organs, both CC BY 4.0. Face tracking: Google MediaPipe (Apache 2.0). Typeface: Barlow (SIL Open Font License). Habitat pictures: NASA photographs used under the NASA Images and Media Usage Guidelines, and generated interiors based on NASA images. The AR view's outside views are generated illustrations, and its helmet frame was edited from a picture supplied by the team (credits and prompts in `public/environments/README.md` and `public/environments/eva/GENERATION.md`). The 3D coach of the self-tests is the sample VRM of the avatar lab. Full list in [asset credits](docs/CREDITS.md).

@@ -15,6 +15,7 @@ src/
     ui/       signal row, signal panel, NASA reference panel, charts, vital signs, live pulse
   mission/    destinations, habitats, the physiology engine and its panel
   checkup/    the daily check-up: planner and panel
+  simulation/ the mission simulation: scenarios, the body model and monitoring rules (engine.ts), the screen
   selftests/  self-tests: catalogue, results, usual result, what is due, camera engine, sensors, screens
   exercises/  the habitat exercise demo played by the avatar
   camera/     webcam features: face fitting (face/), pulse measurement (pulse/), breathing (respiration/)
@@ -47,6 +48,10 @@ A confirmed avatar is stored in IndexedDB under a per-profile key. New crew prof
 The results go back into the data through `selftests/facts.ts`. `health/readings.ts` takes a camera pulse of the day, camera-counted resistance sets and a vision change into the readings, and `health/signals.ts` reads the rest as `SelfTestFacts`: reaction and thinking tests in Sleep and alertness, balance and dexterity in Balance and coordination, sit-to-stand in loading, the pulse tests in Oxygen and resting pulse. `signals.ts` stays free of storage: `assess` receives the facts. `useDayReport` computes the day again when a result is saved, and `checkup/useCheckup.ts` adds the due tests to the check-up live, so a test ticks its task wherever it is done.
 
 The test logic is in pure modules with tests: `reaction/pvt.ts`, `cognition/cognition.ts`, `vision/acuity.ts`, `hearing/din.ts`, `balance/balance.ts` and `balance/phone.ts`, `movement/movement.ts`, `dexterity/pinch.ts`, `heart/ruffier.ts` and `heart/strap.ts`. `selftests/camera/session.ts` runs one camera with the MediaPipe models a test needs (pose, hands, face, with a crop of the head so the eyes can be read from a few metres), `voice.ts` speaks with a voice of this device and beeps, and `coach/` plays the movement on the avatar lab's VRM figure.
+
+## Mission simulation
+
+`simulation/scenarios.ts` describes one day per destination: blocks of activity with their place and effort, meals and drinks, the story's events, the mission's tasks, and the profiles of cabin CO2, suit CO2, radiation and stress. `simulation/engine.ts` plays the day once, minute by minute, from the person's readings (`personOf`): heart rate, blood pressure, breathing, core temperature, blood sugar, water, CO2 and dose. Monitoring rules run in the same pass and add events and tasks, and the person's own check-up from `checkup/planner.ts` is laid out at the scenario's free times. The screen only looks up a minute (`sampleAt`, `taskAt`), so the day can be played, paused and scrubbed, and it hands the same minute to the AR view as `LiveReadings`. [Mission simulation](SIMULATION.md)
 
 ## Webcam
 

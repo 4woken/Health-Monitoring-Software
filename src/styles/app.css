@@ -494,29 +494,125 @@ input[type='range'].day-range::-moz-range-thumb {
 
 /* ---------- Simulated augmented-reality visor ---------- */
 
-/* Faint lines across the visor glass, as on a head-up display. */
-.ar-scan {
-  background: repeating-linear-gradient(0deg, rgb(111 208 236 / 0.045) 0 1px, transparent 1px 4px);
-  mix-blend-mode: screen;
+/* The helmet frame and everything on its glass share one box with the frame's proportions
+   (1672 × 941), covering the screen as the picture does, so the readings keep their place along
+   the rim. One em is a hundredth of its width. Narrow screens show the whole frame instead. */
+.ar-stage {
+  --ar-w: max(100vw, 177.7vh);
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--ar-w);
+  height: calc(var(--ar-w) / 1.7768);
+  transform: translate(-50%, -50%);
+  font-size: calc(var(--ar-w) / 100);
+}
+@media (max-aspect-ratio: 5/4) {
+  .ar-stage {
+    --ar-w: 100vw;
+  }
 }
 .ar-glow {
   text-shadow:
     0 0 10px rgb(111 208 236 / 0.45),
     0 0 2px rgb(0 0 0 / 0.6);
 }
-.ar-pane {
-  background: rgb(6 18 26 / 0.5);
-  border: 1px solid rgb(111 208 236 / 0.35);
-  box-shadow:
-    0 0 24px rgb(111 208 236 / 0.12),
-    inset 0 0 18px rgb(111 208 236 / 0.06);
-  backdrop-filter: blur(6px);
-  clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
-}
 /* A blurred copy of the outside shows only towards the edges of the visor. */
 .ar-periphery {
   -webkit-mask-image: radial-gradient(ellipse 62% 58% at 50% 50%, transparent 55%, black 100%);
   mask-image: radial-gradient(ellipse 62% 58% at 50% 50%, transparent 55%, black 100%);
+}
+.ar-shade {
+  background:
+    radial-gradient(ellipse 46% 30% at 22% 78%, rgb(2 8 14 / 0.42), transparent 70%),
+    radial-gradient(ellipse 46% 30% at 78% 76%, rgb(2 8 14 / 0.42), transparent 70%),
+    linear-gradient(0deg, rgb(2 8 14 / 0.38) 4%, transparent 42%);
+}
+/* Head-up type: cyan labels, large white values, small units, all with a faint glow. */
+.ar-label,
+.ar-brand,
+.ar-status,
+.ar-alert {
+  text-shadow:
+    0 0 0.6em rgb(111 208 236 / 0.4),
+    0 0.05em 0.15em rgb(0 0 0 / 0.65);
+}
+.ar-label {
+  font: 500 1.05em/1.25 var(--font-sans);
+  letter-spacing: 0.04em;
+  color: #8fdcf2;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.ar-value {
+  font: 400 2.9em/1.05 var(--font-sans);
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-shadow:
+    0 0 0.3em rgb(111 208 236 / 0.35),
+    0 0.03em 0.1em rgb(0 0 0 / 0.6);
+}
+.ar-unit {
+  margin-left: 0.3em;
+  font-size: 0.4em;
+  color: rgb(255 255 255 / 0.85);
+}
+.ar-brand {
+  text-shadow:
+    0 0 0.5em rgb(0 0 0 / 0.7),
+    0 0 0.6em rgb(111 208 236 / 0.4);
+  font: 600 1.25em/1 var(--font-sans);
+  letter-spacing: 0.12em;
+  color: #ffffff;
+}
+.ar-status {
+  font: 500 1em/1 var(--font-cond);
+  color: #8fdcf2;
+}
+.ar-alert {
+  transform: translateX(-50%);
+  max-width: 44em;
+  padding: 0.45em 1.1em;
+  border-radius: 9999px;
+  background: rgb(2 8 14 / 0.6);
+  font: 500 1.15em/1.2 var(--font-sans);
+  backdrop-filter: blur(4px);
+}
+/* The visor menu, along the top of the glass; with eye control on, its buttons grow. */
+.ar-menu button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  padding: 0.55em 1.05em;
+  border: 1px solid rgb(111 208 236 / 0.42);
+  border-radius: 9999px;
+  background: rgb(2 10 16 / 0.38);
+  color: #8fdcf2;
+  font: 500 1.02em/1 var(--font-cond);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  backdrop-filter: blur(4px);
+  transition:
+    background-color 120ms,
+    border-color 120ms,
+    color 120ms;
+}
+.ar-menu button:hover {
+  background-color: rgb(111 208 236 / 0.16);
+}
+.ar-menu button[aria-pressed='true'] {
+  border-color: #8fdcf2;
+  background-color: rgb(111 208 236 / 0.24);
+  color: #ffffff;
+}
+.ar-menu[data-big] {
+  gap: 1.5em;
+}
+.ar-menu[data-big] button {
+  padding: 0.75em 1.4em;
+  font-size: 1.22em;
 }
 /* The heartbeat trace scrolls one screen width per four beats. */
 .ar-ecg {
