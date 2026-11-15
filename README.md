@@ -49,7 +49,7 @@ The radiation details break the dose down by organ (eye lens, skin, blood-formin
 
 ### Where you are
 
-The mission menu at the top right sets the destination and the mission day. Orbit is a six-month station stay (180 days), the Moon three days at the south pole, the cruise to Mars 203 days and Mars a 500-day surface stay. Each one brings its own gravity and radiation, a habitat behind the body, and its own day in the simulation. The station and the spacecraft are NASA photographs; the rover and the bases on the Moon and Mars are illustrations, and the menu says which is which.
+The mission menu at the top right sets the destination and the mission day. Orbit is a six-month station stay (180 days), the Moon three days at the south pole, the cruise to Mars 203 days and Mars a 500-day surface stay. Each one brings its own gravity and radiation, its own habitat behind the body, and its own day in the simulation: the station in orbit, the Orion ship on the cruise, a base or a pressurised rover on the Moon, a base on Mars. The station and the ship are NASA photographs; the rover and the bases are illustrations, and the menu says which is which.
 
 ### Today's check-up
 

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { CaretDown, Check } from '@phosphor-icons/react'
 import { MISSIONS, MISSION_ORDER, type MissionId } from './missions'
-import { HABITATS, type HabitatId } from './habitats'
+import { HABITATS, MISSION_HABITATS, type HabitatId } from './habitats'
 import { EASE } from '../ui'
 
 /**
@@ -122,32 +122,37 @@ export default function MissionMenu({
             </ul>
 
             <p className="mt-5 font-cond text-[13px] text-muted">
-              Habitat for the view and exercise equipment
+              {MISSION_HABITATS[mission].length > 1
+                ? 'Where you are on this destination'
+                : 'Where you live on this destination'}
             </p>
-            <div className="mt-2 grid grid-cols-5 gap-1.5">
-              {(Object.keys(HABITATS) as HabitatId[]).map((id) => (
+            <div
+              className={`mt-2 grid gap-1.5 ${MISSION_HABITATS[mission].length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}
+            >
+              {MISSION_HABITATS[mission].map((id) => (
                 <button
                   key={id}
                   onClick={() => onHabitat(id)}
                   aria-pressed={id === habitat}
                   title={HABITATS[id].description}
-                  className={`press group flex flex-col gap-1.5 rounded-lg p-1 text-left ${id === habitat ? 'bg-white/[0.12]' : 'hover:bg-white/[0.06]'}`}
+                  className={`press group flex items-center gap-3 rounded-lg p-1.5 text-left ${id === habitat ? 'bg-white/[0.12]' : 'hover:bg-white/[0.06]'}`}
                 >
                   <img
                     src={HABITATS[id].image}
                     alt=""
-                    className={`aspect-[4/5] w-full rounded-md object-cover ${id === habitat ? '' : 'opacity-70 group-hover:opacity-100'}`}
+                    className={`aspect-[4/3] w-16 shrink-0 rounded-md object-cover ${id === habitat ? '' : 'opacity-70 group-hover:opacity-100'}`}
                   />
-                  <span className="truncate px-0.5 font-cond text-[12px] leading-tight">
-                    {HABITATS[id].name}
+                  <span className="min-w-0">
+                    <span className="block truncate text-[14px] font-medium">{HABITATS[id].name}</span>
+                    <span className="block font-cond text-[12px] leading-tight text-white/55">
+                      {HABITATS[id].kind === 'photograph'
+                        ? 'NASA photograph'
+                        : 'Illustration based on NASA images'}
+                    </span>
                   </span>
                 </button>
               ))}
             </div>
-            <p className="mt-2 text-[12px] leading-snug text-dim">
-              Station and spacecraft: NASA photographs. Rover and bases: illustrations generated from NASA
-              images, not NASA designs.
-            </p>
           </motion.div>
         )}
       </AnimatePresence>

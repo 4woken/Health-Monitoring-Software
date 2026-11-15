@@ -1,9 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Pause, Play } from '@phosphor-icons/react'
 import type { HabitatId } from '../mission/habitats'
-import { HABITATS } from '../mission/habitats'
 import { MISSIONS } from '../mission/missions'
-import { Button } from '../ui'
 import type { OnExerciseDemo } from './demoVitals'
 import { ENVIRONMENT_EXERCISES, environmentMotion } from './environmentExercise'
 
@@ -78,71 +76,65 @@ export default function EnvironmentExerciseDemo({
   }
 
   const live = phase === 'running' || phase === 'paused'
+  // One sentence is enough here; the source sits behind the name.
+  const line = activity.movement.split('. ')[0].replace(/\.$/, '') + '.'
   return (
-    <section aria-label="Exercise here" className="mt-8">
-      <h3 className="flex items-baseline justify-between gap-3 text-[13.5px] font-medium text-white/55">
-        Exercise here
-        <span className="font-cond text-[13px] font-normal text-white/45">
-          {HABITATS[habitat].name}, {Number(gravityG.toFixed(2))} g
-        </span>
-      </h3>
-      <p className="mt-2 text-[15.5px] font-medium">{activity.title}</p>
-      <p className="mt-0.5 text-[13.5px] leading-snug text-white/55">{activity.movement}</p>
-      {mode === 'row' && (
-        <label className="mt-3 flex flex-wrap items-center gap-2.5 text-[13.5px] text-white/70">
-          Gravity for the demo
+    <section aria-label="Exercise" className="mt-8">
+      <h3 className="text-[13.5px] font-medium text-white/55">Exercise</h3>
+      <div className="mt-2 flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <a
+            href={activity.source.url}
+            target="_blank"
+            rel="noreferrer"
+            title={`${activity.source.label}. ${activity.movement}`}
+            className="text-[15px] font-medium hover:underline hover:decoration-white/40 underline-offset-4"
+          >
+            {activity.title}
+          </a>
+          <p className="mt-0.5 truncate text-[13px] text-white/50">
+            {live ? `${Math.ceil(remaining / 1000)} s left, on the body` : line}
+          </p>
+        </div>
+        {mode === 'row' && !live && (
           <select
-            className="h-8 rounded-full border border-white/15 bg-[#202226] px-3 text-[13px] text-white [&>option]:bg-[#202226] [&>option]:text-white"
+            aria-label="Gravity for the demo"
+            className="h-7 shrink-0 rounded-full border border-white/15 bg-[#202226] px-2 font-cond text-[13px] text-white [&>option]:bg-[#202226] [&>option]:text-white"
             value={gravityChoice}
             onChange={(event) => setGravityChoice(event.target.value)}
           >
-            <option value="mission">This mission, {gravity} g</option>
-            <option value="0">Weightless, 0 g</option>
-            <option value={MISSIONS.moon.gravity}>Moon, {MISSIONS.moon.gravity} g</option>
-            <option value={MISSIONS.mars.gravity}>Mars, {MISSIONS.mars.gravity} g</option>
-            <option value="1">Earth, 1 g</option>
+            <option value="mission">{gravity} g</option>
+            <option value="0">0 g, weightless</option>
+            <option value={MISSIONS.moon.gravity}>{MISSIONS.moon.gravity} g, Moon</option>
+            <option value={MISSIONS.mars.gravity}>{MISSIONS.mars.gravity} g, Mars</option>
+            <option value="1">1 g, Earth</option>
           </select>
-        </label>
-      )}
-      <div data-exercise-controls className="mt-3 flex flex-wrap items-center gap-2">
-        {phase === 'running' ? (
-          <Button size="sm" onClick={() => setPhase('paused')}>
-            <Pause size={14} weight="fill" />
-            Pause
-          </Button>
-        ) : (
-          <Button size="sm" kind="primary" onClick={start}>
-            <Play size={14} weight="fill" />
-            {phase === 'paused' ? 'Resume' : phase === 'finished' ? 'Watch again' : 'Watch it on the body'}
-          </Button>
         )}
-        {live && (
-          <Button size="sm" kind="ghost" onClick={() => setPhase('finished')}>
-            End
-          </Button>
-        )}
-        <span
-          className="font-cond text-[13px] text-white/50 tabular-nums"
-          role={phase === 'finished' ? 'status' : undefined}
-        >
-          {live
-            ? `${Math.ceil(remaining / 1000)} s left`
-            : phase === 'finished'
-              ? 'Done'
-              : '30 s, with the pulse and breathing it brings'}
-        </span>
+        <div data-exercise-controls className="flex shrink-0 items-center gap-1">
+          {live && (
+            <button
+              onClick={() => setPhase('finished')}
+              className="press h-7 rounded-full px-2.5 text-[12.5px] text-white/60 hover:bg-white/10 hover:text-white"
+            >
+              End
+            </button>
+          )}
+          <button
+            onClick={phase === 'running' ? () => setPhase('paused') : start}
+            title="Plays it on the body for 30 seconds, with the pulse and breathing it brings"
+            className="press flex h-7 items-center gap-1.5 rounded-full bg-white/10 px-3 text-[12.5px] font-medium hover:bg-white/20"
+          >
+            {phase === 'running' ? <Pause size={12} weight="fill" /> : <Play size={12} weight="fill" />}
+            {phase === 'running'
+              ? 'Pause'
+              : phase === 'paused'
+                ? 'Resume'
+                : phase === 'finished'
+                  ? 'Again'
+                  : 'Watch'}
+          </button>
+        </div>
       </div>
-      <p className="mt-2.5 text-[12.5px] leading-snug text-white/45">
-        {mode === 'cycle' || mode === 'row' ? 'The equipment' : 'Exercise at this gravity'}:{' '}
-        <a
-          className="underline decoration-white/30 underline-offset-2 hover:text-white"
-          href={activity.source.url}
-          target="_blank"
-          rel="noreferrer"
-        >
-          {activity.source.label}
-        </a>
-      </p>
     </section>
   )
 }

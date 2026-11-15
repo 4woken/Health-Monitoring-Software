@@ -1,6 +1,6 @@
 import type { MissionId } from './missions.ts'
 
-/** Visual habitat and mission physics are deliberately independent. */
+/** Where a crew member lives on each destination: the picture behind the body and the exercise of the place. */
 export type HabitatId = 'spacecraft' | 'station' | 'rover' | 'base' | 'planet'
 
 interface Habitat {
@@ -63,10 +63,19 @@ export const HABITATS: Record<HabitatId, Habitat> = {
   },
 }
 
+/** The habitats of each destination, the usual one first: the station in orbit, the ship on the way
+ * to Mars, a base or a rover on the Moon, a base on Mars. */
+export const MISSION_HABITATS: Record<MissionId, HabitatId[]> = {
+  orbit: ['station'],
+  moon: ['base', 'rover'],
+  cruise: ['spacecraft'],
+  mars: ['planet'],
+}
+
 /** The habitat shown first for each destination. */
 export const DEFAULT_HABITAT: Record<MissionId, HabitatId> = {
-  orbit: 'station',
-  moon: 'base',
-  cruise: 'spacecraft',
-  mars: 'planet',
+  orbit: MISSION_HABITATS.orbit[0],
+  moon: MISSION_HABITATS.moon[0],
+  cruise: MISSION_HABITATS.cruise[0],
+  mars: MISSION_HABITATS.mars[0],
 }

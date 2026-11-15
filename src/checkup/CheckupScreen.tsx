@@ -129,12 +129,16 @@ export default function CheckupScreen({
         onDemo={onDemo}
       />
 
-      <div className="mt-9 flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.08] pt-4 text-[12.5px] leading-relaxed text-white/45">
-        <p className="max-w-[38ch]">{checkup.credit}</p>
-        <Button kind="ghost" size="sm" onClick={() => void checkup.replan()} disabled={checkup.planning}>
-          <ArrowClockwise size={14} />
+      <div className="mt-9 flex justify-end border-t border-white/[0.08] pt-3">
+        <button
+          onClick={() => void checkup.replan()}
+          disabled={checkup.planning}
+          title={checkup.credit}
+          className="press flex h-8 items-center gap-1.5 rounded-full px-3 text-[12.5px] text-white/55 hover:bg-white/10 hover:text-white disabled:opacity-40"
+        >
+          <ArrowClockwise size={13} />
           Plan again
-        </Button>
+        </button>
       </div>
     </div>
   )

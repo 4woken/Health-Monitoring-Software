@@ -307,7 +307,7 @@ export default function ArVisor({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.4, ease: EASE }}
-              className="absolute inset-0"
+              className="pointer-events-none absolute inset-0"
               aria-label="Health readings"
             >
               <Reading
