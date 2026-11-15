@@ -48,27 +48,38 @@ function transformPoint(point: Vec3, factor: (y: number) => number): Vec3 {
   return [point[0] * k, point[1], point[2] * k]
 }
 
-function transformMesh(source: BufferGeometry, factor: (y: number) => number): BufferGeometry {
-  const result = source.clone()
+export function fitSurface(source: BufferGeometry, result: BufferGeometry, factor: (y: number) => number) {
+  const rest = source.getAttribute('position')
+  const restNormals = source.getAttribute('normal')
   const p = result.getAttribute('position')
   const normals = result.getAttribute('normal')
   for (let i = 0; i < p.count; i++) {
-    const x = p.getX(i),
-      y = p.getY(i),
-      z = p.getZ(i)
+    const x = rest.getX(i),
+      y = rest.getY(i),
+      z = rest.getZ(i)
     const k = factor(y)
-    if (k === 1) continue
+    if (k === 1) {
+      p.setXYZ(i, x, y, z)
+      normals.setXYZ(i, restNormals.getX(i), restNormals.getY(i), restNormals.getZ(i))
+      continue
+    }
     p.setXYZ(i, x * k, y, z * k)
     const slope = (factor(y + 0.0001) - factor(y - 0.0001)) / 0.0002
     // Inverse-transposed Jacobian preserves the atlas' smooth authored normals.
-    const nx = normals.getX(i) / k,
-      nz = normals.getZ(i) / k
-    const ny = normals.getY(i) - slope * (nx * x + nz * z)
+    const nx = restNormals.getX(i) / k,
+      nz = restNormals.getZ(i) / k
+    const ny = restNormals.getY(i) - slope * (nx * x + nz * z)
     const length = Math.hypot(nx, ny, nz) || 1
     normals.setXYZ(i, nx / length, ny / length, nz / length)
   }
+  p.needsUpdate = normals.needsUpdate = true
   result.computeBoundingBox()
   result.computeBoundingSphere()
+}
+
+function transformMesh(source: BufferGeometry, factor: (y: number) => number): BufferGeometry {
+  const result = source.clone()
+  fitSurface(source, result, factor)
   return result
 }
 

@@ -35,6 +35,12 @@ it.each(['male', 'female'] as const)('attaches sparse instanced hair to the %s m
   const meshes = hair.object.children as Mesh<InstancedBufferGeometry>[]
   const names = meshes.map((mesh) => mesh.name).sort()
   expect(names).toEqual(['body', 'brow', 'lash', 'scalp'])
+  const scalp = hair.object.getObjectByName('scalp')!
+  hair.sync(false, true)
+  expect(scalp.visible).toBe(false)
+  expect(meshes.filter((mesh) => mesh !== scalp).every((mesh) => mesh.visible)).toBe(true)
+  hair.sync(true, false)
+  expect(scalp.visible).toBe(true)
   const skinPositions = body.skin.getAttribute('position')
   const firstHeight = new Map<string, number>()
   for (const mesh of meshes) {

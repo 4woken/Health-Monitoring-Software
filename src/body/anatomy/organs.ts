@@ -235,8 +235,9 @@ export function organNote(meshName: string): OrganNote {
 }
 
 /** Skin remains anatomical depth zero. The two exterior stops are independently selectable suits. */
-export const DEPTH_STOPS = ['EVA', 'IVA', 'Skin', 'Vessels', 'Organs', 'Skeleton'] as const
-export const FIRST_DEPTH = -2
+export const DEPTH_STOPS = ['EVA', 'IVA', 'Crew wear', 'Skin', 'Vessels', 'Organs', 'Skeleton'] as const
+export const FIRST_DEPTH = -3
+export const CREW_DEPTH = -1
 export const LAST_DEPTH = FIRST_DEPTH + DEPTH_STOPS.length - 1
 
 /** The selected system is opaque. Faint surrounding tissue gives it a location within the body. */

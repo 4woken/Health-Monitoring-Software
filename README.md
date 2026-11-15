@@ -41,7 +41,7 @@ Click a marker or a line of the list. The camera flies to that part and a card o
 
 The vital signs run along the bottom like the numbers on a bedside monitor, with the radiation dose rate at the end. The 3D heart beats and the chest breathes all the time; start the camera and the heart beats at your own pulse.
 
-You can also look inside, or outside. The depth control starts from the two spacesuits, **EVA** for NASA's EMU spacewalk suit and **IVA** for the orange ACES launch and entry suit, then goes through the skin to the vessels, the organs and the skeleton. A click on an organ shows it on its own: what it does, what space does to it, and which signals are followed there. **Mission effects** runs the physiology model on the body: fluid moving toward the head, bone and muscle loss and the radiation dose, day after day ([how the model works](docs/PHYSIOLOGY.md)).
+The avatar opens in **Crew wear**, a short-sleeved crew shirt and work trousers. The depth control goes from **EVA** (NASA’s EMU spacewalk suit) through **IVA** (the orange ACES launch and entry suit), **Crew wear**, **Skin**, **Vessels**, **Organs** and **Skeleton**. The spacecraft rowing demo dresses the avatar in crew wear and restores the selected depth when it ends. A click on an organ shows it on its own: what it does, what space does to it, and which signals are followed there. **Mission effects** runs the physiology model on the body: fluid moving toward the head, bone and muscle loss and the radiation dose, day after day ([how the model works](docs/PHYSIOLOGY.md)).
 
 ![The organs, seen through the skin](docs/screenshots/organs.jpg)
 
