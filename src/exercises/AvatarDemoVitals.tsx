@@ -4,11 +4,15 @@ import { demoVitals, type DemoPlayback } from './demoVitals'
 export default function AvatarDemoVitals({ playback }: { playback: DemoPlayback }) {
   const [now, setNow] = useState(() => performance.now())
   useEffect(() => {
+    if (playback.pausedSeconds !== undefined) return
     setNow(performance.now())
     const timer = window.setInterval(() => setNow(performance.now()), 400)
     return () => window.clearInterval(timer)
   }, [playback])
-  const { bpm, breathsPerMinute } = demoVitals(playback.mode, (now - playback.startedAt) / 1000)
+  const { bpm, breathsPerMinute } = demoVitals(
+    playback.mode,
+    playback.pausedSeconds ?? (now - playback.startedAt) / 1000,
+  )
 
   return (
     <section

@@ -22,7 +22,7 @@ export const ENVIRONMENT_EXERCISES = {
   row: {
     title: 'Spacecraft rowing',
     movement:
-      'Watch the knees and elbows bend through a rowing stroke. Orion’s flywheel provides resistance in a compact cabin.',
+      'Follow the handle through the drive and recovery. The seat slides while both feet stay strapped to the footplates. This demonstration takes inspiration from Orion’s cable and flywheel.',
     source: orion,
   },
   ankle: {
@@ -50,9 +50,9 @@ export const ENVIRONMENT_EXERCISES = {
 
 export function environmentMotion(habitat: HabitatId, gravity: number): ExerciseMotion {
   if (habitat === 'rover') return 'ankle'
+  if (habitat === 'spacecraft') return 'row'
   if (gravity < 0.05) {
     if (habitat === 'station') return 'cycle'
-    if (habitat === 'spacecraft') return 'row'
     return 'ankle'
   }
   return gravity < 0.26 ? 'step' : 'march'

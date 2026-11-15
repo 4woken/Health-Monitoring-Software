@@ -14,6 +14,7 @@ import { hasSize, mannequinScale, type BodyDimensions } from '../crew/bodyDimens
 import { fitTorso } from '../crew/torsoFit'
 import { ORGAN_SIGNALS, loadBody, type Body } from './anatomy/loadAnatomy'
 import { createExercisePose } from '../exercises/exercisePose'
+import { createRowingDevice } from '../exercises/rowingDevice'
 import { demoVitals } from '../exercises/demoVitals'
 import type { ExerciseMotion } from '../exercises/environmentExercise'
 import { createBodyGroom } from './groom/bodyGroom'
@@ -92,11 +93,13 @@ interface Props {
   /** Organ to keep isolated; null shows the whole body. */
   organ?: string | null
   physiology: BodyPhysiology
+  gravityG?: number
   /** Simulated resting heart rate, used when the webcam pulse is not measuring. */
   restingBpm: number
   breathingRate?: number
   exerciseMotion?: ExerciseMotion | null
   exerciseStartedAt?: number
+  exercisePausedSeconds?: number
   layer: Layer
   onLayer: (l: Layer) => void
   /** The person's portrait, laid on this body's face. */
@@ -237,9 +240,10 @@ interface Stage {
   zoomBy: (factor: number) => void
   setLayer: (l: Layer) => void
   setPhysiology: (p: BodyPhysiology) => void
+  setGravity: (g: number) => void
   setHeart: (h: Heart) => void
   setBreathingRate: (rate: number | undefined) => void
-  setExerciseMotion: (mode: ExerciseMotion | null, startedAt?: number) => void
+  setExerciseMotion: (mode: ExerciseMotion | null, startedAt?: number, pausedSeconds?: number) => void
   setAvatar: (a: AvatarCapture | null) => void
   setFaceOptions: (live: RefObject<LiveFaceFrame | null> | null, calibration?: FaceCalibration) => void
   setPins: (pins: { id: string; at: string; side?: 'left' | 'right' }[]) => void
@@ -292,14 +296,28 @@ function createStage(
   const camera = new THREE.PerspectiveCamera(24, 1, 0.1, 50)
   const group = new THREE.Group()
   const body = new THREE.Group()
+  const crewPose = new THREE.Group()
+  crewPose.name = 'Crew in local gravity'
   scene.add(group)
-  group.add(body)
+  group.add(crewPose)
+  crewPose.add(body)
   const suit = createSpacesuit(onSuitStatus)
-  group.add(suit.root)
+  crewPose.add(suit.root)
 
   const demoPose = createExercisePose()
+  let rower: ReturnType<typeof createRowingDevice> | undefined
+  let heldExerciseSeconds: number | undefined
+  const posedSurfaces = new Set<THREE.Mesh>()
+  const includePosedSurface = (part: THREE.Object3D) => {
+    if (part instanceof THREE.Mesh && part.frustumCulled) {
+      part.frustumCulled = false
+      posedSurfaces.add(part)
+    }
+  }
   let exercise: ExerciseMotion | null = null
   let exerciseStarted = 0
+  let gravityG = 1
+  let drift = 0
   let demoSecond = -1
   let demoRates = demoVitals('ankle', 0)
   let demoBeatPhase = 0
@@ -359,7 +377,7 @@ function createStage(
   floor.rotation.x = -Math.PI / 2
   floor.scale.y = 0.65
   floor.position.y = 0.003
-  body.add(floor)
+  group.add(floor)
 
   let reference: Body | null = null
   let current: Body | null = null
@@ -657,8 +675,9 @@ function createStage(
     hairstyle.setFit(fitted?.factor)
     hairstyle.show(current.referenceHead ? current.build : null)
     shared.uHeight.value = current.height
-    demoPose.setBody(current.height, current.build)
+    demoPose.setBody(current.height, current.build, fitted?.factor)
     body.position.y = -current.height / 2
+    floor.position.y = body.position.y + 0.003
     fitDimensions()
     if (portraitOnly) {
       clampView()
@@ -721,6 +740,10 @@ function createStage(
     const h = host.clientHeight || 1
     ndc.set((cssX / w) * 2 - 1, -(cssY / h) * 2 + 1)
     raycaster.setFromCamera(ndc, camera)
+    if (exercise === 'row' && rower?.root.visible) {
+      const hit = raycaster.intersectObject(rower.root, true)[0]
+      return hit ? { what: 'rower', point: hit.point } : null
+    }
     if (suit.root.visible) {
       const hit = raycaster.intersectObject(suit.root, true)[0]
       return hit ? { what: 'suit', point: hit.point } : null
@@ -885,8 +908,41 @@ function createStage(
     lastTime = now
     const t = (now - startedAt) / 1000
     shared.uTime.value = t
-    const exerciseSeconds = (now - exerciseStarted) / 1000
-    demoPose.update(exercise, exerciseSeconds, reduce)
+    const exerciseSeconds = heldExerciseSeconds ?? (now - exerciseStarted) / 1000
+    const atRest =
+      allowLens && !portraitOnly && !exercise && !isolated && (depth < 0.5 || layer === 'physiology')
+    // Body, outfit, suit and marker anchors share one transform. Floor contact is
+    // restored on a surface; the rower's seat and footplates restrain the crew.
+    const free = atRest ? 1 - THREE.MathUtils.smoothstep(gravityG, 0.001, 0.04) : 0
+    drift = !atRest || reduce ? free : THREE.MathUtils.damp(drift, free, 7, dt)
+    const sway = reduce ? 0 : t
+    const lift = drift * (current?.height ?? 1.75)
+    crewPose.position.set(
+      lift * 0.016 * Math.sin(sway * 0.61),
+      lift * (0.052 + 0.012 * Math.sin(sway * 0.88)),
+      0,
+    )
+    crewPose.rotation.set(
+      drift * (0.045 + 0.022 * Math.sin(sway * 0.49)),
+      0,
+      drift * (0.048 + 0.025 * Math.sin(sway * 0.68)),
+    )
+    const rowing = demoPose.update(
+      exercise,
+      exercise ? exerciseSeconds : t,
+      reduce,
+      atRest || exercise === 'row' ? gravityG : 1,
+    )
+    if (rowing && current) {
+      if (!rower) {
+        rower = createRowingDevice()
+        body.add(rower.root)
+      }
+      rower.update(rowing, gravityG, exerciseSeconds, reduce)
+    }
+    if (rower) rower.root.visible = !!rowing && !!current
+    floor.visible = !rowing && !suit.root.visible && drift < 0.999
+    floor.material.opacity = 0.22 * (1 - drift)
     if (exercise) {
       if (Math.floor(exerciseSeconds) !== demoSecond) {
         demoSecond = Math.floor(exerciseSeconds)
@@ -907,22 +963,61 @@ function createStage(
     // The camera and orbit targets use the same reference frame as the meshes.
     // A generous eye distance on narrow screens also accommodates broader builds.
     const viewScale = Math.max(group.scale.y, group.scale.x * Math.min(1, 0.6 / camera.aspect))
-    const cameraZ = (baseDist * viewScale) / zoom
+    const yaw = userRot + (rowing ? 1.06 : exercise ? 0.55 : 0)
+    group.rotation.y = yaw
+    let cameraZ = (baseDist * viewScale) / zoom
+    let rowCentreZ = 0
+    let rowCentreY = 0
+    if (rowing && current) {
+      // Frame the rail, the feet and the athlete together, including the far end
+      // of the stroke on a narrow viewport. Keep the framing fixed through a cycle.
+      const height = current.height
+      const tanHalfFov = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))
+      const horizontal = height * group.scale.x
+      const vertical = height * group.scale.y
+      cameraZ =
+        (Math.max(0.46 * vertical, (0.56 * horizontal) / camera.aspect) / tanHalfFov + 0.24 * horizontal) /
+        zoom
+      rowCentreY = -height * 0.13 * group.scale.y
+      rowCentreZ = height * 0.145 * group.scale.z
+    }
     // A panel on the right covers part of the scene: move the camera so the body stays centred in
     // what is left.
     const visibleWidth = 2 * cameraZ * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect
     const shiftX = (sideShift / 2 / (host.clientWidth || 1)) * visibleWidth
+    const tilt = rowing ? 0.09 : 0
+    camera.rotation.x = -tilt
+    // In a close-up the camera follows the selected part of the drifting body.
+    // The full-body view keeps the cabin stationary so the drift stays visible.
+    const follow = v.set(0, 0, 0)
+    if (drift && zoom > 1) {
+      follow.set(0, focusY, 0).applyQuaternion(crewPose.quaternion)
+      follow.y -= focusY
+      follow.add(crewPose.position).multiply(group.scale).applyQuaternion(group.quaternion)
+      follow.multiplyScalar(THREE.MathUtils.smoothstep(zoom, 1, 3))
+    }
+    const cameraOffsetX = shiftX + rowCentreZ * Math.sin(yaw) + follow.x
+    const cameraOffsetY = rowCentreY + cameraZ * Math.sin(tilt) + follow.y
+    const nextCameraZ = cameraZ * Math.cos(tilt) + rowCentreZ * Math.cos(yaw) + follow.z
     if (zoomAnchor) {
-      // Solve perspective projection for the camera position at this frame's
-      // depth. Undo the panel offset and body scale when storing the new focus.
+      // Intersect the pointer ray with the anchor's depth to keep the same
+      // grip, footplate or body point under the cursor as the camera moves.
       const { world, screen } = zoomAnchor
-      const halfHeight = (cameraZ - world.z) * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))
-      focusX = focusXTo = (world.x - screen.x * halfHeight * camera.aspect - shiftX) / group.scale.x
-      focusY = focusTo = (world.y - screen.y * halfHeight) / group.scale.y
+      const tan = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))
+      const direction = v
+        .set(screen.x * tan * camera.aspect, screen.y * tan, -1)
+        .applyQuaternion(camera.quaternion)
+      const distance = (world.z - nextCameraZ) / direction.z
+      focusX = focusXTo = (world.x - direction.x * distance - cameraOffsetX) / group.scale.x
+      focusY = focusTo = (world.y - direction.y * distance - cameraOffsetY) / group.scale.y
       if (pinch === 0 && Math.abs(zoomTo - zoom) < 1e-6 && Math.abs(sideInset + pinInset - sideShift) < 0.01)
         zoomAnchor = null
     }
-    camera.position.set(focusX * group.scale.x + shiftX, focusY * group.scale.y, cameraZ)
+    camera.position.set(
+      focusX * group.scale.x + cameraOffsetX,
+      focusY * group.scale.y + cameraOffsetY,
+      nextCameraZ,
+    )
     if (hasSize(dimensions)) {
       const metresVisible = 2 * camera.position.z * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))
       const ruler = ((0.1 * host.clientHeight) / metresVisible).toFixed(1) + 'px'
@@ -931,7 +1026,6 @@ function createStage(
         lastRuler = ruler
       }
     }
-    group.rotation.y = userRot + (exercise ? 0.55 : 0)
 
     // X-ray lens: only through solid skin. Eased strength and a short trail.
     lensAt.strength += (lensAt.target - lensAt.strength) * Math.min(1, dt * 9)
@@ -1006,6 +1100,17 @@ function createStage(
     }
 
     coverSkin?.(outfit)
+    // Hair, shoes and eyes move far beyond their standing mesh bounds while
+    // rowing. Keep them in close-ups, including assets that finish loading mid-stroke.
+    if (rowing) {
+      includePosedSurface(skin)
+      restingEyes.forEach(includePosedSurface)
+      surfaceHair.traverseVisible(includePosedSurface)
+      crewWear.root.traverseVisible(includePosedSurface)
+    } else if (posedSurfaces.size) {
+      for (const mesh of posedSurfaces) mesh.frustumCulled = true
+      posedSurfaces.clear()
+    }
     body.visible = !suit.root.visible && (!crewRequested || crewWear.root.visible)
     renderer.render(scene, camera)
 
@@ -1239,21 +1344,32 @@ function createStage(
     setHeart: (value) => {
       heart = value
     },
+    setGravity: (g) => {
+      gravityG = Number.isFinite(g) ? THREE.MathUtils.clamp(g, 0, 1) : 1
+    },
     setBreathingRate: (rate) => {
       breathingRate = rate
     },
-    setExerciseMotion: (value, startedAt) => {
-      if (exercise === value && (startedAt === undefined || startedAt === exerciseStarted)) return
+    setExerciseMotion: (value, startedAt, pausedSeconds) => {
+      const changedMotion = exercise !== value
+      if (
+        !changedMotion &&
+        (startedAt === undefined || startedAt === exerciseStarted) &&
+        heldExerciseSeconds === pausedSeconds
+      )
+        return
       if (!exercise && value) {
         viewBeforeDemo = { zoom: zoomTo, x: focusXTo, y: focusTo, yaw: userRot }
         leave()
         lensAt.strength = lensAt.target = 0
       }
       exercise = value
+      heldExerciseSeconds = pausedSeconds
       exerciseStarted = startedAt ?? performance.now()
       demoSecond = -1
       demoBeatPhase = demoBreathPhase = 0
       refresh()
+      if (!changedMotion) return
       if (value) flyTo(1, 0)
       else if (viewBeforeDemo) {
         flyTo(viewBeforeDemo.zoom, viewBeforeDemo.y, viewBeforeDemo.x)
@@ -1284,6 +1400,7 @@ function createStage(
     },
     dispose: () => {
       disposed = true
+      rower?.dispose()
       suit.dispose()
       hairstyle.dispose()
       crewWear.dispose()
@@ -1325,8 +1442,10 @@ export default function BodyScan({
   physiology,
   restingBpm,
   breathingRate,
+  gravityG = 1,
   exerciseMotion = null,
   exerciseStartedAt,
+  exercisePausedSeconds,
   layer,
   onLayer,
   avatar = null,
@@ -1414,12 +1533,13 @@ export default function BodyScan({
   useEffect(() => stage.current?.setFocus(focusId), [focusId, studio, portraitOnly])
   useEffect(() => stage.current?.setOrgan(organ), [organ, studio, portraitOnly])
   useEffect(() => stage.current?.setLayer(layer), [layer, studio, portraitOnly])
+  useEffect(() => stage.current?.setGravity(gravityG), [gravityG, studio, portraitOnly])
   useEffect(() => stage.current?.setPhysiology(physiology), [physiology, studio, portraitOnly])
   useEffect(() => stage.current?.setHeart(heart), [heart, studio, portraitOnly])
   useEffect(() => stage.current?.setBreathingRate(breathingRate), [breathingRate, studio, portraitOnly])
   useEffect(
-    () => stage.current?.setExerciseMotion(exerciseMotion, exerciseStartedAt),
-    [exerciseMotion, exerciseStartedAt, studio, portraitOnly],
+    () => stage.current?.setExerciseMotion(exerciseMotion, exerciseStartedAt, exercisePausedSeconds),
+    [exerciseMotion, exerciseStartedAt, exercisePausedSeconds, studio, portraitOnly],
   )
   useEffect(() => stage.current?.setAvatar(avatar), [avatar, studio, portraitOnly])
   useEffect(

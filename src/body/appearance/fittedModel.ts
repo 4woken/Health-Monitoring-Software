@@ -53,7 +53,10 @@ export function createFittedModel(
         for (const material of Array.isArray(part.material) ? part.material : [part.material]) {
           material.alphaToCoverage = material.alphaTest > 0
           material.onBeforeCompile = patch
-          material.customProgramCacheKey = () => 'pulsar-fitted-' + kind
+          const trainers = kind === 'crew-wear' && part.name === 'trainers'
+          if (kind === 'hair') material.defines = { ...material.defines, ROW_HAIR: 1 }
+          if (trainers) material.defines = { ...material.defines, ROW_TRAINERS: 1 }
+          material.customProgramCacheKey = () => (trainers ? 'pulsar-row-trainers' : 'pulsar-fitted-' + kind)
         }
       })
     },

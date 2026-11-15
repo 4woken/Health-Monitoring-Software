@@ -277,6 +277,8 @@ export default function BodyScreen({
   const lastDay = points.length - 1
   const cursor = Math.min(lastDay, localCursor ?? (profile === 'setting' ? day : lastDay))
   const physiology = points[cursor]
+  const sceneGravity =
+    exerciseDemo?.gravityG ?? (layer === 'physiology' ? phases[physiology.phase].gravity : m.gravity)
 
   /** Open the pop-up of one part: the camera moves to it. */
   const select = (id: SignalId) => {
@@ -404,7 +406,8 @@ export default function BodyScreen({
       >
         <MissionLog />
         <p className="on-photo font-cond text-[13px] text-white/65">
-          {m.name}, day {day}
+          {m.name}, day {day} ·{' '}
+          {sceneGravity === 0 ? 'Weightless · 0 g' : `${Number(sceneGravity.toFixed(2))} g`}
         </p>
         <button
           onClick={() => setTodoOpen((o) => !o)}
@@ -709,9 +712,11 @@ export default function BodyScreen({
           } else setSheet((s) => (s === 'organ' ? null : s))
         }}
         physiology={physiology}
+        gravityG={sceneGravity}
         restingBpm={vitals?.bpm ?? report.readings.restingPulseBpm}
         exerciseMotion={exerciseDemo?.mode}
         exerciseStartedAt={exerciseDemo?.startedAt}
+        exercisePausedSeconds={exerciseDemo?.pausedSeconds}
         layer={layer}
         onLayer={(l) => showMission(l === 'physiology')}
         avatar={face}

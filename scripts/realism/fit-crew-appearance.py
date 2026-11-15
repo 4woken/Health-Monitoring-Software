@@ -129,21 +129,11 @@ def textured_hair(directory, target, skin_faces, height):
 def add_patch(texture, xyz, uv, faces, height):
     # Project the mission emblem in body space, so each profile's differently
     # rotated UV islands still show the same upright design on the left chest.
-    badge = Image.new("RGBA", (256, 256))
-    draw = ImageDraw.Draw(badge)
-    draw.ellipse((3, 3, 252, 252), fill="#182f4a", outline="#c6d4d9", width=10)
-    draw.ellipse((18, 18, 237, 237), outline="#54758f", width=4)
-    draw.arc((58, 55, 198, 195), 126, 306, fill="#f7f5ef", width=10)
-    draw.arc((58, 55, 198, 195), 320, 352, fill="#f7f5ef", width=10)
-    draw.arc((58, 55, 198, 195), 12, 63, fill="#ffb348", width=12)
-    draw.arc((58, 55, 198, 195), 72, 112, fill="#f7f5ef", width=10)
-    draw.polygon([(35, 189), (117, 137), (52, 212)], fill="#40dedc")
-    draw.polygon([(139, 114), (190, 43), (210, 65)], fill="#40dedc")
-    draw.ellipse((107, 104, 151, 148), fill="#40dedc")
+    badge = Image.open(Path(__file__).with_name("nasa-insignia.png")).convert("RGBA")
 
     tri = xyz[faces[:, :, 0]]
     center = np.array([0.04, 0.785]) * height
-    diameter = 0.068
+    diameter = 0.078
     xy = tri[:, :, :2] - center
     facing = np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0])[:, 2]
     bounds = (xy.min(1) <= diameter / 2) & (xy.max(1) >= -diameter / 2)

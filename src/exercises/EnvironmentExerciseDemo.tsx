@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { HabitatId } from '../mission/habitats'
 import { HABITATS } from '../mission/habitats'
+import { MISSIONS } from '../mission/missions'
 import { Button } from '../ui'
 import type { OnExerciseDemo } from './demoVitals'
 import { ENVIRONMENT_EXERCISES, environmentMotion } from './environmentExercise'
@@ -18,6 +19,8 @@ export default function EnvironmentExerciseDemo({
 }) {
   const mode = environmentMotion(habitat, gravity)
   const activity = ENVIRONMENT_EXERCISES[mode]
+  const [gravityChoice, setGravityChoice] = useState('mission')
+  const gravityG = gravityChoice === 'mission' ? gravity : Number(gravityChoice)
   const [phase, setPhase] = useState<'ready' | 'running' | 'paused' | 'finished'>('ready')
   const [remaining, setRemaining] = useState(DURATION_MS)
   const timeLeft = useRef(DURATION_MS)
@@ -27,6 +30,16 @@ export default function EnvironmentExerciseDemo({
   }, [onDemo])
 
   useEffect(() => {
+    if (phase === 'paused' && mode === 'row') {
+      const elapsed = DURATION_MS - timeLeft.current
+      notify.current({
+        mode,
+        gravityG,
+        startedAt: performance.now() - elapsed,
+        pausedSeconds: elapsed / 1000,
+      })
+      return () => notify.current(null)
+    }
     if (phase !== 'running') return
     if (document.hidden) {
       setPhase('paused')
@@ -44,7 +57,7 @@ export default function EnvironmentExerciseDemo({
         setPhase(timeLeft.current > 0 ? 'paused' : 'finished')
       }
     }
-    notify.current(mode, (DURATION_MS - timeLeft.current) / 1000)
+    notify.current({ mode, gravityG, startedAt: end - DURATION_MS })
     const timer = window.setInterval(update, 200)
     document.addEventListener('visibilitychange', pauseOnHide)
     return () => {
@@ -53,7 +66,7 @@ export default function EnvironmentExerciseDemo({
       document.removeEventListener('visibilitychange', pauseOnHide)
       notify.current(null)
     }
-  }, [phase, mode])
+  }, [phase, mode, gravityG])
 
   const start = () => {
     if (phase !== 'paused') {
@@ -69,13 +82,29 @@ export default function EnvironmentExerciseDemo({
       className="my-5 rounded-2xl border border-white/15 bg-white/[0.04] p-4"
     >
       <p className="font-cond text-sm text-white/65">
-        {HABITATS[habitat].name} · {Number(gravity.toFixed(2))} g · Avatar demo
+        {HABITATS[habitat].name} · {Number(gravityG.toFixed(2))} g · Avatar demo
       </p>
       <h3 className="mt-1 text-xl font-medium">{activity.title}</h3>
       <p className="mt-2 text-sm leading-relaxed text-muted">{activity.movement}</p>
       <p className="mt-2 text-sm text-muted">
         A 30-second animation, with the pulse and breathing it would bring.
       </p>
+      {mode === 'row' && (
+        <label className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+          Demo gravity
+          <select
+            className="rounded-lg border border-white/20 bg-[#191e25] px-2 py-1.5 text-white"
+            value={gravityChoice}
+            onChange={(event) => setGravityChoice(event.target.value)}
+          >
+            <option value="mission">Mission · {gravity} g</option>
+            <option value="0">Weightless · 0 g</option>
+            <option value={MISSIONS.moon.gravity}>Moon · {MISSIONS.moon.gravity} g</option>
+            <option value={MISSIONS.mars.gravity}>Mars · {MISSIONS.mars.gravity} g</option>
+            <option value="1">Earth · 1 g</option>
+          </select>
+        </label>
+      )}
       <div data-exercise-controls className="mt-3 flex flex-wrap items-center gap-2">
         {phase === 'running' ? (
           <Button size="sm" onClick={() => setPhase('paused')}>
