@@ -28,6 +28,7 @@ export default function Coach({
         canvas.current,
         () => setState('ready'),
         () => setState('error'),
+        small,
       )
     } catch {
       setState('error')
@@ -38,7 +39,7 @@ export default function Coach({
       s.dispose()
       stage.current = null
     }
-  }, [failed])
+  }, [failed, small])
   useEffect(() => {
     stage.current?.play(move, eyesClosed)
   }, [move, eyesClosed, state])

@@ -179,6 +179,7 @@ export function holdTracker(condition: Condition, startAt: number, torsoCm = 52)
   let feet: { left: Landmark; right: Landmark } | null = null
   let footSince: number | null = null
   let eyesSince: number | null = null
+  let lastEyesSeen = startAt
   let lastSeen = startAt
   let eyesChecked = false
   let nods = 0
@@ -187,7 +188,7 @@ export function holdTracker(condition: Condition, startAt: number, torsoCm = 52)
   let lastNodAt = startAt
   const sx = new Smoother(4)
   const sy = new Smoother(4)
-  const sway: { x: number; y: number }[] = []
+  const sway: { x: number; y: number; torso: number }[] = []
   let done: Hold | null = null
 
   const finish = (now: number, extra: Partial<Hold> = {}): Hold => {
@@ -197,7 +198,9 @@ export function holdTracker(condition: Condition, startAt: number, torsoCm = 52)
       const mx = sway.reduce((s, p) => s + p.x, 0) / sway.length
       const my = sway.reduce((s, p) => s + p.y, 0) / sway.length
       const rms = Math.sqrt(sway.reduce((s, p) => s + (p.x - mx) ** 2 + (p.y - my) ** 2, 0) / sway.length)
-      swayCm = Number((rms * torsoCm).toFixed(1))
+      // Use one scale for the hold. Changes in the estimated hips should not move still shoulders.
+      const scale = torsoCm / median(sway.map((sample) => sample.torso))
+      swayCm = Number((rms * scale).toFixed(1))
     }
     done = {
       id: condition.id,
@@ -256,8 +259,22 @@ export function holdTracker(condition: Condition, startAt: number, torsoCm = 52)
           return { elapsedS, done: finish(footSince, { reason: footProblem }) }
       } else footSince = null
 
-      // Eyes: closed means closed, when the face can be seen.
+      if (condition.eyes === 'closed' && frame.eyesClosed === null) {
+        eyesSince = null
+        if (now - lastEyesSeen >= 1500)
+          return {
+            elapsedS,
+            done: finish(lastEyesSeen, {
+              completed: false,
+              interrupted: true,
+              reason: 'The camera lost sight of your eyes.',
+            }),
+          }
+        return { elapsedS, warning: 'Face the camera so it can see your eyes.' }
+      }
+      // Brief blinks or a single uncertain frame should not end a hold.
       if (condition.eyes === 'closed' && frame.eyesClosed !== null) {
+        lastEyesSeen = now
         eyesChecked = true
         if (!frame.eyesClosed) {
           eyesSince ??= now
@@ -282,13 +299,22 @@ export function holdTracker(condition: Condition, startAt: number, torsoCm = 52)
           lastNodAt = now
         }
         pitchHigh = high
+        if (now - lastNodAt > 7000)
+          return {
+            elapsedS,
+            done: finish(lastNodAt, {
+              completed: false,
+              interrupted: true,
+              reason: 'The camera could not confirm the head nods.',
+            }),
+          }
         if (now - lastNodAt > 4000) warning = 'Keep nodding slowly.'
       }
 
       // Sway of the middle of the shoulders, in torso lengths.
       if (now - startAt >= SETTLE_MS) {
         const s = mid(body[BODY.leftShoulder], body[BODY.rightShoulder])
-        sway.push({ x: sx.push((s.x * aspect) / g.torso), y: sy.push(s.y / g.torso) })
+        sway.push({ x: sx.push(s.x * aspect), y: sy.push(s.y), torso: g.torso })
       }
       const endAt = startAt + condition.seconds * 1000
       if (
@@ -316,6 +342,7 @@ export function balanceDetails(holds: Hold[], mode: 'camera' | 'phone'): Record<
   for (const h of holds) {
     out[`${h.id}Held`] = h.heldS
     out[`${h.id}Done`] = h.completed
+    if (mode === 'camera' && h.id === 'nod') out.nods = h.nods
     if (h.reason) out[`${h.id}Stop`] = h.reason
   }
   return out

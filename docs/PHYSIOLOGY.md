@@ -66,9 +66,9 @@ A profile is a list of phases, each with its own gravity and dose rate. The engi
 
 The panel offers three profiles:
 
-- **This setting** (the default): the current destination for its configured number of Earth days. Its day follows the top-bar slider. Orbit covers 180 days, the lunar surface 3, Mars cruise 203 and Mars surface 500. The last scenario is a design study. Each starts with its own baseline.
+- **This setting** (the default): the current destination for its configured number of Earth days. It opens on the day selected in the top bar. Changing the projection day previews a different day inside the simulator. Reset returns to the current mission day. Orbit covers 180 days, the lunar surface 3, Mars cruise 203 and Mars surface 500. The last scenario is a design study. Each starts with its own baseline.
 - **ISS 6 months**: 180 days at 0 g and 0.73 mSv a day.
-- **Mars mission**, a conjunction mission: 180 days of cruise (0 g, 1.8 mSv a day), 500 days on the surface (0.38 g, 0.67 mSv a day), 180 days of cruise home.
+- **Mars mission**, a conjunction mission: 180 days of cruise (0 g, 1.8 mSv a day), 500 days on the surface (0.38 g, 0.67 mSv a day), 180 days of cruise home. The gravity and dose-rate controls show the phase of the selected day. Threshold dates on this profile and the ISS profile come from their daily trajectories.
 
 ## Check against a published figure
 
@@ -79,4 +79,4 @@ For the Mars profile the engine adds up 983 mSv. Using Curiosity's measurements,
 - Bone and muscle are modelled as a steady first-order loss. Real losses vary between people and are not linear over very long missions.
 - Recovery after landing is not modelled.
 - Partial gravity is an interpolation; nobody has lived for months on the Moon or Mars.
-- The body view exaggerates the face and leg shape change about tenfold so it can be seen.
+- The avatar uses small illustrative changes in cheek and calf shape. A projected volume in litres represents a redistribution across the body. It does not predict a particular person’s facial dimensions.

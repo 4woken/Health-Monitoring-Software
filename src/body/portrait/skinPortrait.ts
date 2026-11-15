@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { writeProfileUV } from './profileTexture'
 import { portraitEyePatches } from './portraitEyes'
 import { refinePortraitSkin } from './refinePortraitSkin'
+import { attachFluidShift } from '../appearance/fluidShiftSurface'
 import { applySkinShading, setSkinFinish } from '../appearance/skinSurface'
 import { FaceLandmarker } from '@mediapipe/tasks-vision'
 import { faceContours, faceIndices } from '../../camera/face/faceMesh'
@@ -71,6 +72,7 @@ export function createPersonalFace(
       patch.setAttribute('skinDetail', new THREE.BufferAttribute(new Uint8Array(count * 4), 4, true))
   }
   const geometry = mergeGeometries([skin, ...eyePatches])!
+  attachFluidShift(geometry, head, reference.height, skinVertexCount)
   // Some offline tools still pass plain, unbaked reference geometries.
   if (!geometry.hasAttribute('skinDetail'))
     geometry.setAttribute(

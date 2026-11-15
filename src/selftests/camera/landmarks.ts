@@ -110,7 +110,7 @@ export function leg(body: Landmark[], side: 'left' | 'right') {
       ? [body[BODY.leftHip], body[BODY.leftKnee], body[BODY.leftAnkle]]
       : [body[BODY.rightHip], body[BODY.rightKnee], body[BODY.rightAnkle]]
   const quality = Math.min(hip?.visibility ?? 0, knee?.visibility ?? 0, ankle?.visibility ?? 0)
-  return { side, hip, knee, ankle, quality, inView: inFrame(hip) && inFrame(knee) && inFrame(ankle) }
+  return { side, hip, knee, ankle, quality, inView: inFrame(hip, 0) && inFrame(knee, 0) && inFrame(ankle, 0) }
 }
 
 /** Shoulders, hips and ankles all in view: the whole body is framed. */

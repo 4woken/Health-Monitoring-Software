@@ -142,13 +142,14 @@ function CameraBalance({ onDone, onCancel }: Pick<RunProps, 'onDone' | 'onCancel
     const c = CONDITIONS[s.index]
     if (s.stage === 'position' || s.stage === 'countdown') {
       const check = checkStance(frame.body, c.stance, frame.aspect)
-      if (!check.ok) {
+      const needsFace = c.eyes === 'closed' && eyesClosed(frame.face) === null
+      if (!check.ok || needsFace) {
         if (s.stage === 'countdown') {
           s.countdownId++
           setStageBoth('position')
         }
         s.okSince = null
-        setCue(check.hint)
+        setCue(check.ok ? 'Face the camera with both eyes visible before starting this stance.' : check.hint)
         return
       }
       if (s.stage === 'countdown') return
@@ -183,8 +184,9 @@ function CameraBalance({ onDone, onCancel }: Pick<RunProps, 'onDone' | 'onCancel
     if (r.done.interrupted) {
       tracker.current = null
       s.okSince = null
-      void say('I lost sight of you. Get back into view, and we will try this stance again.')
-      setCue('The camera lost sight of you. Get back into view to try again.')
+      const retry = `${r.done.reason} Get back into position to try this stance again.`
+      void say(retry)
+      setCue(retry)
       setStageBoth('position')
       return
     }

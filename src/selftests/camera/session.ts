@@ -27,6 +27,8 @@ export interface CameraFrame {
   height: number
   aspect: number
   body: Landmark[] | null
+  /** Pose landmarks in metres, relative to the hips. Used for joint angles across camera views. */
+  worldBody?: Landmark[] | null
   hands: { points: Landmark[]; side: string }[]
   face: Face | null
 }
@@ -180,9 +182,11 @@ export function startCamera(options: SessionOptions, events: SessionEvents): () 
           const width = video.videoWidth
           const height = video.videoHeight
           let body: Landmark[] | null = null
+          let worldBody: Landmark[] | null = null
           if (pose) {
             const r = pose.detectForVideo(video, now)
             body = (r.landmarks[0] as Landmark[] | undefined) ?? null
+            worldBody = r.worldLandmarks?.[0] ?? null
             r.close()
           }
           const handList: CameraFrame['hands'] = []
@@ -206,6 +210,7 @@ export function startCamera(options: SessionOptions, events: SessionEvents): () 
             height,
             aspect: width / height,
             body,
+            worldBody,
             hands: handList,
             face: faceResult,
           })

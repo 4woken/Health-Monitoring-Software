@@ -318,16 +318,18 @@ export function createBodyGroom(body: Body, skin: BufferGeometry, patch?: Patch)
     geometry.setAttribute('normal', norm)
     geometry.setAttribute('groomRest', new BufferAttribute(rest, 3))
     geometry.setAttribute('groomMask', new BufferAttribute(masks, 1))
-    const skinArms = skin.getAttribute('exerciseArms')
-    if (skinArms) {
+    // Interpolating the same per-skin-vertex motion keeps the hair roots attached.
+    for (const name of ['exerciseArms', 'fluidOffset']) {
+      const sourceAttribute = skin.getAttribute(name)
+      if (!sourceAttribute) continue
       const weights = new Float32Array(r.vertices.length * 2)
       r.vertices.forEach(({ source }, i) => {
         for (let j = 0; j < 3; j++) {
-          weights[i * 2] += skinArms.getX(source.indices[j]) * source.weights[j]
-          weights[i * 2 + 1] += skinArms.getY(source.indices[j]) * source.weights[j]
+          weights[i * 2] += sourceAttribute.getX(source.indices[j]) * source.weights[j]
+          weights[i * 2 + 1] += sourceAttribute.getY(source.indices[j]) * source.weights[j]
         }
       })
-      geometry.setAttribute('exerciseArms', new BufferAttribute(weights, 2))
+      geometry.setAttribute(name, new BufferAttribute(weights, 2))
     }
     if (r.kind === 'brow' || r.kind === 'lash') {
       geometry.setAttribute(

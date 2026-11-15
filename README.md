@@ -61,6 +61,8 @@ The mission menu at the top right sets the destination and the mission day. Orbi
 
 ![The self-tests due today, and the full list](docs/screenshots/tests.jpg)
 
+[Camera counting results and checks for the 13 self-tests and exercises](docs/SELFTEST_VALIDATION.md)
+
 **Tests** opens short tests you take on yourself, each one modelled on what NASA does with its crews. Your first three runs set your usual result, and later runs are compared with it. A result worse than usual is repeated within 24 hours, as NASA does after a red cognitive test, and every result goes back to the matching signal on the body.
 
 | Test                                  | What NASA does                                                                | How Pulsar measures it                                                                                   |

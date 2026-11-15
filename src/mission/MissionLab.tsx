@@ -436,15 +436,25 @@ export default function PhysiologyLab({
 }: Props) {
   const total = points.length - 1
   const fixedPhases = profile !== 'setting'
-  const careerDay = daysToCareerLimit(input.doseRateMSvDay)
-  const calfDay = daysToLoss(muscleRatePerDay(input.gravity, input.exercise), 10)
-  const boneDay = daysToLoss(boneRatePerDay(input.gravity, input.exercise), 5)
+  const today = points[Math.min(total, Math.max(0, cursor))]
+  const phase = phases[today.phase]
+  const careerDay = fixedPhases
+    ? points.find((p) => p.doseMSv >= PARAMETERS.careerLimitMSv.value)?.day
+    : daysToCareerLimit(input.doseRateMSvDay)
+  const calfDay = fixedPhases
+    ? points.find((p) => p.musclePct <= 90)?.day
+    : daysToLoss(muscleRatePerDay(input.gravity, input.exercise), 10)
+  const boneDay = fixedPhases
+    ? points.find((p) => p.bonePct <= 95)?.day
+    : daysToLoss(boneRatePerDay(input.gravity, input.exercise), 5)
   const marsCheck = useMemo(
     () => (profile === 'mars' ? points[points.length - 1].doseMSv / 1000 : null),
     [profile, points],
   )
-  const days = (d: number | null) =>
-    d === null ? 'never at this setting' : d > 3650 ? 'after 10 years' : `day ${Math.round(d)}`
+  const days = (d: number | null | undefined) => {
+    if (d == null) return fixedPhases ? 'not reached in this profile' : 'never at this setting'
+    return d > 3650 ? 'after 10 years' : `day ${Math.ceil(d)}`
+  }
 
   return (
     <section className="@container" aria-label="Physiology simulator">
@@ -477,7 +487,7 @@ export default function PhysiologyLab({
             ) : (
               <>
                 <span className="rounded border border-accent/60 px-2.5 py-1 text-[13px] text-ink">
-                  What-if values
+                  {fixedPhases ? phase.label : 'What-if values'}
                 </span>
                 <button
                   onClick={onReset}
@@ -492,7 +502,7 @@ export default function PhysiologyLab({
 
           <Slider
             label="Gravity"
-            value={fixedPhases ? phases[0].gravity : input.gravity}
+            value={phase.gravity}
             min={0}
             max={1}
             step={0.01}
@@ -514,7 +524,7 @@ export default function PhysiologyLab({
           />
           <Slider
             label="Radiation dose rate"
-            value={fixedPhases ? phases[0].doseRateMSvDay : input.doseRateMSvDay}
+            value={phase.doseRateMSvDay}
             min={0}
             max={2.5}
             step={0.01}
@@ -522,7 +532,7 @@ export default function PhysiologyLab({
             format={(d) => `${d.toFixed(2)} mSv/day`}
             ticks={DOSE_TICKS}
             disabled={fixedPhases}
-            hint={fixedPhases ? 'Set by each phase: 1.8 in cruise, 0.67 on the surface.' : undefined}
+            hint={fixedPhases ? `Dose rate during ${phase.label.toLowerCase()}.` : undefined}
           />
           <Slider
             label="Projection day"
@@ -547,7 +557,9 @@ export default function PhysiologyLab({
               </div>
             ))}
             <p className="pt-1 text-[11px] leading-snug text-dim">
-              At the gravity, exercise and dose rate set above.
+              {fixedPhases
+                ? 'First day the projection reaches each threshold across the mission phases.'
+                : 'First day at the gravity, exercise and dose rate set above.'}
             </p>
           </dl>
         </div>

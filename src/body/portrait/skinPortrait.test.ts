@@ -44,6 +44,7 @@ it.each(['female', 'male'] as const)('fits and removes a portrait on the texture
     expect(material.color.getHex()).toBe(0xffffff)
     const eye = geometry.getAttribute('portraitEye')
     const region = geometry.getAttribute('skinDetail')
+    const fluidOffset = geometry.getAttribute('fluidOffset')
     const weights = geometry.getAttribute('portraitWeight')
     const base = Float32Array.from(geometry.getAttribute('position').array)
     const camera = referenceHead.camera
@@ -66,6 +67,8 @@ it.each(['female', 'male'] as const)('fits and removes a portrait on the texture
     for (let v = 0; v < eye.count; v++) {
       if (!eye.getX(v)) continue
       expect(region.getComponent(v, 2)).toBe(0)
+      expect(fluidOffset.getX(v)).toBe(0)
+      expect(fluidOffset.getY(v)).toBe(0)
       if (weights.getX(v) > 0.95) covered++
     }
     expect(covered).toBeGreaterThan(400)

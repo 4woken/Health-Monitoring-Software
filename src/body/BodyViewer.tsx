@@ -213,15 +213,11 @@ float lensRim() {
 const LENS_CUT = /* glsl */ `#include <clipping_planes_fragment>
   if (lensOpensSkin()) discard;`
 
-// Breathing moves the chest; the fluid shift swells the face and thins the legs (exaggerated
-// about tenfold so it can be seen at full-body scale).
+// Breathing expands the chest in body-local space.
 const BODY_MOTION = /* glsl */ `#include <begin_vertex>
   float chest = smoothstep(uHeight * 0.57, uHeight * 0.69, position.y) * (1.0 - smoothstep(uHeight * 0.79, uHeight * 0.86, position.y));
   transformed.x *= 1.0 + chest * uBreathing;
-  transformed.z *= 1.0 + chest * uBreathing * 2.0;
-  float headZone = smoothstep(uHeight * 0.80, uHeight * 0.87, position.y);
-  float legZone = 1.0 - smoothstep(uHeight * 0.36, uHeight * 0.47, position.y);
-  transformed += normal * uFluid * (0.016 * headZone - 0.012 * legZone);`
+  transformed.z *= 1.0 + chest * uBreathing * 2.0;`
 
 interface Stage {
   setBuild: (b: Build) => void
@@ -314,12 +310,16 @@ function createStage(
     uHeight: { value: 1.75 },
   }
   /** Adds the lens cut, breathing and fluid shift to a built-in material's shaders. */
-  const patch = (shader: THREE.WebGLProgramParametersWithUniforms, withRim: boolean) => {
+  const patch = (shader: THREE.WebGLProgramParametersWithUniforms, withRim: boolean, withFluid = true) => {
     demoPose.patch(shader, current?.skin.hasAttribute('exerciseArms') ?? false)
     Object.assign(shader.uniforms, shared)
     shader.vertexShader =
-      'uniform float uBreathing;\nuniform float uFluid;\nuniform float uHeight;\n' +
-      shader.vertexShader.replace('#include <begin_vertex>', BODY_MOTION)
+      'uniform float uBreathing;\nuniform float uHeight;\n' +
+      (withFluid ? 'attribute vec2 fluidOffset; uniform float uFluid;\n' : '') +
+      shader.vertexShader.replace(
+        '#include <begin_vertex>',
+        BODY_MOTION + (withFluid ? '\n  transformed.xz += uFluid * fluidOffset;' : ''),
+      )
     shader.fragmentShader = (LENS + '\n' + shader.fragmentShader).replace(
       '#include <clipping_planes_fragment>',
       LENS_CUT,
@@ -473,7 +473,10 @@ function createStage(
     )
     skinOpacity = selection ? 0.095 : depthOpacity('skin', d)
     face?.setVisible(skinOpacity > 0.9)
-    shared.uFluid.value = physiologyView ? physio.fluidShiftShare : 0
+    shared.uFluid.value =
+      physiologyView && Number.isFinite(physio.fluidShiftShare)
+        ? THREE.MathUtils.clamp(physio.fluidShiftShare, 0, 1)
+        : 0
     for (const o of organs) {
       const ids = ORGAN_SIGNALS[o.name] ?? []
       let level: Level = 'ok'
@@ -549,7 +552,7 @@ function createStage(
       const appearance = eye.material.onBeforeCompile.bind(eye.material)
       eye.material.onBeforeCompile = (shader, renderer) => {
         appearance(shader, renderer)
-        patch(shader, false)
+        patch(shader, false, false)
       }
       eye.material.customProgramCacheKey = () => 'pulsar-resting-eye-with-lens'
       eye.userData.organ = socket.name
@@ -1783,7 +1786,7 @@ export default function BodyScan({
           className="on-photo pointer-events-none absolute right-4 z-[5] max-w-[46ch] text-right text-[11.5px] leading-snug text-white/60 lg:right-8"
           style={{ bottom: insetBottom }}
         >
-          Face and leg change exaggerated about tenfold.
+          Cheek and calf changes illustrate the projected fluid shift.
         </p>
       )}
     </div>

@@ -156,7 +156,9 @@ function resultLines(r: TestResult): string[] {
     case 'sitToStand':
       return [
         `Five stands in ${r.score.toFixed(1)} s`,
-        r.details.armsCrossed === false ? 'Arms not crossed: the test asks for them crossed' : 'Arms crossed',
+        r.details.armsCrossed === true
+          ? 'Camera detected both wrists near the chest'
+          : 'The camera could not confirm your arm position',
       ]
     case 'dexterity':
       return [

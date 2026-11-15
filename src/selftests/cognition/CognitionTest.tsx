@@ -15,7 +15,14 @@ import {
 } from './cognition'
 
 type Phase =
-  'symbolsIntro' | 'symbolsPractice' | 'symbols' | 'lettersIntro' | 'lettersPractice' | 'letters' | 'done'
+  | 'symbolsIntro'
+  | 'symbolsPractice'
+  | 'symbols'
+  | 'symbolsIdle'
+  | 'lettersIntro'
+  | 'lettersPractice'
+  | 'letters'
+  | 'done'
 
 function Glyph({ index, size = 40 }: { index: number; size?: number }) {
   return (
@@ -50,6 +57,8 @@ export default function CognitionTest({ onDone, onCancel }: RunProps) {
   const [paused, setPaused] = useState(false)
   const remainingMs = useRef(0)
   const pressed = useRef<boolean[]>([])
+  const finish = useRef(onDone)
+  finish.current = onDone
   const [, redraw] = useState(0)
   const result = useRef<{ correct: number; errors: number } | null>(null)
 
@@ -119,6 +128,10 @@ export default function CognitionTest({ onDone, onCancel }: RunProps) {
       setLeft(remaining)
       if (remaining <= 0) {
         clearInterval(id)
+        if (counts.current.correct + counts.current.errors === 0) {
+          setPhase('symbolsIdle')
+          return
+        }
         result.current = { correct: counts.current.correct, errors: counts.current.errors }
         setPhase('lettersIntro')
         void say('Time. Now the letters.')
@@ -142,7 +155,7 @@ export default function CognitionTest({ onDone, onCancel }: RunProps) {
         const n = scoreNBack(seq, pressed.current)
         const symbols = result.current ?? { correct: counts.current.correct, errors: counts.current.errors }
         setPhase('done')
-        onDone({
+        finish.current({
           score: symbols.correct,
           details: {
             errors: symbols.errors,
@@ -170,7 +183,7 @@ export default function CognitionTest({ onDone, onCancel }: RunProps) {
       clearTimeout(hide)
       clearTimeout(next)
     }
-  }, [phase, index, letters, seq, onDone, paused])
+  }, [phase, index, letters, seq, paused])
 
   function match() {
     if ((phase !== 'letters' && phase !== 'lettersPractice') || index < 0 || index >= letters.length) return
@@ -196,6 +209,21 @@ export default function CognitionTest({ onDone, onCancel }: RunProps) {
 
   return (
     <section aria-label="Thinking test" className="mx-auto max-w-3xl space-y-5">
+      {phase === 'symbolsIdle' && (
+        <div className="space-y-3">
+          <Cue>No answers were recorded during the timed symbols.</Cue>
+          <Button
+            kind="primary"
+            onClick={() => {
+              endAt.current = performance.now() + DSST_SECONDS * 1000
+              setLeft(DSST_SECONDS)
+              setPhase('symbols')
+            }}
+          >
+            Restart the timed symbols
+          </Button>
+        </div>
+      )}
       {paused && (
         <div className="space-y-3">
           <Cue>Paused while this tab was hidden.</Cue>

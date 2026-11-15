@@ -19,15 +19,15 @@ export default function RepsExercise({ mode, onDone, onCancel }: RunProps) {
   const tracker = useRef(make())
   const [set, setSet] = useState(1)
   const [count, setCount] = useState(0)
-  const [cue, setCue] = useState(squats ? 'Stand side-on to the camera.' : 'Stand side-on, a hand on a wall.')
+  const [cue, setCue] = useState('Stand side-on or at a slight angle, with your feet in view.')
   const [rest, setRest] = useState(0)
   const live = useRef({ set: 1, resting: false, total: 0, shallow: 0, last: 0, done: false })
 
   useEffect(() => {
     void say(
       squats
-        ? 'Stand side-on to the camera, feet hip-width apart.'
-        : 'Stand side-on, a hand on a wall for balance.',
+        ? 'Stand side-on or at a slight angle, feet hip-width apart and in view. Stand still for a moment before your first squat.'
+        : 'Stand side-on or at a slight angle, with one hand on a wall for balance. Keep your feet in view and start with your heels flat.',
     )
     camera.start(onFrame)
     return () => camera.stop()
@@ -56,7 +56,7 @@ export default function RepsExercise({ mode, onDone, onCancel }: RunProps) {
   function onFrame(frame: CameraFrame) {
     const s = live.current
     if (s.resting || s.done) return
-    const v = tracker.current.update(frame.body, frame.aspect)
+    const v = tracker.current.update(frame.body, frame.aspect, frame.now, frame.worldBody)
     setCue(v.message)
     if (v.reps === s.last) return
     s.last = v.reps
