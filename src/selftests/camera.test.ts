@@ -183,32 +183,39 @@ describe('legs', () => {
 
   it('requires the seated start at go and a fresh observed sit after losing the leg', () => {
     const t = sitToStandTracker(1)
-    t.update(seated, WIDE, 0)
-    expect(t.update(seated, WIDE, 1000).phase).toBe('ready')
+    for (let now = 0; now <= 1000; now += 100) t.update(seated, WIDE, now)
+    expect(t.update(seated, WIDE, 1050).phase).toBe('ready')
     expect(t.update(up, WIDE, 1100).phase).toBe('seat')
     t.go(1200)
     expect(t.update(up, WIDE, 1300).phase).toBe('seat')
-    t.update(seated, WIDE, 1400)
-    t.update(seated, WIDE, 2400)
+    for (let now = 1400; now <= 2400; now += 100) t.update(seated, WIDE, now)
     t.go(2400)
     t.update(null, WIDE, 2500)
-    expect(t.update(up, WIDE, 2700).stands).toBe(0)
+    t.update(up, WIDE, 2700)
+    expect(t.update(up, WIDE, 2800).stands).toBe(0)
     t.update(seated, WIDE, 2900)
-    expect(t.update(up, WIDE, 3400).timeS).toBe(1)
+    t.update(seated, WIDE, 3030)
+    t.update(seated, WIDE, 3150)
+    t.update(up, WIDE, 3400)
+    expect(t.update(up, WIDE, 3520).timeS).toBe(1)
   })
 
   it('discards partially observed squats and heel raises', () => {
-    const squat = squatTracker()
-    squat.update(up, WIDE)
-    squat.update(sideOn([0.45, 0.6], [0.6, 0.62], [0.57, 0.82]), WIDE)
-    squat.update(null, WIDE)
-    expect(squat.update(up, WIDE).reps).toBe(0)
-    const heel = heelRaiseTracker()
+    const deep = sideOn([0.45, 0.6], [0.6, 0.62], [0.57, 0.82])
     const toes = sideOn([0.6, 0.38], [0.6, 0.58], [0.6, 0.775])
-    heel.update(up, WIDE)
-    heel.update(toes, WIDE)
-    heel.update(null, WIDE)
-    expect(heel.update(up, WIDE).reps).toBe(0)
+    for (const [tracker, moved] of [
+      [squatTracker(), deep],
+      [heelRaiseTracker(), toes],
+    ] as const) {
+      tracker.update(up, WIDE, 0)
+      tracker.update(up, WIDE, 120)
+      tracker.update(moved, WIDE, 220)
+      tracker.update(moved, WIDE, 340)
+      tracker.update(null, WIDE, 410)
+      tracker.update(null, WIDE, 1100)
+      tracker.update(up, WIDE, 1200)
+      expect(tracker.update(up, WIDE, 1320).reps).toBe(0)
+    }
   })
 
   it('times five stands from go to the fifth time up', () => {
@@ -232,10 +239,14 @@ describe('legs', () => {
     const t = squatTracker()
     const stand = sideOn([0.58, 0.4], [0.6, 0.6], [0.6, 0.8])
     const deep = sideOn([0.45, 0.6], [0.6, 0.62], [0.57, 0.82])
-    let view = t.update(stand, 4 / 3)
+    let now = 0
+    let view = t.update(stand, 4 / 3, now)
+    t.update(stand, 4 / 3, (now += 120))
     for (let i = 0; i < 3; i++) {
-      view = t.update(deep, 4 / 3)
-      view = t.update(stand, 4 / 3)
+      t.update(deep, 4 / 3, (now += 100))
+      t.update(deep, 4 / 3, (now += 100))
+      t.update(stand, 4 / 3, (now += 100))
+      view = t.update(stand, 4 / 3, (now += 100))
     }
     expect(view.reps).toBe(3)
     expect(view.shallow).toBe(0)
@@ -245,10 +256,14 @@ describe('legs', () => {
     const t = heelRaiseTracker()
     const flat = sideOn([0.6, 0.4], [0.6, 0.6], [0.6, 0.8])
     const toes = sideOn([0.6, 0.38], [0.6, 0.58], [0.6, 0.775])
-    let view = t.update(flat, 4 / 3)
+    let now = 0
+    let view = t.update(flat, 4 / 3, now)
+    t.update(flat, 4 / 3, (now += 120))
     for (let i = 0; i < 4; i++) {
-      view = t.update(toes, 4 / 3)
-      view = t.update(flat, 4 / 3)
+      t.update(toes, 4 / 3, (now += 100))
+      t.update(toes, 4 / 3, (now += 100))
+      t.update(flat, 4 / 3, (now += 100))
+      view = t.update(flat, 4 / 3, (now += 100))
     }
     expect(view.reps).toBe(4)
   })

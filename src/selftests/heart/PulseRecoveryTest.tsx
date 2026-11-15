@@ -3,7 +3,7 @@ import { getPulse, getPulseVideo, startPulse, stopPulse } from '../../camera/pul
 import { Button } from '../../ui'
 import { CameraStage, useCameraTest } from '../camera/CameraStage'
 import type { CameraFrame } from '../camera/session'
-import { bestLeg, squatTracker } from '../movement/movement'
+import { bestLeg, squatTracker, standingLeg } from '../movement/movement'
 import { Big, Cue, Progress, type RunProps } from '../ui/parts'
 import { beep, say } from '../voice'
 import { PulsePreview } from './PulsePreview'
@@ -83,8 +83,10 @@ export default function PulseRecoveryTest({ mode, onDone, onCancel }: RunProps) 
       if (first !== null && now - first >= REST_S * 1000 && p0 !== null) {
         work.current.p0 = p0
         setPhase('frame')
-        setCue('Stand side-on with your hip, knee and ankle in view.')
-        void say('Stand side-on with your whole leg in view. The countdown starts when you are standing.')
+        setCue('Stand side-on or at a slight angle, with your feet in view.')
+        void say(
+          'Stand side-on or at a slight angle with your feet in view. Stand still for a moment before the first squat.',
+        )
       } else if (now - started > 90_000) {
         fail('Could not obtain a steady resting pulse. Check the sensor and start a new test.')
       }
@@ -103,13 +105,16 @@ export default function PulseRecoveryTest({ mode, onDone, onCancel }: RunProps) 
     startCamera(
       (frame: CameraFrame) => {
         if (latestPhase.current !== 'squats') {
-          const standing = (bestLeg(frame.body, frame.aspect)?.angle ?? 0) > 160
+          const standing = standingLeg(bestLeg(frame.body, frame.aspect, undefined, frame.worldBody))
+          if (standing) tracker.current.update(frame.body, frame.aspect, frame.now, frame.worldBody)
+          else if (latestPhase.current === 'countdown') tracker.current = squatTracker()
           if (latestPhase.current === 'frame' && standing) setPhase('countdown')
           if (latestPhase.current === 'countdown' && !standing) setPhase('frame')
           return
         }
         if (performance.now() > work.current.end) return
-        const { reps } = tracker.current.update(frame.body, frame.aspect)
+        const { reps, message } = tracker.current.update(frame.body, frame.aspect, frame.now, frame.worldBody)
+        setCue(`Squat on each beep. ${message}`)
         work.current.squats = reps
         setSquats(reps)
       },
@@ -124,7 +129,7 @@ export default function PulseRecoveryTest({ mode, onDone, onCancel }: RunProps) 
 
   useEffect(() => {
     if (phase === 'frame') {
-      setCue('Stand side-on with your hip, knee and ankle in view.')
+      setCue('Stand side-on or at a slight angle, with your feet in view. Hold still to start the countdown.')
       return
     }
     if (phase !== 'countdown') return

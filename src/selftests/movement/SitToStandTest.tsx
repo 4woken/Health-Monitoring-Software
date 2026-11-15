@@ -39,7 +39,7 @@ export default function SitToStandTest({ onDone, onCancel }: RunProps) {
   }, [camera.stopped])
 
   function onFrame(frame: CameraFrame) {
-    const v = tracker.current.update(frame.body, frame.aspect, frame.now)
+    const v = tracker.current.update(frame.body, frame.aspect, frame.now, frame.worldBody)
     if (v.phase === 'seat' && counting.current) {
       countdownId.current++
       counting.current = false
