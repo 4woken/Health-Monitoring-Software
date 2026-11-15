@@ -1,6 +1,14 @@
 import { Suspense, lazy, useCallback, useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { Camera, Check, Eyeglasses, Heartbeat, ListChecks, PlayCircle } from '@phosphor-icons/react'
+import {
+  Camera,
+  Check,
+  Eyeglasses,
+  Heartbeat,
+  ListChecks,
+  PlayCircle,
+  PaperPlaneTilt,
+} from '@phosphor-icons/react'
 import { BREATH_REPLAY_MS, recentBreath, type BreathReading } from '../camera/breathReading'
 import { stopPulse, usePulse } from '../camera/pulse/pulseSession'
 import { useCheckup } from '../checkup/useCheckup'
@@ -28,9 +36,10 @@ const SelfTestsScreen = lazy(() => import('../selftests/ui/SelfTestsScreen'))
 const CrewLogin = lazy(() => import('../crew/CrewLogin'))
 const NewMember = lazy(() => import('../crew/NewMember'))
 const ArVisor = lazy(() => import('./ArVisor'))
+const ControlCenter = lazy(() => import('../telemetry/ControlCenter'))
 
 /** Panels that open over the body. There is no other page. */
-type Panel = 'checkup' | 'tests'
+type Panel = 'checkup' | 'tests' | 'downlink'
 type Page = 'intro' | 'profile' | 'dashboard'
 
 const CHECKUP_WIDTH = 560
@@ -216,6 +225,13 @@ function Shell() {
               <HeaderButton on={panel === 'tests'} onClick={() => toggle('tests')} label="Tests">
                 <Heartbeat size={17} />
               </HeaderButton>
+              <HeaderButton
+                on={panel === 'downlink'}
+                onClick={() => toggle('downlink')}
+                label="Send to Earth"
+              >
+                <PaperPlaneTilt size={17} />
+              </HeaderButton>
               <MissionMenu
                 mission={mission}
                 onMission={chooseMission}
@@ -242,7 +258,7 @@ function Shell() {
               onOpenTest={openTest}
               breath={recentBreath(breath, member.id, Date.now())}
               covered={panel === 'checkup' ? CHECKUP_WIDTH : 0}
-              paused={panel === 'tests' || ar}
+              paused={panel === 'tests' || panel === 'downlink' || ar}
               request={request}
               onOpenCheckup={() => setPanel('checkup')}
               onOpenPanel={() => setPanel((p) => (p === 'checkup' ? null : p))}
@@ -251,6 +267,13 @@ function Shell() {
         </main>
 
         <AnimatePresence>
+          {panel === 'downlink' && (
+            <Cover key="downlink" title="Mission control" onClose={close}>
+              <Suspense fallback={<Loading />}>
+                <ControlCenter key={`${member.id}:${mission}`} member={member} mission={mission} day={day} />
+              </Suspense>
+            </Cover>
+          )}
           {panel === 'checkup' && (
             <Drawer
               key="checkup"
@@ -344,7 +367,7 @@ function Shell() {
 /** Starts the mission simulation over the dashboard, or ends it. */
 function SimulationButton({ onStart }: { onStart: () => void }) {
   const s = useSimulation()
-  return (
+  const button = (
     <HeaderButton
       on={s.active}
       onClick={() => {
@@ -357,6 +380,9 @@ function SimulationButton({ onStart }: { onStart: () => void }) {
       <PlayCircle size={17} />
     </HeaderButton>
   )
+  // While it runs, the playback in the middle of the bar takes its place and its cross ends it. On
+  // phones, where the playback does not fit, the button stays to end it.
+  return s.active ? <span className="md:hidden">{button}</span> : button
 }
 
 /** The check-up of the day, or the list of the simulated day while the simulation runs. */

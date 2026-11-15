@@ -27,6 +27,19 @@ describe('recommendations on the body', () => {
     const ranks = advice.map((a) => (a.level === 'act' ? 1 : 0))
     expect([...ranks].sort((a, b) => b - a)).toEqual(ranks)
   })
+  it('directs organ-dose alerts and entered ocular findings to appropriate clinical review', () => {
+    const report = dayReport(enzo, 80, 'cruise')
+    const eye = report.signals.find((s) => s.id === 'opticNerve')!
+    eye.level = 'act'
+    expect(advise(report, 'cruise').find((a) => a.signal === 'opticNerve')?.title).toMatch(
+      /lens dose checked/,
+    )
+    eye.level = 'watch'
+    eye.sources.push('SANS_EXAM_CRITERIA')
+    expect(advise(report, 'cruise').find((a) => a.signal === 'opticNerve')?.title).toBe(
+      'Have your eye exam reviewed',
+    )
+  })
 })
 
 describe('NASA reference', () => {

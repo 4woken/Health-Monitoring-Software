@@ -46,6 +46,8 @@ const PINNED = 3
 /** Rows in the list on the left before "more"; fewer while the simulation's log sits above it. */
 const LISTED = 6
 const LISTED_LIVE = 3
+/** Breaths a minute for the chest when nothing has been measured: a calm adult at rest. */
+const RESTING_BREATHS = 14
 
 const LEVEL_WORD = { ok: 'Normal', watch: 'Needs a check today', act: 'Act now' } as const
 /** The self-test offered beside an organ shown on its own. */
@@ -397,8 +399,9 @@ export default function BodyScreen({
       {/* What to do today. */}
       <div
         ref={todo}
-        hidden={sheet === 'organ'}
-        className="absolute top-20 left-4 z-[6] w-[min(21rem,calc(100%-2rem))] lg:top-24 lg:left-8"
+        // It stops above the vital signs: on a short screen the list scrolls, the buttons stay in view.
+        style={{ maxHeight: `calc(100% - ${gaugeHeight + 112}px)` }}
+        className={`absolute top-20 left-4 z-[6] w-[min(21rem,calc(100%-2rem))] flex-col lg:top-24 lg:left-8 ${sheet === 'organ' ? 'hidden' : 'flex'}`}
       >
         <MissionLog />
         <p className="on-photo font-cond text-[13px] text-white/65">
@@ -418,7 +421,9 @@ export default function BodyScreen({
           {heading}
         </h2>
         {advice.length > 0 && (
-          <ul className={`mt-3 flex-col gap-1.5 ${todoOpen ? 'flex' : 'hidden'} sm:flex`}>
+          <ul
+            className={`no-scrollbar mt-3 min-h-0 shrink flex-col gap-1.5 overflow-y-auto ${todoOpen ? 'flex' : 'hidden'} sm:flex`}
+          >
             {advice.slice(0, listed).map((a) => (
               <li key={a.id}>
                 <button
@@ -447,7 +452,7 @@ export default function BodyScreen({
             ))}
           </ul>
         )}
-        <div className="mt-3 flex flex-wrap items-center gap-2">
+        <div className="mt-3 flex shrink-0 flex-wrap items-center gap-2">
           <button
             onClick={() => {
               onOpenPanel()
@@ -489,6 +494,8 @@ export default function BodyScreen({
       >
         <VitalsStrip
           readings={report.readings}
+          mission={mission}
+          day={day}
           live={vitals}
           breath={breath}
           onPick={details}
@@ -673,6 +680,12 @@ export default function BodyScreen({
     </>
   )
 
+  // A panel on the right moves the body into the space left between it and the list on the left,
+  // so the body never slips behind the list.
+  const rightPanel = covered || (sheet && !narrow ? SHEET_WIDTH[sheet] : 0)
+  const listWidth = narrow || sheet === 'organ' ? 0 : todoBox.right
+  const panelInset = rightPanel ? Math.max(0, rightPanel - listWidth) : 0
+
   return (
     <section
       className={`relative ${demonstrating ? 'body-for-exercise' : narrow && sheet === 'organ' ? 'mt-16 h-[calc(55dvh-4rem)]' : 'h-[100dvh] min-h-[600px]'}`}
@@ -703,10 +716,10 @@ export default function BodyScreen({
         onLayer={(l) => showMission(l === 'physiology')}
         avatar={face}
         insetBottom={gaugeHeight + 12}
-        breathingRate={breath?.breathsPerMinute}
+        breathingRate={breath?.breathsPerMinute ?? vitals?.breaths ?? RESTING_BREATHS}
         backdrop={{ src: place.image, position: place.imagePosition, caption, href: place.sourceUrl }}
         pins={demonstrating ? [] : pins}
-        sideInset={demonstrating ? 0 : covered || (sheet && !narrow ? SHEET_WIDTH[sheet] : 0)}
+        sideInset={demonstrating ? 0 : panelInset}
         paused={paused}
         pinAvoid={narrow ? undefined : todoBox}
       >

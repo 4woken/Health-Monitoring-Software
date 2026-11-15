@@ -11,6 +11,9 @@ import { resultsOf } from '../selftests/results'
 import { METRICS, type MetricId } from './metrics'
 import { cabinOn, readingsOn } from './simulation'
 import { assess, type Readings, type Signal, type SignalId } from './signals'
+import { medicalRecord } from './medicalRecords'
+import { exampleDosimetry, ORGANS, organExposure } from './dosimetry'
+import { reviewEye } from './ocular'
 
 interface Schedule {
   /** Where the value comes from. */
@@ -133,10 +136,61 @@ function testFreshness(memberId: string, day: number): Freshness {
   }
 }
 
+export function medicalSignals(
+  signals: Signal[],
+  memberId: string,
+  day: number,
+  mission: MissionId,
+): Signal[] {
+  const medical = medicalRecord(memberId, mission)
+  const organData = medical.dosimetry ?? exampleDosimetry(day)
+  const over = ORGANS.map((o) => organExposure(organData, o, day)).filter((r) => r.exceeded)
+  const radiation = signals.find((s) => s.id === 'radiation')!
+  const eye = signals.find((s) => s.id === 'opticNerve')!
+  radiation.sources = [...radiation.sources, 'RAD_ORGAN_MODEL', 'RAD_ORGAN_LIMITS']
+  if (over.length) {
+    radiation.level = 'act'
+    radiation.meaning = `${over.map((r) => r.limits.name).join(', ')}: at the dose limit for this period. See the dose by organ below.`
+    radiation.advice = 'Go over your exposure and the shielding with the radiation team.'
+  }
+  const lens = over.find((r) => r.organ === 'lens')
+  if (lens) {
+    eye.level = 'act'
+    eye.title = 'Eye lens radiation'
+    eye.value = `${lens.mission.dose.toFixed(1)} mGy-Eq at the eye lens this mission`
+    eye.sources = [...eye.sources, 'RAD_ORGAN_MODEL', 'RAD_ORGAN_LIMITS']
+    eye.meaning =
+      'The dose at your eye lens has reached its limit. That is a radiation risk for the lens, separate from the eye syndrome of spaceflight.'
+    eye.advice = 'Go over your lens dose and past exposure with the radiation team and the flight surgeon.'
+  }
+  if (medical.ocular) {
+    const findings = [reviewEye(medical.ocular.left), reviewEye(medical.ocular.right)].flatMap(
+      (r) => r.findings,
+    )
+    eye.sources = [...eye.sources, 'SANS_EXAM_CRITERIA']
+    if (findings.length) {
+      const examination = `Your last eye exam needs a second look (${[...new Set(findings)].join('; ').toLowerCase()}). That is not a diagnosis on its own.`
+      if (eye.level === 'act') eye.meaning += ` ${examination}`
+      else {
+        eye.level = 'watch'
+        eye.meaning = examination
+        eye.advice = 'Show the exam to the flight surgeon.'
+      }
+    }
+  }
+  signals.sort((a, b) => ({ ok: 0, watch: 1, act: 2 })[b.level] - { ok: 0, watch: 1, act: 2 }[a.level])
+  return signals
+}
+
 export function dayReport(member: Member, day: number, mission: MissionId): DayReport {
   day = missionDay(mission, day)
   const readings = readingsFor(member, day, mission)
-  const signals = assess(readings, member.baseline, cabinOn(day, mission), testFacts(member.id, day))
+  const signals = medicalSignals(
+    assess(readings, member.baseline, cabinOn(day, mission), testFacts(member.id, day)),
+    member.id,
+    day,
+    mission,
+  )
   const fresh = Object.fromEntries(
     signals.map((s) => [
       s.id,

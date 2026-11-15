@@ -16,6 +16,27 @@ export interface Source {
 }
 
 export const SOURCES: Record<string, Source> = {
+  RAD_ORGAN_MODEL: {
+    id: 'RAD_ORGAN_MODEL',
+    title: 'NASA-TM-20220006594 (2022), TARIS organ RBE method',
+    url: 'https://ntrs.nasa.gov/api/citations/20220006594/downloads/NASA-TM-20220006594.pdf',
+    says: 'Organ-averaged absorbed dose in mGy is weighted by particle RBE and summed in mGy-Eq. This is downstream of radiation transport. Pulsar implements that aggregation, with synthetic inputs unless imported.',
+    status: 'verified',
+  },
+  RAD_ORGAN_LIMITS: {
+    id: 'RAD_ORGAN_LIMITS',
+    title: 'NASA-STD-3001 Volume 1 Revision C, Table 4.8-1',
+    url: 'https://www.nasa.gov/reference/4-0-human-performance/',
+    says: 'Lens limits: 1000/2000/4000 mGy-Eq for 30 days/one year/career. Skin, blood-forming organs and circulatory system have distinct limits. CNS uses mGy and is not included in this RBE calculation. Limits do not imply no harm below them.',
+    status: 'verified',
+  },
+  SANS_EXAM_CRITERIA: {
+    id: 'SANS_EXAM_CRITERIA',
+    title: 'NASA SANS 2023 clinical update',
+    url: 'https://ntrs.nasa.gov/citations/20220014606',
+    says: 'Early findings include peripapillary OCT thickness increase ≥20 µm, hyperopic shift ≥+0.75 D, chorioretinal folds or posterior globe flattening. These examination findings trigger review in Pulsar, not a diagnosis.',
+    status: 'verified',
+  },
   HCT_FLIGHT: {
     id: 'HCT_FLIGHT',
     title: 'Kunz et al., BMC Hematology 2017;17:12',

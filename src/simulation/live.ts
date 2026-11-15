@@ -4,7 +4,7 @@
 // stands.
 
 import type { LiveReadings } from '../app/ArVisor'
-import type { DayReport } from '../health/readings'
+import { medicalSignals, type DayReport } from '../health/readings'
 import { cabinOn } from '../health/simulation'
 import { assess, bySeverity, LIMITS, type Readings, type Signal } from '../health/signals'
 import type { MissionId } from '../mission/missions'
@@ -49,10 +49,15 @@ export function liveReport(base: DayReport, sim: Simulation, mission: MissionId,
     ...day,
     // On a spacewalk, the air breathed is the suit's.
     co2MmHg: s.suitCo2MmHg ?? s.co2MmHg,
-    doseMSv: day.doseMSv + s.doseMSv,
+    doseMSv: day.doseRateMSvDay * (base.day - 1 + sim.scenario.start / 1440) + s.doseMSv,
     doseRateMSvDay: Math.round(((s.doseRate * 24) / 1000) * 100) / 100,
   }
-  const judged = assess(readings, base.member.baseline, cabin, testFacts(base.member.id, base.day))
+  const judged = medicalSignals(
+    assess(readings, base.member.baseline, cabin, testFacts(base.member.id, base.day)),
+    base.member.id,
+    base.day,
+    mission,
+  )
   const { now } = activityAt(sim, t)
   const training = now.activity === 'resistance' || now.activity === 'cycle' || now.activity === 'run'
   // What the day's signals cannot see in a minute: a storm's dose rate, a heart working too hard,
@@ -125,6 +130,7 @@ export function visorReadings(sim: Simulation, t: number): LiveReadings {
     glucoseMgDl: s.glucoseMgDl,
     sleepHours: sim.person.sleepHours,
     nextDrinkMin: nextDrink(sim, t),
+    radiationUSvH: s.doseRate,
     clock: clock(t),
     alert: warning ? { level: warning.level, text: warning.title } : null,
   }

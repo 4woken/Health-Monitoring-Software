@@ -299,8 +299,10 @@ export default function ArVisor({
               <Reading
                 left={42.4}
                 top={59}
-                label="Radiation · sim /"
-                value={(shown.radiationUSvH ?? (MISSIONS[mission].radiationMSvDay * 1000) / 24).toFixed(1)}
+                label="Radiation /"
+                value={String(
+                  Math.round(shown.radiationUSvH ?? (MISSIONS[mission].radiationMSvDay * 1000) / 24),
+                )}
                 unit="µSv/h"
               />
               <Reading

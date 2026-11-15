@@ -31,7 +31,6 @@ import {
   type DepthLayer,
 } from './anatomy/organs'
 import type { LiveFaceFrame } from '../camera/face/liveFace'
-import { Segmented } from '../ui'
 import { usePulse } from '../camera/pulse/pulseSession'
 
 export interface Hotspot {
@@ -56,7 +55,6 @@ export interface Pin {
 }
 
 export type Layer = 'signals' | 'physiology'
-type Motion = 'still' | 'heart' | 'breathing'
 
 /** What the physiology engine says about this body today. */
 export interface BodyPhysiology {
@@ -237,7 +235,6 @@ interface Stage {
   setPhysiology: (p: BodyPhysiology) => void
   setHeart: (h: Heart) => void
   setBreathingRate: (rate: number | undefined) => void
-  setMotion: (m: Motion) => void
   setExerciseMotion: (mode: ExerciseMotion | null, startedAt?: number) => void
   setAvatar: (a: AvatarCapture | null) => void
   setFaceOptions: (live: RefObject<LiveFaceFrame | null> | null, calibration?: FaceCalibration) => void
@@ -398,7 +395,6 @@ function createStage(
   let physio: BodyPhysiology = { fluidShiftL: 0, fluidShiftShare: 0, bonePct: 100, musclePct: 100 }
   let heart: Heart = { bpm: 62, live: false, lastBeatAt: null }
   let breathingRate: number | undefined
-  let motion: Motion = 'still'
   let portrait: AvatarCapture | null = null
   let liveFace: RefObject<LiveFaceFrame | null> | null = null
   let calibration: FaceCalibration | undefined
@@ -903,11 +899,12 @@ function createStage(
       trailPos.y = lensAt.y
     }
 
-    // Only the cadence is measured. The displayed phase and depth are illustrative.
+    // The heart always beats and the chest always breathes. The breathing cadence is the measured one
+    // when there is one, the phase and depth are illustrative.
     shared.uBreathing.value =
       !reduce && exercise
         ? Math.sin(demoBreathPhase * 2 * Math.PI) * 0.012
-        : !reduce && motion === 'breathing' && breathingRate
+        : !reduce && breathingRate
           ? Math.sin((t * 2 * Math.PI * breathingRate) / 60) * 0.012
           : 0
     // Heartbeat: the two heart sounds, timed on the live beat when there is one.
@@ -919,10 +916,7 @@ function createStage(
         ? (sinceBeat / period) % 1
         : (t / period) % 1
     const bump = (c: number, w: number) => Math.exp(-(((phase - c) / w) ** 2))
-    const beat =
-      reduce || (!exercise && motion !== 'heart')
-        ? 0
-        : bump(0, 0.07) + bump(1, 0.07) + 0.55 * bump(0.24, 0.08)
+    const beat = reduce ? 0 : bump(0, 0.07) + bump(1, 0.07) + 0.55 * bump(0.24, 0.08)
 
     skin.visible = !!current && skinOpacity > 0
     const skinSeeThrough = skinOpacity < 1
@@ -934,7 +928,7 @@ function createStage(
     skinMaterial.opacity = skinOpacity
     shared.uSolidSkin.value = !skinSeeThrough
     const lensOpen = shared.uLens.value.w > 0.12
-    flow.value = (exercise || motion === 'heart') && skinSeeThrough ? 0.35 + 0.65 * beat : 0
+    flow.value = skinSeeThrough ? 0.35 + 0.65 * beat : 0
     if (current) face?.updateLive(liveFace?.current ?? null, calibration)
     const portraitVisible = face?.portraitVisible ?? false
     const surfaceVisible = !!current && !skinSeeThrough
@@ -1200,9 +1194,6 @@ function createStage(
       demoBeatPhase = demoBreathPhase = 0
       if (value) flyTo(1, 0)
     },
-    setMotion: (m) => {
-      motion = m
-    },
     setAvatar: (a) => {
       portrait = a
       updatePortrait()
@@ -1297,7 +1288,6 @@ export default function BodyScan({
   const [inventory, setInventory] = useState<string[]>([])
   useEffect(() => onInventory?.(inventory), [onInventory, inventory])
   const [depth, setDepth] = useState(0)
-  const [motion, setMotion] = useState<Motion>(breathingRate ? 'breathing' : 'heart')
 
   // The heart beats with the webcam pulse when it is measuring, otherwise with the wearable feed.
   const pulse = usePulse()
@@ -1355,7 +1345,6 @@ export default function BodyScan({
     () => stage.current?.setExerciseMotion(exerciseMotion, exerciseStartedAt),
     [exerciseMotion, exerciseStartedAt, studio, portraitOnly],
   )
-  useEffect(() => stage.current?.setMotion(motion), [motion, studio, portraitOnly])
   useEffect(() => stage.current?.setAvatar(avatar), [avatar, studio, portraitOnly])
   useEffect(
     () => stage.current?.setFaceOptions(liveFace, calibration),
@@ -1666,27 +1655,6 @@ export default function BodyScan({
               : 'absolute top-1/2 right-4 z-[5] hidden -translate-y-1/2 flex-col items-end gap-3 sm:flex lg:right-8'
           }
         >
-          {!studio && (
-            <Segmented
-              size="sm"
-              label="Body motion"
-              value={motion}
-              onChange={setMotion}
-              className="bg-black/40 backdrop-blur-md"
-              options={[
-                { id: 'still', label: 'Still' },
-                { id: 'heart', label: 'Heartbeat' },
-                { id: 'breathing', label: 'Breathing' },
-              ]}
-            />
-          )}
-          {!studio && motion === 'breathing' && (
-            <p className="max-w-[15rem] rounded-lg bg-black/65 px-3 py-1.5 text-right text-[13px] text-white">
-              {breathingRate
-                ? `Last webcam estimate · ${Math.round(breathingRate)} breaths/min`
-                : 'Measure your breathing to animate the chest.'}
-            </p>
-          )}
           <div className="flex flex-wrap justify-center gap-1.5">
             {studio &&
               [-35, 35].map((degrees) => (

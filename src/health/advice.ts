@@ -58,7 +58,11 @@ const FROM_SIGNAL: Record<SignalId, { kind: AdviceKind; title: string; now?: str
   headache: { kind: 'air', title: 'Check the air where you sleep' },
   hydration: { kind: 'hydration', title: 'Drink more through the day' },
   redCells: { kind: 'hydration', title: 'Drink more, then repeat the test' },
-  opticNerve: { kind: 'eyes', title: 'Test your vision today' },
+  opticNerve: {
+    kind: 'eyes',
+    title: 'Test your vision today',
+    now: 'Get your eyes and your lens dose checked',
+  },
   cabinAir: { kind: 'air', title: 'Check the CO2 scrubber' },
   radiation: {
     kind: 'radiation',
@@ -83,7 +87,12 @@ export function advise(report: DayReport, mission: MissionId): Advice[] {
       id: `signal:${s.id}`,
       kind: rule.kind,
       level: s.level,
-      title: s.level === 'act' && rule.now ? rule.now : rule.title,
+      title:
+        s.level === 'act' && rule.now
+          ? rule.now
+          : s.id === 'opticNerve' && s.sources.includes('SANS_EXAM_CRITERIA')
+            ? 'Have your eye exam reviewed'
+            : rule.title,
       why: s.meaning,
       signal: s.id,
     })

@@ -4,6 +4,8 @@ import { formatMetric } from '../metrics'
 import type { BreathReading } from '../../camera/breathReading'
 import type { LiveVitals } from '../../simulation/live'
 import LivePulse from './LivePulse'
+import RadiationReadout from './RadiationReadout'
+import type { MissionId } from '../../mission/missions'
 
 interface Cell {
   metric: MetricId
@@ -20,6 +22,8 @@ interface Cell {
  */
 export default function VitalsStrip({
   readings,
+  mission,
+  day,
   onPick,
   onOpenCamera,
   onBreathing,
@@ -27,6 +31,8 @@ export default function VitalsStrip({
   live,
 }: {
   readings: Readings
+  mission: MissionId
+  day: number
   onPick: (signal: SignalId, metric?: MetricId) => void
   onOpenCamera: () => void
   onBreathing: () => void
@@ -117,6 +123,7 @@ export default function VitalsStrip({
           <span className="block font-cond text-[13px] text-white/75">{c.source}</span>
         </button>
       ))}
+      <RadiationReadout mission={mission} day={day} onOpen={() => onPick('radiation', 'dose')} />
     </section>
   )
 }

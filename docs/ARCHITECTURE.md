@@ -19,6 +19,7 @@ src/
   selftests/  self-tests: catalogue, results, usual result, what is due, camera engine, sensors, screens
   exercises/  the habitat exercise demo played by the avatar
   camera/     webcam features: face fitting (face/), pulse measurement (pulse/), breathing (respiration/)
+  telemetry/  local medical archives, CBOR/compression/encryption, simulated delayed downlink and its panel
   ui/         shared components
   styles/     global styles
 ```
@@ -32,6 +33,12 @@ The destination (`mission/missions.ts`) sets the gravity, the share of the weigh
 Someone added gets typical values for their reference body and no storyline. Their identity, role, optional call sign, speciality, flight history and choice of body stay in the browser. Height, weight and chest and waist circumferences adjust the mannequin (`crew/bodyDimensions.ts`, `crew/torsoFit.ts`). These measurements and the resting pulse before launch are optional and stay in memory, unless the person chooses to keep them on this device. Only a pulse measured live with a good enough signal is compared with the resting pulse before launch, separately from the simulated data.
 
 A confirmed avatar is stored in IndexedDB under a per-profile key. New crew profiles receive a fresh key even when they reuse a deleted member's name. The renderer rebuilds the fitted head from the cropped portrait views, landmarks, optional reconstructed surface and calibration. Returning to a profile restores the face without camera access. Replacing or removing the portrait updates the same record. Deleting an added member also removes their portrait.
+
+## Organ monitoring and medical downlink
+
+`health/dosimetry.ts` integrates supplied organ absorbed-dose intervals using the published NASA RBE convention; `health/ocular.ts` validates examinations and applies ocular review criteria. `health/medicalRecords.ts` keeps inputs per member and mission. `health/readings.ts` combines these findings with the daily signals; `simulation/live.ts` retains them during playback. The radiation card displays environmental dose rate separately from organ dose. [Research and model limits](DOSIMETRY_RESEARCH.md)
+
+`telemetry/packet.ts` captures a versioned medical snapshot. `archive.ts` stores it in IndexedDB and performs actual CBOR, gzip, encryption and integrity checks; `transport.ts` models queuing, outages and delayed receipts locally. `ControlCenter.tsx` exposes archiving, simulated sending and downloads. No remote transport is connected. [Formats and prototype boundaries](TELEMETRY.md)
 
 ## Daily check-up
 

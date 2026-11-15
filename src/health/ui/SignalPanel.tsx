@@ -12,6 +12,7 @@ import { SOURCES } from '../sources'
 import { Button, Chip } from '../../ui'
 import { freshnessText } from './format'
 import TrendChart from './TrendChart'
+import DosimetryPanel from './DosimetryPanel'
 
 /** Signals whose space limits come from weightless flights, where partial gravity changes the picture. */
 const GRAVITY_SENSITIVE = new Set<SignalId>([
@@ -78,7 +79,6 @@ export default function SignalPanel({
       <div className="flex justify-end">
         <Chip level={signal.level} />
       </div>
-
       <dl className="space-y-4">
         {blocks.map(([title, text]) => (
           <div key={title}>
@@ -100,6 +100,15 @@ export default function SignalPanel({
           {planned ? <CheckCircle size={16} weight="fill" /> : <ListPlus size={16} />}
           {planned ? "In today's check-up" : "Add to today's check-up"}
         </Button>
+      )}
+
+      {(signal.id === 'radiation' || signal.id === 'opticNerve') && (
+        <DosimetryPanel
+          memberId={report.member.id}
+          mission={mission}
+          day={report.day}
+          eye={signal.id === 'opticNerve'}
+        />
       )}
 
       {tests.length > 0 && (
