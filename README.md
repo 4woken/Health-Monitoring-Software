@@ -1,6 +1,6 @@
 # Pulsar
 
-[Open the live Pulsar demo on Vercel](https://pulsar-crew-health.vercel.app/)
+[Open the live Pulsar demo on Vercel](https://pulsar-crew-health.vercel.app/) or [watch the one-minute film](docs/video/pulsar-film.mp4): a day on board, from the morning's to-do list to a solar storm and the report sent to Earth, with the squats and the AR visor filmed for real.
 
 ![Day 97 of the cruise to Mars: the controls on the left, three things to do today on the right, the markers on the body](docs/screenshots/dashboard.jpg)
 
