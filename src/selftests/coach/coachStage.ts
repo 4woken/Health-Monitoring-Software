@@ -30,9 +30,10 @@ export function coachStage(
   canvas: HTMLCanvasElement,
   onReady: () => void,
   onError: (message: string) => void,
+  besideCamera = false,
 ) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true })
-  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio))
+  renderer.setPixelRatio(Math.min(besideCamera ? 1 : 2, window.devicePixelRatio))
   const scene = new THREE.Scene()
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.05, 12)
   const key = new THREE.DirectionalLight(0xffede2, 2.2)
@@ -56,6 +57,7 @@ export function coachStage(
   let disposed = false
   let started = performance.now()
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)')
+  let needsDraw = true
   const restHips = new THREE.Vector3()
   const restFeet = [new THREE.Vector3(), new THREE.Vector3()]
   const forefoot = new THREE.Vector3()
@@ -68,6 +70,7 @@ export function coachStage(
   const joint = (name: VRMHumanBoneName) => bone(name).getWorldPosition(point)
 
   function resize() {
+    needsDraw = true
     const { width, height: pixels } = canvas.getBoundingClientRect()
     if (!width || !pixels) return
     renderer.setSize(width, pixels, false)
@@ -229,7 +232,20 @@ export function coachStage(
   }
 
   let raf = 0
+  let lastDraw = -Infinity
+  let lastReduced = false
   const draw = (time: number) => {
+    raf = requestAnimationFrame(draw)
+    if (document.hidden || !model) return
+    if (
+      !needsDraw &&
+      reduced.matches === lastReduced &&
+      (reduced.matches || (besideCamera && time - lastDraw < 1000 / 15 - 1))
+    )
+      return
+    needsDraw = false
+    lastReduced = reduced.matches
+    lastDraw = time
     if (model && chair && wall) {
       const t = reduced.matches ? 0.75 : Math.max(0, time - started) / 1000
       chair.visible = move === 'sitToStand'
@@ -238,7 +254,6 @@ export function coachStage(
       updateFigure(model)
     }
     renderer.render(scene, camera)
-    raf = requestAnimationFrame(draw)
   }
   raf = requestAnimationFrame(draw)
   return {
