@@ -1,3 +1,5 @@
+
+https://github.com/user-attachments/assets/45a869f7-ce86-4abd-939f-bcef396fe121
 <p align="center">
   <img src="public/brand/pulsar-mark.svg" alt="" width="96" height="96" />
 </p>
@@ -11,6 +13,11 @@
   &nbsp;&nbsp;·&nbsp;&nbsp;
   <a href="docs/video/pulsar-film.mp4"><strong>Watch the one-minute film</strong></a>
 </p>
+
+
+https://github.com/user-attachments/assets/7f27f7cb-d3f7-44c7-bc94-346272c49496
+
+
 
 ![Day 97 of the cruise to Mars: the controls on the left, three things to do today on the right, the markers on the body](docs/screenshots/dashboard.jpg)
 
