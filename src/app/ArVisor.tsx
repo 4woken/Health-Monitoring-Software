@@ -110,6 +110,12 @@ function Reading({
   )
 }
 
+/**
+ * The height of an item along the top of the glass: its place on the frame, or lower when a wide
+ * screen cuts off the top of the frame, keeping the same gaps in the row.
+ */
+const glassTop = (pct: number, em: number) => `max(${pct}%, calc(var(--ar-cut) + ${em}em))`
+
 const pulseLevel = (bpm: number): Level => (bpm >= 170 ? 'act' : bpm >= 150 ? 'watch' : 'ok')
 const oxygenLevel = (pct: number): Level => (pct < 90 ? 'act' : pct < 94 ? 'watch' : 'ok')
 const heatLevel = (c: number): Level => (c >= 38.5 ? 'act' : c >= 38 ? 'watch' : 'ok')
@@ -230,7 +236,10 @@ export default function ArVisor({
         />
 
         {/* The top of the glass: the brand, the menu, the suit's links and battery. */}
-        <p className="ar-brand absolute flex items-center gap-[0.5em]" style={{ left: '21.5%', top: '7.4%' }}>
+        <p
+          className="ar-brand absolute flex items-center gap-[0.5em]"
+          style={{ left: '21.5%', top: glassTop(7.4, 1.2) }}
+        >
           <Logo size={20} />
           PULSAR
         </p>
@@ -239,7 +248,7 @@ export default function ArVisor({
           aria-label="Visor menu"
           data-big={gazing || undefined}
           className="ar-menu absolute flex items-center gap-[0.6em]"
-          style={{ left: '50%', top: '12.6%', transform: 'translateX(-50%)' }}
+          style={{ left: '50%', top: glassTop(12.6, 4.1), transform: 'translateX(-50%)' }}
         >
           <button data-gaze="hud" onClick={() => setHud((h) => !h)} aria-pressed={!hud}>
             {hud ? <EyeSlash size="1.15em" /> : <Eye size="1.15em" />}
@@ -261,7 +270,7 @@ export default function ArVisor({
         {hud && (
           <div
             className="ar-status absolute flex items-center gap-[0.7em]"
-            style={{ right: '20%', top: '7.6%' }}
+            style={{ right: '20%', top: glassTop(7.6, 1.3) }}
             title="Biosensor link, voice link and suit battery"
           >
             {shown.clock && <span className="tabular-nums">{shown.clock}</span>}
@@ -277,7 +286,7 @@ export default function ArVisor({
           <p
             role="alert"
             className="ar-alert absolute flex items-center gap-[0.5em]"
-            style={{ left: '50%', top: '21%', color: LEVEL_LINE[shown.alert.level] }}
+            style={{ left: '50%', top: glassTop(21, 8.9), color: LEVEL_LINE[shown.alert.level] }}
           >
             <WarningCircle size="1.3em" weight="fill" />
             {shown.alert.text}

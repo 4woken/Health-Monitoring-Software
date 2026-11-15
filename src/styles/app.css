@@ -496,14 +496,18 @@ input[type='range'].day-range::-moz-range-thumb {
 
 /* The helmet frame and everything on its glass share one box with the frame's proportions
    (1672 × 941), covering the screen as the picture does, so the readings keep their place along
-   the rim. One em is a hundredth of its width. Narrow screens show the whole frame instead. */
+   the rim. One em is a hundredth of its width. Narrow screens show the whole frame instead.
+   --ar-cut is the part of the frame's top that a wide screen leaves out, so the top row can move
+   down into view. */
 .ar-stage {
   --ar-w: max(100vw, 177.7vh);
+  --ar-h: calc(var(--ar-w) / 1.7768);
+  --ar-cut: max(0px, (var(--ar-h) - 100vh) / 2);
   position: absolute;
   left: 50%;
   top: 50%;
   width: var(--ar-w);
-  height: calc(var(--ar-w) / 1.7768);
+  height: var(--ar-h);
   transform: translate(-50%, -50%);
   font-size: calc(var(--ar-w) / 100);
 }
