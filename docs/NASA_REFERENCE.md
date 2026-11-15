@@ -35,7 +35,8 @@ Exercise (MEDB 5.2) takes 2.5 hours every day. Other requirements run all the ti
 
 - **Pop-up on the body.** The first in-flight requirement on that signal's question, with its schedule.
 - **Details of a signal.** Every requirement on the same question, in flight first, then before and after flight, then after the career.
-- **Check-up.** The NASA tasks that fall on the mission day, under "Exams and NASA schedule".
+- **Check-up.** The NASA tasks that fall on the mission day, under "Exams and NASA schedule", and their at-home versions under "Self-tests": the vision test on the days of MEDB 1.10, the thinking test on those of MEDB 7.4, the hearing test on day 21 (MEDB 1.8), the pulse recovery test on the cycle test days (MEDB N3.07) and the resting pulse on the health check days (MEDB 1.2).
+- **Self-tests.** Each test says which NASA requirement it follows and how it differs. In the full list of requirements, **At-home version** opens the matching test.
 - **NASA reference panel.** It opens from the body screen and from the details of a signal. It starts with five factors of the chosen destination: gravity, radiation, light and UV, the closed cabin, and the distance from Earth. For each, it says what the factor does to the body there and what NASA does about it, then lists the signals that follow it. Below come all 47 requirements.
 
 ## By destination

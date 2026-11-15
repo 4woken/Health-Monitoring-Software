@@ -78,7 +78,7 @@ export function environmentOf(mission: MissionId): Factor[] {
       response:
         'Exercise 2.5 hours a day, with a fitness test on days 14 and 75 and the calf measured every 2 weeks. Eye exams on days 30 and 90 and a vein ultrasound on days 30 and 60 watch the fluid shift. Bone density is scanned before and after flight, and 45 days of reconditioning follow landing.',
       codes: ['MEDB 5.2', 'MEDB N3.07', 'MEDB 5.4', 'MEDB 1.10', 'MEDB 1.12', 'MEDB 1.11', 'MR026L'],
-      signals: ['loading', 'opticNerve', 'neckVein', 'bodyMass'],
+      signals: ['loading', 'opticNerve', 'neckVein', 'bodyMass', 'balance'],
     },
     {
       id: 'radiation',

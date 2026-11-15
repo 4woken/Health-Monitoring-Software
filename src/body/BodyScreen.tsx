@@ -7,14 +7,14 @@ import { regionOf } from './anatomy/bodyShape'
 import { anatomyChoices, organNote } from './anatomy/organs'
 import type { PersonalAvatar } from '../camera/face/portrait'
 import type { BreathReading } from '../camera/breathReading'
-import type { CameraView } from '../camera/CameraScreen'
 import { useCheckup } from '../checkup/useCheckup'
 import DashboardDimensions from '../crew/DashboardDimensions'
 import type { Member } from '../crew/roster'
 import { KIND_LABEL, advise, type Advice } from '../health/advice'
 import { requirementsFor, type Phase } from '../health/exams'
 import { SIGNAL_METRICS, type MetricId } from '../health/metrics'
-import { dayReport, history } from '../health/readings'
+import { history } from '../health/readings'
+import { useDayReport } from '../health/useDayReport'
 import { LIMITS, type Signal, type SignalId } from '../health/signals'
 import NasaReference from '../health/ui/NasaReference'
 import SignalPanel from '../health/ui/SignalPanel'
@@ -25,6 +25,8 @@ import { HABITATS, type HabitatId } from '../mission/habitats'
 import MissionLab, { type ProfileId, type SimInput } from '../mission/MissionLab'
 import { MISSIONS, type MissionId } from '../mission/missions'
 import { MISSION_PROFILES, simulateProfile, type MissionPhase } from '../mission/physiology'
+import { SELF_TESTS, testsFor } from '../selftests/catalog'
+import type { SelfTestId } from '../selftests/ids'
 import { Button, Chip, EASE, LEVEL_LINE, Sparkline, StatusDot } from '../ui'
 import { useNarrow } from '../ui/useNarrow'
 
@@ -43,10 +45,19 @@ const PINNED = 3
 const LISTED = 6
 
 const LEVEL_WORD = { ok: 'Normal', watch: 'Needs a check today', act: 'Act now' } as const
-/** Short exercises that answer a signal, opened in the check-up. */
-const EXERCISE_FOR: Partial<Record<SignalId, { kind: ExerciseKind; label: string }>> = {
-  sleep: { kind: 'reaction', label: 'Check my sleep and reaction' },
-  mood: { kind: 'breathing', label: 'Check in on my stress' },
+/** The self-test offered beside an organ shown on its own. */
+const ORGAN_TEST: Record<string, SelfTestId> = {
+  brain: 'reaction',
+  'right eyeball': 'vision',
+  'left eyeball': 'vision',
+  heart: 'restingPulse',
+  'right lung': 'breathingRate',
+  'left lung': 'breathingRate',
+  lungs: 'breathingRate',
+  'arm bones': 'dexterity',
+  'leg bones': 'sitToStand',
+  pelvis: 'squats',
+  'vertebral column': 'squats',
 }
 const PIN_STYLE = { act: 'bg-[#cd3a3a] text-white', watch: 'bg-[#f0a73a] text-[#1b1204]' } as const
 const PHASE_WORD: Record<Phase, string> = {
@@ -57,7 +68,6 @@ const PHASE_WORD: Record<Phase, string> = {
 
 import AvatarDemoVitals from '../exercises/AvatarDemoVitals'
 import type { DemoPlayback } from '../exercises/demoVitals'
-import type { ExerciseKind } from '../exercises/exercisePlan'
 
 interface Props {
   member: Member
@@ -68,8 +78,8 @@ interface Props {
   habitat: HabitatId
   onGravity: (value: number) => void
   exerciseDemo: DemoPlayback | null
-  onOpenCamera: (view?: CameraView) => void
-  onOpenExercises: (kind: ExerciseKind) => void
+  /** Opens the self-tests, on one test when given. */
+  onOpenTest: (test?: SelfTestId) => void
   breath: BreathReading | null
   /** Width covered on the right by a panel of the app, such as the check-up. */
   covered: number
@@ -92,8 +102,7 @@ export default function BodyScreen({
   habitat,
   onGravity,
   exerciseDemo,
-  onOpenCamera,
-  onOpenExercises,
+  onOpenTest,
   breath,
   covered,
   paused,
@@ -140,7 +149,7 @@ export default function BodyScreen({
   const [todoOpen, setTodoOpen] = useState(false)
   const [sizeOpen, setSizeOpen] = useState(false)
 
-  const report = useMemo(() => dayReport(member, day, mission), [member, day, mission])
+  const report = useDayReport(member, day, mission)
   const signals = report.signals
   const advice = useMemo(() => advise(report, mission), [report, mission])
   const checkup = useCheckup(report, mission)
@@ -261,16 +270,8 @@ export default function BodyScreen({
   }
 
   const note = organ ? organNote(organ) : null
-  const exercise =
-    organ === 'arm bones'
-      ? 'assembly'
-      : organ === 'leg bones'
-        ? 'knee'
-        : focused?.id === 'sleep'
-          ? 'reaction'
-          : focused?.id === 'mood'
-            ? 'breathing'
-            : null
+  /** The self-test offered under the note of an organ shown on its own. */
+  const offered: SelfTestId | null = organ ? (ORGAN_TEST[organ] ?? null) : null
   const organSignals = organ ? signals.filter((s) => (ORGAN_SIGNALS[organ] ?? []).includes(s.id)) : []
   const caption =
     place.kind === 'generated'
@@ -290,10 +291,10 @@ export default function BodyScreen({
       onPlan={() => checkup.follow(picked)}
       onDetails={() => details(picked.id)}
       onClose={() => setSelected(null)}
-      exercise={
-        EXERCISE_FOR[picked.id] && {
-          label: EXERCISE_FOR[picked.id]!.label,
-          onOpen: () => onOpenExercises(EXERCISE_FOR[picked.id]!.kind),
+      test={
+        testsFor(picked.id)[0] && {
+          label: SELF_TESTS[testsFor(picked.id)[0]].action,
+          onOpen: () => onOpenTest(testsFor(picked.id)[0]),
         }
       }
     />
@@ -458,8 +459,8 @@ export default function BodyScreen({
           readings={report.readings}
           breath={breath}
           onPick={details}
-          onOpenCamera={() => onOpenCamera('pulse')}
-          onBreathing={() => onOpenCamera('respiration')}
+          onOpenCamera={() => onOpenTest('restingPulse')}
+          onBreathing={() => onOpenTest('breathingRate')}
         />
       </div>
 
@@ -495,6 +496,7 @@ export default function BodyScreen({
                   signals={signals}
                   onSignal={(id) => details(id)}
                   onSimulate={() => showMission(true)}
+                  onTest={onOpenTest}
                 />
               ) : sheet === 'trends' ? (
                 <div className="px-5 pb-6">
@@ -585,6 +587,7 @@ export default function BodyScreen({
                   planned={checkup.covers(focused)}
                   onPlan={() => checkup.follow(focused)}
                   onReference={() => setSheet('nasa')}
+                  onTest={onOpenTest}
                 />
               ) : (
                 <>
@@ -618,20 +621,14 @@ export default function BodyScreen({
                   ))}
                 </>
               )}
-              {exercise && (
+              {offered && note && (
                 <div className="px-5 pb-5">
                   <button
                     type="button"
                     className="press min-h-10 rounded-full border border-white/30 px-4 text-sm hover:bg-white/10"
-                    onClick={() => onOpenExercises(exercise)}
+                    onClick={() => onOpenTest(offered)}
                   >
-                    {exercise === 'assembly'
-                      ? 'Explore hand coordination'
-                      : exercise === 'knee'
-                        ? 'Explore seated mobility'
-                        : exercise === 'breathing'
-                          ? 'Check in on my stress'
-                          : 'Check my sleep and reaction'}
+                    {SELF_TESTS[offered].action}
                   </button>
                 </div>
               )}
@@ -693,7 +690,7 @@ function PartCard({
   onPlan,
   onDetails,
   onClose,
-  exercise,
+  test,
 }: {
   signal: Signal
   advice?: Advice
@@ -702,8 +699,8 @@ function PartCard({
   onPlan: () => void
   onDetails: () => void
   onClose: () => void
-  /** A short exercise on the same question. */
-  exercise?: { label: string; onOpen: () => void }
+  /** The self-test on the same question. */
+  test?: { label: string; onOpen: () => void }
 }) {
   const nasa = requirementsFor(signal.id)
   const reference = nasa.find((r) => r.phase === 'flight') ?? nasa[0]
@@ -757,9 +754,9 @@ function PartCard({
             {planned ? 'In the check-up' : 'Add to the check-up'}
           </Button>
         )}
-        {exercise && (
-          <Button size="sm" kind="ghost" onClick={exercise.onOpen}>
-            {exercise.label}
+        {test && (
+          <Button size="sm" kind="ghost" onClick={test.onOpen}>
+            {test.label}
           </Button>
         )}
       </div>

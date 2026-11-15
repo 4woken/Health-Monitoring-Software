@@ -1,6 +1,6 @@
 # Exercise tracking models
 
-These are unmodified Google MediaPipe float16 version 1 model bundles, served on demand from the application origin. The CPU runtime uses the same local WebAssembly files as the face camera. Camera frames and landmark coordinates stay in memory for the duration of the exercise. The counts describe visible gestures.
+These are unmodified Google MediaPipe float16 version 1 model bundles, served on demand from the application origin. The CPU runtime uses the same local WebAssembly files as the face camera. The self-tests use them for the body (balance, sit-to-stand, squats, heel raises, the squats of the pulse recovery test) and for the hand (hand dexterity, the covered eye of the vision test). Camera frames and landmark coordinates stay in memory for the duration of a test. The counts describe visible movements.
 
 | Model | SHA-256 | Source and model card |
 | --- | --- | --- |

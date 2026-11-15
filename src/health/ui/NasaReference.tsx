@@ -1,6 +1,8 @@
 import { useState } from 'react'
-import { CaretDown } from '@phosphor-icons/react'
+import { ArrowRight, CaretDown } from '@phosphor-icons/react'
 import type { MissionId } from '../../mission/missions'
+import { SELF_TESTS, testsForCode } from '../../selftests/catalog'
+import type { SelfTestId } from '../../selftests/ids'
 import { PLACE, environmentOf, type FactorId } from '../environment'
 import { NASA_REQUIREMENTS, NASA_SOURCES, type Phase } from '../exams'
 import type { Signal, SignalId } from '../signals'
@@ -22,12 +24,15 @@ export default function NasaReference({
   signals,
   onSignal,
   onSimulate,
+  onTest,
 }: {
   mission: MissionId
   signals: Signal[]
   onSignal: (id: SignalId) => void
   /** Shows gravity and radiation acting on the body over the mission. */
   onSimulate: () => void
+  /** Opens the at-home self-test of a requirement. */
+  onTest?: (test: SelfTestId) => void
 }) {
   const factors = environmentOf(mission)
   const [open, setOpen] = useState<FactorId | null>(() => factors.find((f) => f.strong)?.id ?? null)
@@ -145,6 +150,20 @@ export default function NasaReference({
                     <p className="mt-0.5 text-[13px] leading-snug text-white/80">{r.when}.</p>
                     <p className="mt-0.5 text-[13px] leading-snug text-white/60">{r.what}</p>
                     {r.signals.length > 0 && chips(r.signals)}
+                    {onTest && testsForCode(r.code).length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                        {testsForCode(r.code).map((id) => (
+                          <button
+                            key={id}
+                            onClick={() => onTest(id)}
+                            className="press inline-flex items-center gap-1 text-[13px] text-ink underline decoration-line-strong underline-offset-4 hover:decoration-ink"
+                          >
+                            At-home version: {SELF_TESTS[id].title}
+                            <ArrowRight size={12} />
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>

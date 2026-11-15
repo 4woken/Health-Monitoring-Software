@@ -185,6 +185,8 @@ export function regionOf(signalId: string, build: Build): { pos: Vec3; label: st
       return { pos: [-0.03, 1.72, 0.06], label: 'Head' }
     case 'sleep':
       return { pos: [0.02, 1.7, -0.08], label: 'Brain and sleep' }
+    case 'balance':
+      return { pos: [-0.075, 1.655, -0.01], label: 'Inner ear' }
     case 'neckVein':
       return { pos: [0.045, 1.49, 0.02], label: 'Neck vein' }
     case 'oxygen':

@@ -144,6 +144,10 @@ export default function MissionMenu({
                 </button>
               ))}
             </div>
+            <p className="mt-2 text-[12px] leading-snug text-dim">
+              Station and spacecraft: NASA photographs. Rover and bases: illustrations generated from NASA
+              images, not NASA designs.
+            </p>
           </motion.div>
         )}
       </AnimatePresence>

@@ -24,7 +24,7 @@ Technical sources:
 
 ## What was built
 
-The **Face & body** view of the camera tools opens the same Three.js body as the Body screen. MediaPipe's 468 surface landmarks align the portrait with the head and the eyes of the reference model, with soft edges and a skin colour blend. The live face shows on the body in the studio; the Body screen then gets the still portrait the person chose. The tracking never produces a health value.
+The **Face fitting studio**, in the Lab of the self-tests, opens the same Three.js body as the Body screen. MediaPipe's 468 surface landmarks align the portrait with the head and the eyes of the reference model, with soft edges and a skin colour blend. The live face shows on the body in the studio; the Body screen then gets the still portrait the person chose. The tracking never produces a health value.
 
 1. Pick a crew member, open **Camera** and choose **Face & body**, then a frontal portrait or the guided three-angle fit.
 2. Click **Start my webcam** and allow the camera in the browser.
@@ -37,6 +37,6 @@ When the person returns to the same site in this browser, the profile loads its 
 
 A more faithful full head would need a separate capture step, a dedicated reconstruction, a check of the model licences and an import of the result into the viewer. A webcam alone cannot reach the photorealism of the MetaHuman reference.
 
-The **Pulse camera** view of the camera tools keeps the experimental pulse measurement and its CSV export. Its **Capture & check the fit** button (**Review a new portrait** when the person already has one) takes one still frame and opens the same fit step in **Face & body**. Nothing reaches the body before **Use this face**.
+The **Pulse camera**, in the same Lab, keeps the experimental pulse measurement and its CSV export. The portrait itself is set up in the profile setup or in the face fitting studio; nothing reaches the body before **Use this face** or **Next**.
 
 The fit uses separate MediaPipe templates for the two reference heads. The outline, the eyes, the nose and the mouth place the portrait; a limited change of the skin shape follows the estimated face while keeping the join at the neck. **Auto-fit face** restores these settings. The pixels of each video frame are frozen before the landmarks are computed, so the live view and the capture use the same image. **Play sample motion** moves the fictional sample in front of the same live pipeline, to check this path without access to a webcam. Details, and how to rebuild the templates: [FACE_FITTING.md](FACE_FITTING.md).

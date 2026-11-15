@@ -1,7 +1,10 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { DayReport } from '../health/readings'
 import type { Signal } from '../health/signals'
 import type { MissionId } from '../mission/missions'
+import { SELF_TESTS } from '../selftests/catalog'
+import { dueTests } from '../selftests/due'
+import { useResults } from '../selftests/results'
 import { rulesPlanner, type Planner, type Task } from './planner'
 
 /** One person's check-up for one mission day, as kept in this browser. */
@@ -51,7 +54,10 @@ const subscribe = (listener: () => void) => {
 export const checkupKey = (memberId: string, mission: MissionId, day: number) =>
   `pulsar.checkup.${memberId}.${mission}.${day}`
 
-/** Today's check-up for the person in `report`: planned on first use, then edited by hand. */
+/**
+ * Today's check-up for the person in `report`: planned on first use, then edited by hand. The
+ * self-tests due today are added live, from the results, so a test done anywhere ticks its task.
+ */
 export function useCheckup(report: DayReport, mission: MissionId, planner: Planner = rulesPlanner) {
   const key = checkupKey(report.member.id, mission, report.day)
   const plan = useSyncExternalStore(subscribe, () => read(key))
@@ -74,13 +80,31 @@ export function useCheckup(report: DayReport, mission: MissionId, planner: Plann
     if (read(key).planned === null) void replan()
   }, [key, replan])
 
+  const results = useResults(report.member.id)
+  const due = useMemo(() => dueTests(report, mission, results), [report, mission, results])
   const update = (change: (plan: DayPlan) => DayPlan) => write(key, change(read(key)))
   const planned = (plan.planned ?? []).filter((t) => !plan.removed.includes(t.id))
-  const tasks = [...planned, ...plan.own]
+  const tests: Task[] = due
+    .map((d) => ({
+      id: `test:${d.test}`,
+      kind: 'test' as const,
+      title: d.cause === 'repeat' ? `${SELF_TESTS[d.test].title}, again` : SELF_TESTS[d.test].title,
+      detail: d.reason,
+      signal: SELF_TESTS[d.test].signal,
+      test: d.test,
+    }))
+    .filter((t) => !plan.removed.includes(t.id))
+  const tasks = [...planned, ...tests, ...plan.own]
+  const doneByTest = [
+    ...due.filter((d) => d.done).map((d) => `test:${d.test}`),
+    ...planned
+      .filter((t) => t.test && results.some((r) => r.test === t.test && r.day === report.day))
+      .map((t) => t.id),
+  ]
 
   return {
     tasks,
-    done: new Set(plan.done),
+    done: new Set([...plan.done, ...doneByTest]),
     planning,
     credit: planner.credit,
     replan,
@@ -98,7 +122,8 @@ export function useCheckup(report: DayReport, mission: MissionId, planner: Plann
       update((p) => ({
         ...p,
         own: p.own.filter((t) => t.id !== id),
-        removed: p.planned?.some((t) => t.id === id) ? [...p.removed, id] : p.removed,
+        removed:
+          p.planned?.some((t) => t.id === id) || id.startsWith('test:') ? [...p.removed, id] : p.removed,
         done: p.done.filter((d) => d !== id),
       })),
     /** True when a task on the list comes from this signal. */

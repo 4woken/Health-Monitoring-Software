@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import type { Build } from '../body/anatomy/bodyShape'
 import type { AvatarCapture, PersonalAvatar } from '../camera/face/portrait'
 import { EMPTY_SIZE, loadSize, saveSize, type BodyDimensions, type SizeSetting } from './bodyDimensions'
-import { clearExerciseHistory } from '../exercises/exercisePlan'
+import { clearResults } from '../selftests/results'
 import { ROLES, TEAM, memberForStorage, readProfileDetails, type Member } from './roster'
 import { loadPortraits, storePortrait } from './portraitStorage'
 
@@ -200,7 +200,7 @@ export function CrewProvider({ children }: { children: ReactNode }) {
       // An old tab can still show a deleted member while a namesake now owns the slug.
       if (remaining.some((m) => m.id === id)) return
       saveSize(id, {}, false)
-      clearExerciseHistory(id)
+      clearResults(id)
       setSizes(({ [id]: _size, ...rest }) => rest)
       setCurrentId((selected) => (selected === id ? null : selected))
     },

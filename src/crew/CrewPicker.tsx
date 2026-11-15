@@ -64,11 +64,11 @@ export default function CrewPicker({
             className="rise mt-6 max-w-[34rem] text-[clamp(18px,1.7vw,22px)] leading-relaxed text-white/90"
             style={delay(160)}
           >
-            Pick a crew member to explore their body in space or open the camera to measure your own pulse and
-            breathing.
+            Pick a crew member to explore their body in space, then take the self-tests NASA&apos;s crews
+            take: reaction, balance, vision, pulse and more.
           </p>
           <p className="rise mt-3 text-[15px] text-white/65" style={delay(240)}>
-            Mission records are simulated. Camera readings are experimental estimates.
+            Mission records are simulated. Self-test results are yours, measured on this device.
           </p>
         </div>
 

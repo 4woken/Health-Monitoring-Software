@@ -193,7 +193,7 @@ export default function LivePulse({
             </p>
             <p className="mt-1 flex gap-3 text-[11px]">
               <button onClick={onOpenCamera} className="text-accent hover:underline">
-                Open camera
+                Open the pulse test
               </button>
               <button onClick={stopPulse} className="text-muted hover:text-ink">
                 Stop camera

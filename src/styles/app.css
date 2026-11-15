@@ -491,3 +491,44 @@ input[type='range'].day-range::-moz-range-thumb {
     border-top: 1px solid rgb(255 255 255 / 0.14);
   }
 }
+
+/* ---------- Simulated augmented-reality visor ---------- */
+
+/* Faint lines across the visor glass, as on a head-up display. */
+.ar-scan {
+  background: repeating-linear-gradient(0deg, rgb(111 208 236 / 0.045) 0 1px, transparent 1px 4px);
+  mix-blend-mode: screen;
+}
+.ar-glow {
+  text-shadow:
+    0 0 10px rgb(111 208 236 / 0.45),
+    0 0 2px rgb(0 0 0 / 0.6);
+}
+.ar-pane {
+  background: rgb(6 18 26 / 0.5);
+  border: 1px solid rgb(111 208 236 / 0.35);
+  box-shadow:
+    0 0 24px rgb(111 208 236 / 0.12),
+    inset 0 0 18px rgb(111 208 236 / 0.06);
+  backdrop-filter: blur(6px);
+  clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
+}
+/* A blurred copy of the outside shows only towards the edges of the visor. */
+.ar-periphery {
+  -webkit-mask-image: radial-gradient(ellipse 62% 58% at 50% 50%, transparent 55%, black 100%);
+  mask-image: radial-gradient(ellipse 62% 58% at 50% 50%, transparent 55%, black 100%);
+}
+/* The heartbeat trace scrolls one screen width per four beats. */
+.ar-ecg {
+  animation: ar-trace linear infinite;
+}
+@keyframes ar-trace {
+  to {
+    transform: translateX(-320px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ar-ecg {
+    animation: none;
+  }
+}

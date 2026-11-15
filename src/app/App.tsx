@@ -1,8 +1,7 @@
-import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { Camera, Check, ListChecks, UserFocus } from '@phosphor-icons/react'
+import { Camera, Check, Eyeglasses, Heartbeat, ListChecks } from '@phosphor-icons/react'
 import { BREATH_REPLAY_MS, recentBreath, type BreathReading } from '../camera/breathReading'
-import type { CameraView } from '../camera/CameraScreen'
 import { stopPulse, usePulse } from '../camera/pulse/pulseSession'
 import { useCheckup } from '../checkup/useCheckup'
 import { CrewProvider, useCrew } from '../crew/CrewProvider'
@@ -10,23 +9,24 @@ import CrewMenu from '../crew/CrewMenu'
 import CrewPicker from '../crew/CrewPicker'
 import type { Member } from '../crew/roster'
 import type { DemoPlayback, OnExerciseDemo } from '../exercises/demoVitals'
-import type { ExerciseKind } from '../exercises/exercisePlan'
-import { dayReport } from '../health/readings'
 import type { SignalId } from '../health/signals'
+import { useDayReport } from '../health/useDayReport'
 import { DEFAULT_HABITAT, type HabitatId } from '../mission/habitats'
 import MissionMenu from '../mission/MissionMenu'
 import { MISSIONS, missionDay, type MissionId } from '../mission/missions'
+import type { SelfTestId } from '../selftests/ids'
 import { Cover, Drawer, Logo } from '../ui'
 
-// The 3D body and the camera are the heaviest parts, so they load when first needed.
+// The 3D body, the self-tests and the camera tools are the heaviest parts, so they load when first needed.
 const BodyScreen = lazy(() => import('../body/BodyScreen'))
 const CheckupScreen = lazy(() => import('../checkup/CheckupScreen'))
-const CameraScreen = lazy(() => import('../camera/CameraScreen'))
+const SelfTestsScreen = lazy(() => import('../selftests/ui/SelfTestsScreen'))
 const CrewLogin = lazy(() => import('../crew/CrewLogin'))
 const NewMember = lazy(() => import('../crew/NewMember'))
+const ArVisor = lazy(() => import('./ArVisor'))
 
 /** Panels that open over the body. There is no other page. */
-type Panel = 'checkup' | 'camera'
+type Panel = 'checkup' | 'tests'
 type Page = 'intro' | 'profile' | 'dashboard'
 
 const CHECKUP_WIDTH = 560
@@ -53,10 +53,13 @@ function Shell() {
   const [page, setPage] = useState<Page>('intro')
   const [adding, setAdding] = useState(false)
   const [panel, setPanel] = useState<Panel | null>(null)
-  /** An exercise asked from the body, shown first in the check-up. */
-  const [exerciseInterest, setExerciseInterest] = useState<ExerciseKind>()
+  /** The simulated augmented-reality view, over everything. */
+  const [ar, setAr] = useState(false)
+  /** A self-test asked from elsewhere (the body, the check-up), opened directly. */
+  const [testRequest, setTestRequest] = useState<{ test?: SelfTestId; at: number }>({ at: 0 })
   const [mission, setMission] = useState<MissionId>('cruise')
-  const [days, setDays] = useState<Record<MissionId, number>>({ cruise: 60, orbit: 1, moon: 1, mars: 1 })
+  // Day 97 of the cruise: far enough into the flight for several storylines to need attention.
+  const [days, setDays] = useState<Record<MissionId, number>>({ cruise: 97, orbit: 1, moon: 1, mars: 1 })
   const day = days[mission]
   const setDay = (next: number) =>
     setDays((previous) => ({ ...previous, [mission]: missionDay(mission, next) }))
@@ -77,7 +80,6 @@ function Shell() {
     return () => clearTimeout(t)
   }, [toast])
 
-  const [cameraView, setCameraView] = useState<CameraView>('portrait')
   const [breath, setBreath] = useState<(BreathReading & { ownerId: string }) | null>(null)
   const ownerId = member.id
   const clearBreath = useCallback(() => setBreath(null), [])
@@ -92,29 +94,23 @@ function Shell() {
   }, [breath])
 
   const close = useCallback(() => setPanel(null), [])
-  const openCamera = (view: CameraView = 'portrait') => {
-    if (view !== 'pulse') stopPulse()
-    setCameraView(view)
-    setPanel('camera')
+  /** Opens the self-tests, on one test when asked. */
+  const openTest = (test?: SelfTestId) => {
+    setTestRequest({ test, at: Date.now() })
+    setPanel('tests')
   }
   const toggle = (next: Panel) => {
-    setExerciseInterest(undefined)
-    if (next === 'camera') {
-      if (panel === 'camera') close()
-      else openCamera()
-      return
-    }
+    if (next === 'tests' && panel !== 'tests') return openTest()
     setPanel((p) => (p === next ? null : next))
   }
   const leaveDashboard = () => {
     stopPulse()
+    setAr(false)
     setPlayback(null)
     clearBreath()
     setPanel(null)
     setRequest(null)
-    setExerciseInterest(undefined)
     setToast(null)
-    setCameraView('portrait')
   }
   const openMember = (id: string, destination: 'profile' | 'dashboard') => {
     leaveDashboard()
@@ -135,7 +131,6 @@ function Shell() {
   }
   // A new destination brings its usual habitat; the habitat menu can still pick another.
   const chooseMission = (next: MissionId) => {
-    setExerciseInterest(undefined)
     setMission(next)
     setHabitat(DEFAULT_HABITAT[next])
   }
@@ -199,12 +194,15 @@ function Shell() {
                 </span>
               </button>
             )}
+            <HeaderButton on={ar} onClick={() => setAr(true)} label="AR view">
+              <Eyeglasses size={17} />
+            </HeaderButton>
             <HeaderButton on={panel === 'checkup'} onClick={() => toggle('checkup')} label="Check-up">
               <ListChecks size={17} />
               <PendingCount member={member} mission={mission} day={day} />
             </HeaderButton>
-            <HeaderButton on={panel === 'camera'} onClick={() => toggle('camera')} label="Camera">
-              <UserFocus size={17} />
+            <HeaderButton on={panel === 'tests'} onClick={() => toggle('tests')} label="Tests">
+              <Heartbeat size={17} />
             </HeaderButton>
             <MissionMenu
               mission={mission}
@@ -212,10 +210,7 @@ function Shell() {
               habitat={habitat}
               onHabitat={setHabitat}
               day={day}
-              onDay={(next) => {
-                setExerciseInterest(undefined)
-                setDay(next)
-              }}
+              onDay={setDay}
             />
           </div>
         </div>
@@ -232,14 +227,10 @@ function Shell() {
             habitat={habitat}
             onGravity={setGravity}
             exerciseDemo={playing}
-            onOpenCamera={openCamera}
-            onOpenExercises={(kind) => {
-              setExerciseInterest(kind)
-              setPanel('checkup')
-            }}
+            onOpenTest={openTest}
             breath={recentBreath(breath, member.id, Date.now())}
             covered={panel === 'checkup' ? CHECKUP_WIDTH : 0}
-            paused={panel === 'camera'}
+            paused={panel === 'tests' || ar}
             request={request}
           />
         </Suspense>
@@ -260,7 +251,6 @@ function Shell() {
                 habitat={habitat}
                 gravity={gravity}
                 onDemo={onDemo}
-                exerciseInterest={exerciseInterest}
                 member={member}
                 mission={mission}
                 day={day}
@@ -268,30 +258,47 @@ function Shell() {
                   setRequest({ signal, at: Date.now() })
                   close()
                 }}
+                onStartTest={openTest}
               />
             </Suspense>
           </Drawer>
         )}
-        {panel === 'camera' && (
-          <Cover key="camera" title={`Camera, ${member.short}`} onClose={close}>
+        {panel === 'tests' && (
+          <Cover key="tests" title={`Self-tests, ${member.short}`} onClose={close}>
             <Suspense fallback={<Loading />}>
-              <CameraScreen
-                key={member.id}
-                initialView={cameraView}
-                preflightRestingPulseBpm={member.preflightRestingPulseBpm}
+              <SelfTestsScreen
+                key={`${member.id}:${testRequest.at}`}
+                member={member}
+                mission={mission}
+                day={day}
+                initialTest={testRequest.test}
                 onBreathReading={acceptBreath}
                 onBreathUnavailable={clearBreath}
-                person={member.short}
-                build={member.build}
-                avatar={crew.faceOf(member.id)}
-                onSavePortrait={(capture) => crew.setFace(member.id, capture)}
-                onApplied={() => {
+                onShowSignal={(signal) => {
+                  setRequest({ signal, at: Date.now() })
+                  close()
+                }}
+                onPortraitSaved={() => {
                   close()
                   setToast(`Portrait saved to ${member.short}'s profile in this browser.`)
                 }}
               />
             </Suspense>
           </Cover>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {ar && (
+          <Suspense key="ar" fallback={null}>
+            <ArVisor
+              member={member}
+              mission={mission}
+              day={day}
+              onMission={chooseMission}
+              onClose={() => setAr(false)}
+            />
+          </Suspense>
         )}
       </AnimatePresence>
 
@@ -345,7 +352,7 @@ function HeaderButton({
 
 /** Tasks of today's check-up not done yet, next to its button. */
 function PendingCount({ member, mission, day }: { member: Member; mission: MissionId; day: number }) {
-  const report = useMemo(() => dayReport(member, day, mission), [member, day, mission])
+  const report = useDayReport(member, day, mission)
   const checkup = useCheckup(report, mission)
   const left = checkup.tasks.filter((t) => !checkup.done.has(t.id)).length
   if (left === 0) return null

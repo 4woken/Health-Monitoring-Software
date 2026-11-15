@@ -1,9 +1,13 @@
 // One person's day: what is known about them, how fresh each value is, and the signals it gives.
 // Values come from a SIMULATED device feed: wearables report daily, ultrasound and blood tests
-// only on their scheduled days, so some values are days old.
+// only on their scheduled days, so some values are days old. The person's own self-tests are real
+// measurements and are added on top: a camera pulse taken today, camera-counted resistance sets and
+// a vision change found by the vision test.
 
 import type { Member } from '../crew/roster'
 import { MISSIONS, missionDay, type MissionId } from '../mission/missions'
+import { latestOn, testFacts } from '../selftests/facts'
+import { resultsOf } from '../selftests/results'
 import { METRICS, type MetricId } from './metrics'
 import { cabinOn, readingsOn } from './simulation'
 import { assess, type Readings, type Signal, type SignalId } from './signals'
@@ -35,6 +39,7 @@ export const SCHEDULE: Record<SignalId, Schedule> = {
   redCells: { source: 'Blood analyser', every: 30, freshFor: 21, automatic: false },
   immunity: { source: 'Blood analyser', every: 30, freshFor: 21, automatic: false },
   vitaminD: { source: 'Blood sample', every: 60, freshFor: 75, automatic: false },
+  balance: { source: 'Your self-tests', every: 1, freshFor: 14, automatic: false },
 }
 
 /** Day of the latest measurement of a signal, on or before `day`. */
@@ -48,6 +53,8 @@ export interface Freshness {
   /** Next scheduled measurement, for values not taken every day. */
   nextDay: number | null
   automatic: boolean
+  /** Nothing measured yet: only the person's own self-tests give this value. */
+  never?: boolean
 }
 
 export function freshness(id: SignalId, day: number, lastDay = Infinity): Freshness {
@@ -63,15 +70,21 @@ export function freshness(id: SignalId, day: number, lastDay = Infinity): Freshn
   }
 }
 
-/** Each value as of its latest measurement. */
+/** Each value as of its latest measurement, with the person's own self-tests of that day. */
 export function readingsFor(member: Member, day: number, mission: MissionId): Readings {
   const at = (id: SignalId) => readingsOn(member, lastTaken(id, day), mission)
   const eye = at('opticNerve')
   const vein = at('neckVein')
   const blood = at('redCells')
   const cells = at('immunity')
+  const today = readingsOn(member, day, mission)
+  const tests = testFacts(member.id, day)
   return {
-    ...readingsOn(member, day, mission),
+    ...today,
+    visionChange: today.visionChange || tests.vision?.changed === true,
+    restingPulseBpm: tests.measuredPulseBpm ?? today.restingPulseBpm,
+    // A set counted by the camera is a resistance session; there is at most one a day.
+    resistanceSessions: Math.min(7, today.resistanceSessions + tests.exerciseDays),
     opticNerveMm: eye.opticNerveMm,
     neckVeinFlow: vein.neckVeinFlow,
     neckVeinClot: vein.neckVeinClot,
@@ -92,11 +105,44 @@ export interface DayReport {
   freshness: Record<SignalId, Freshness>
 }
 
+/** How fresh the balance signal is: as fresh as the latest balance or hand test. */
+function testFreshness(memberId: string, day: number): Freshness {
+  const results = resultsOf(memberId)
+  const last = [latestOn(results, 'balance', day), latestOn(results, 'dexterity', day)]
+    .filter((r) => r !== undefined)
+    .sort((a, b) => b.day - a.day)[0]
+  const source = SCHEDULE.balance.source
+  if (!last)
+    return {
+      source,
+      takenDay: day,
+      ageDays: 0,
+      outdated: false,
+      nextDay: null,
+      automatic: false,
+      never: true,
+    }
+  const ageDays = day - last.day
+  return {
+    source,
+    takenDay: last.day,
+    ageDays,
+    outdated: ageDays > SCHEDULE.balance.freshFor,
+    nextDay: null,
+    automatic: false,
+  }
+}
+
 export function dayReport(member: Member, day: number, mission: MissionId): DayReport {
   day = missionDay(mission, day)
   const readings = readingsFor(member, day, mission)
-  const signals = assess(readings, member.baseline, cabinOn(day, mission))
-  const fresh = Object.fromEntries(signals.map((s) => [s.id, freshness(s.id, day, MISSIONS[mission].days)]))
+  const signals = assess(readings, member.baseline, cabinOn(day, mission), testFacts(member.id, day))
+  const fresh = Object.fromEntries(
+    signals.map((s) => [
+      s.id,
+      s.id === 'balance' ? testFreshness(member.id, day) : freshness(s.id, day, MISSIONS[mission].days),
+    ]),
+  )
   return { member, day, readings, signals, freshness: fresh as Record<SignalId, Freshness> }
 }
 

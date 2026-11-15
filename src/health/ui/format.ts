@@ -8,4 +8,6 @@ export function ageText(f: Freshness): string {
 
 /** Where a value comes from and how old it is, in one line. */
 export const freshnessText = (f: Freshness) =>
-  `${f.source}, ${ageText(f)}${f.outdated ? '. Out of date: measure again.' : ''}`
+  f.never
+    ? `${f.source}: none yet.`
+    : `${f.source}, ${ageText(f)}${f.outdated ? '. Out of date: measure again.' : ''}`

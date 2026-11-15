@@ -21,11 +21,15 @@ export const GUIDE: Record<SignalId, Guide> = {
   },
   sleep: {
     what: 'Average sleep over the last week. Noise, workload and the lack of a normal day make sleep harder: the station sees 16 sunrises a day.',
-    how: 'Measured by the wearable sensor. Nothing to do.',
+    how: 'Measured by the wearable sensor. Alertness comes from your own reaction and thinking tests, in Self-tests.',
   },
   mood: {
     what: 'How the person rates their own mood, averaged over a week. Months in a small space far from home wear on anyone.',
     how: 'A rating from 1 (very low) to 5 (very good), once a day.',
+  },
+  balance: {
+    what: 'Balance and fine control of the hands. The inner ear senses gravity, so each change of it, into weightlessness or back into gravity, upsets balance and coordination for days.',
+    how: 'Your own tests in Self-tests: the balance test with the camera (or your phone on your chest), and the hand dexterity test.',
   },
   neckVein: {
     what: 'How blood drains from the head through the large vein in the neck. Without gravity pulling it down, the flow can slow or stall.',
@@ -33,7 +37,7 @@ export const GUIDE: Record<SignalId, Guide> = {
   },
   oxygen: {
     what: 'The oxygen level in the blood and the resting pulse. Low gravity changes the heart and the vessels, so the trend matters as much as one value.',
-    how: 'The wearable sensor, at rest. The pulse can also be read with the camera, on the Camera page.',
+    how: 'The wearable sensor, at rest. Your own pulse can also be read with the camera, in Self-tests.',
   },
   bodyChecks: {
     what: 'Blood pressure, temperature and blood sugar: the first checks a doctor would make. Far from a doctor, the crew makes them.',
@@ -113,6 +117,10 @@ export const NASA_RISK: Partial<Record<SignalId, { name: string; url: string }>>
   immunity: {
     name: 'Altered Immune System Responses',
     url: 'https://www.nasa.gov/reference/risk-of-altered-immune-system-responses/',
+  },
+  balance: {
+    name: 'Altered Sensorimotor and Vestibular Function',
+    url: 'https://www.nasa.gov/reference/risk-of-altered-sensorimotor-and-vestibular-function/',
   },
   sleep: {
     name: 'Inadequate Sleep and Irregular Schedules',

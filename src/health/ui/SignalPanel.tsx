@@ -1,5 +1,8 @@
-import { ArrowUpRight, CheckCircle, ListPlus } from '@phosphor-icons/react'
+import { ArrowRight, ArrowUpRight, CheckCircle, ListPlus } from '@phosphor-icons/react'
 import { MISSIONS, type MissionId } from '../../mission/missions'
+import { SELF_TESTS, testsFor } from '../../selftests/catalog'
+import type { SelfTestId } from '../../selftests/ids'
+import { BASELINE_RUNS, useResults } from '../../selftests/results'
 import { NASA_SOURCES, requirementsFor, type Phase } from '../exams'
 import { GUIDE, NASA_RISK } from '../guide'
 import type { MetricId } from '../metrics'
@@ -37,6 +40,7 @@ export default function SignalPanel({
   planned,
   onPlan,
   onReference,
+  onTest,
 }: {
   report: DayReport
   signal: Signal
@@ -47,12 +51,16 @@ export default function SignalPanel({
   onPlan: () => void
   /** Opens the whole NASA reference. */
   onReference?: () => void
+  /** Opens a self-test on the same question. */
+  onTest?: (test: SelfTestId) => void
 }) {
   const guide = GUIDE[signal.id]
   const fresh = report.freshness[signal.id]
   const m = MISSIONS[mission]
   const risk = NASA_RISK[signal.id]
   const nasa = requirementsFor(signal.id)
+  const tests = testsFor(signal.id)
+  const results = useResults(report.member.id).filter((r) => r.day <= report.day)
   const blocks: [string, string][] = [
     ['Value', signal.value],
     ['What it is', guide.what],
@@ -64,7 +72,12 @@ export default function SignalPanel({
     <div className="space-y-5 px-5 pb-6">
       <div className="flex items-center justify-between gap-2">
         <p className="text-[13px] text-muted">
-          {report.member.short}, day {report.day}. Simulated data.
+          {report.member.short}, day {report.day}.{' '}
+          {signal.id === 'balance'
+            ? 'Your own self-tests only.'
+            : tests.length
+              ? 'Simulated data, with your own self-tests.'
+              : 'Simulated data.'}
         </p>
         <Chip level={signal.level} />
       </div>
@@ -90,6 +103,38 @@ export default function SignalPanel({
           {planned ? <CheckCircle size={16} weight="fill" /> : <ListPlus size={16} />}
           {planned ? "In today's check-up" : "Add to today's check-up"}
         </Button>
+      )}
+
+      {tests.length > 0 && (
+        <div className="border-t border-line-soft pt-4">
+          <p className="font-cond text-[13px] text-white/60">Your self-tests on this question</p>
+          <ul className="mt-2 divide-y divide-white/[0.07]">
+            {tests.map((id) => {
+              const t = SELF_TESTS[id]
+              const runs = results.filter((r) => r.test === id)
+              const last = runs[runs.length - 1]
+              return (
+                <li key={id} className="flex items-center gap-3 py-2.5">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[15px] font-medium">{t.title}</p>
+                    <p className="text-[13px] leading-snug text-white/65">
+                      {last
+                        ? `${t.score.format(last.score)}, day ${last.day}. ${runs.length < BASELINE_RUNS ? `Usual result: ${runs.length} of ${BASELINE_RUNS} runs.` : last.note}`
+                        : 'Not done yet.'}
+                    </p>
+                  </div>
+                  {last && last.level !== 'ok' && <Chip level={last.level} />}
+                  {onTest && (
+                    <Button size="sm" kind="ghost" onClick={() => onTest(id)} aria-label={t.action}>
+                      Start
+                      <ArrowRight size={14} />
+                    </Button>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        </div>
       )}
 
       {GRAVITY_SENSITIVE.has(signal.id) && m.gravity > 0 && (

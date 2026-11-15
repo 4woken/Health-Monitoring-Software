@@ -206,6 +206,19 @@ export const SOURCES: Record<string, Source> = {
     says: 'The 600 mSv limit is real. The 50% early-warning step is our own choice.',
     status: 'demo',
   },
+  SELF_TEST: {
+    id: 'SELF_TEST',
+    title: 'Our assumption: a self-test result worse than your own usual one',
+    says: 'Each self-test compares a run with your first three, the way NASA compares in-flight cognitive tests with preflight baselines. How far is too far (for example 10% slower reactions or a 20% slower sit-to-stand) is our own choice. A flagged result asks for a repeat within 24 hours, as NASA does after a red cognitive test (MEDB 7.4).',
+    status: 'demo',
+  },
+  SENSORIMOTOR: {
+    id: 'SENSORIMOTOR',
+    title: 'NASA Human Research Program, risk of altered sensorimotor and vestibular function',
+    url: 'https://www.nasa.gov/reference/risk-of-altered-sensorimotor-and-vestibular-function/',
+    says: 'Balance, eye-head coordination and fine motor control change with each change of gravity. The risk is highest around these transitions, as after landing, and functional deficits after long flights can last about a week.',
+    status: 'verified',
+  },
   SLEEP: {
     id: 'SLEEP',
     title: 'Our assumption: 7-day average sleep under 6 hours',

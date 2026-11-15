@@ -10,8 +10,9 @@ import { GUIDE } from '../health/guide'
 import { SCHEDULE, type DayReport } from '../health/readings'
 import { LIMITS, type SignalId } from '../health/signals'
 import { MISSIONS, type MissionId } from '../mission/missions'
+import type { SelfTestId } from '../selftests/ids'
 
-export type TaskKind = 'exam' | 'followUp' | 'routine' | 'own'
+export type TaskKind = 'exam' | 'test' | 'followUp' | 'routine' | 'own'
 
 export interface Task {
   id: string
@@ -20,6 +21,8 @@ export interface Task {
   detail: string
   /** The signal the task comes from, if any. */
   signal?: SignalId
+  /** The self-test that does this task: it can be started from the task, and ticks it when done. */
+  test?: SelfTestId
 }
 
 export interface PlanRequest {
@@ -130,6 +133,7 @@ export function planDay({ report, mission }: PlanRequest): Task[] {
       title: 'Measure your pulse with the camera',
       detail: 'One minute, facing the camera, in even light.',
       signal: 'oxygen',
+      test: 'restingPulse',
     },
   ]
 

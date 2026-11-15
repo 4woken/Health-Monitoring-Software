@@ -63,6 +63,7 @@ export const SIGNAL_METRICS: Record<SignalId, MetricId[]> = {
   headache: ['co2'],
   sleep: ['sleep'],
   mood: ['mood'],
+  balance: [],
   neckVein: [],
   oxygen: ['spo2', 'pulse'],
   bodyChecks: ['systolic', 'diastolic', 'glucose', 'temperature'],

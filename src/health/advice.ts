@@ -11,6 +11,7 @@ export type AdviceKind =
   | 'heart'
   | 'fatigue'
   | 'stress'
+  | 'balance'
   | 'hydration'
   | 'eyes'
   | 'air'
@@ -24,6 +25,7 @@ export const KIND_LABEL: Record<AdviceKind, string> = {
   heart: 'Heart',
   fatigue: 'Fatigue',
   stress: 'Stress',
+  balance: 'Balance',
   hydration: 'Hydration',
   eyes: 'Eyes',
   air: 'Air',
@@ -52,6 +54,7 @@ const FROM_SIGNAL: Record<SignalId, { kind: AdviceKind; title: string; now?: str
   neckVein: { kind: 'heart', title: 'Repeat the neck ultrasound', now: 'Get medical advice now' },
   sleep: { kind: 'fatigue', title: 'Protect tonight’s sleep' },
   mood: { kind: 'stress', title: 'Take a real break today' },
+  balance: { kind: 'balance', title: 'Move with care, test again tomorrow' },
   headache: { kind: 'air', title: 'Check the air where you sleep' },
   hydration: { kind: 'hydration', title: 'Drink more through the day' },
   redCells: { kind: 'hydration', title: 'Drink more, then repeat the test' },

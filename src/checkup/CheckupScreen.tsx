@@ -1,19 +1,20 @@
-import { useMemo, useState, type FormEvent } from 'react'
-import { ArrowClockwise, Check, Plus, X } from '@phosphor-icons/react'
+import { useState, type FormEvent } from 'react'
+import { ArrowClockwise, ArrowRight, Check, Plus, X } from '@phosphor-icons/react'
 import type { HabitatId } from '../mission/habitats'
 import type { OnExerciseDemo } from '../exercises/demoVitals'
+import EnvironmentExerciseDemo from '../exercises/EnvironmentExerciseDemo'
 import type { Member } from '../crew/roster'
 import type { SignalId } from '../health/signals'
-import { dayReport } from '../health/readings'
+import { useDayReport } from '../health/useDayReport'
 import { MISSIONS, type MissionId } from '../mission/missions'
+import type { SelfTestId } from '../selftests/ids'
 import { Button } from '../ui'
 import type { Task, TaskKind } from './planner'
-import ExerciseMissions from '../exercises/ExerciseMissions'
-import type { ExerciseKind } from '../exercises/exercisePlan'
 import { useCheckup } from './useCheckup'
 
 const GROUPS: { kind: TaskKind; title: string }[] = [
   { kind: 'exam', title: 'Exams and NASA schedule' },
+  { kind: 'test', title: 'Self-tests' },
   { kind: 'followUp', title: 'Follow-ups from the signals' },
   { kind: 'routine', title: 'Every day' },
   { kind: 'own', title: 'Added by hand' },
@@ -25,10 +26,10 @@ export default function CheckupScreen({
   mission,
   day,
   onShow,
-  exerciseInterest,
   habitat,
   gravity,
   onDemo,
+  onStartTest,
 }: {
   member: Member
   habitat: HabitatId
@@ -38,10 +39,10 @@ export default function CheckupScreen({
   day: number
   /** Shows the part of the body a task is about. */
   onShow: (signal: SignalId) => void
-  /** An exercise asked from the body, opened first. */
-  exerciseInterest?: ExerciseKind
+  /** Opens a self-test, which ticks its task when done. */
+  onStartTest: (test: SelfTestId) => void
 }) {
-  const report = useMemo(() => dayReport(member, day, mission), [member, day, mission])
+  const report = useDayReport(member, day, mission)
   const checkup = useCheckup(report, mission)
   const [draft, setDraft] = useState('')
   const total = checkup.tasks.length
@@ -71,15 +72,6 @@ export default function CheckupScreen({
       </div>
 
       <div className="pt-6">
-        <ExerciseMissions
-          key={`${member.id}:${mission}:${day}`}
-          habitat={habitat}
-          gravity={gravity}
-          onDemo={onDemo}
-          memberId={member.id}
-          person={member.short}
-          interest={exerciseInterest}
-        />
         {checkup.planning && total === 0 && <p className="py-6 text-muted">Planning the day…</p>}
         {GROUPS.map(({ kind, title }) => {
           const tasks = checkup.tasks.filter((t) => t.kind === kind)
@@ -96,12 +88,21 @@ export default function CheckupScreen({
                     onToggle={() => checkup.toggle(task.id)}
                     onRemove={() => checkup.remove(task.id)}
                     onShow={task.signal ? () => onShow(task.signal!) : undefined}
+                    onStart={task.test ? () => onStartTest(task.test!) : undefined}
                   />
                 ))}
               </ul>
             </section>
           )
         })}
+
+        {/* What exercise looks like here: the body on the left plays it for 30 seconds. */}
+        <EnvironmentExerciseDemo
+          key={`${habitat}:${gravity}`}
+          habitat={habitat}
+          gravity={gravity}
+          onDemo={onDemo}
+        />
 
         <form onSubmit={add} className="mt-8 flex gap-2" aria-label="Add a task">
           <input
@@ -138,12 +139,15 @@ function TaskRow({
   onToggle,
   onRemove,
   onShow,
+  onStart,
 }: {
   task: Task
   done: boolean
   onToggle: () => void
   onRemove: () => void
   onShow?: () => void
+  /** Starts the self-test that does this task. */
+  onStart?: () => void
 }) {
   return (
     <li className="group flex items-start gap-4 py-4">
@@ -163,13 +167,23 @@ function TaskRow({
           {task.title}
         </p>
         {task.detail && !done && <p className="mt-1 text-[14px] leading-relaxed text-muted">{task.detail}</p>}
-        {onShow && !done && (
-          <button
-            onClick={onShow}
-            className="mt-1.5 text-[13px] text-white/70 underline-offset-4 hover:underline"
-          >
-            See it on the body
-          </button>
+        {!done && (onStart || onShow) && (
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
+            {onStart && (
+              <Button size="sm" kind="primary" onClick={onStart}>
+                Start
+                <ArrowRight size={14} />
+              </Button>
+            )}
+            {onShow && (
+              <button
+                onClick={onShow}
+                className="text-[13px] text-white/70 underline-offset-4 hover:underline"
+              >
+                See it on the body
+              </button>
+            )}
+          </div>
         )}
       </div>
       <button

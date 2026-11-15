@@ -33,6 +33,14 @@ Two additional terrain references are retained in `references/`:
 - `references/nasa-moon.jpg`: [Apollo 17 Astronaut's Snapshot of Taurus-Littrow Valley](https://science.nasa.gov/asset/hubble/apollo-17-astronauts-snapshot-of-taurus-littrow-valley/), photographed in December 1972. Published credit: **NASA, ESA, and J. Garvin (NASA/GSFC)**. Used for grey regolith, hills and an airless black sky. The generated scenes do not reproduce calibration crosses or the astronaut/rover in the photograph.
 - `references/nasa-mars.jpg`: [A Dramatic View of Mars' Mount Sharp](https://science.nasa.gov/resource/a-dramatic-view-of-mars-mount-sharp/), Curiosity panorama taken on 13 October 2019, **NASA/JPL-Caltech/MSSS**. Used for rock layers and terrain colour. The source is white-balanced and brightened; the generated scene is not a scientific reconstruction of lighting or atmosphere.
 
+Three NASA photographs in `eva/` are the views outside the helmet in the AR view:
+
+- `eva/nasa-earth-limb-iss.jpg`: Earth's limb above the Pacific Ocean off Chile, with part of Japan's Kibo laboratory module and its Exposed Facility, photographed from the International Space Station on 21 November 2020; NASA ID `iss064e006316`, credit **NASA**. [Image library record](https://images.nasa.gov/details/iss064e006316)
+- `eva/nasa-orion-earth-moon.jpg`: Orion with the Moon and the Earth in the distance on flight day 13 of Artemis I, 28 November 2022, at its farthest from Earth; NASA ID `art001e000672`, credit **NASA**. [Image library record](https://images.nasa.gov/details/art001e000672)
+- `eva/nasa-mars-curiosity.jpg`: "Mount Sharp 'Photobombs' Curiosity", the rover's self-portrait on Vera Rubin Ridge, January 2018; `PIA22207`, credit **NASA/JPL-Caltech/MSSS**. [Image library record](https://images.nasa.gov/details/PIA22207)
+
+The Moon view of the AR view is `references/nasa-moon.jpg`. The files are the "large" JPEGs of the NASA image library, unchanged.
+
 The habitat concepts are invented interiors inspired by terrestrial prototypes and real lunar/Martian landscapes. They do not show bases that already exist on the Moon or Mars.
 
 ## Downloaded files

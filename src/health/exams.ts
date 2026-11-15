@@ -405,7 +405,7 @@ export const NASA_REQUIREMENTS: Requirement[] = [
     when: 'Before and after flight',
     phase: 'ground',
     part: 'muscles',
-    signals: ['loading'],
+    signals: ['loading', 'balance'],
   },
   {
     code: 'MEDB 1.15',
@@ -419,11 +419,11 @@ export const NASA_REQUIREMENTS: Requirement[] = [
   {
     code: 'MEDB 1.5',
     name: 'Balance test',
-    what: 'Standing on a moving platform, to see how the balance system readapts to gravity.',
+    what: 'Standing on a moving platform with the eyes open, then closed, then closed with head movements, to see how the balance system readapts to gravity.',
     when: 'Before flight and after landing',
     phase: 'ground',
     part: 'ears',
-    signals: [],
+    signals: ['balance'],
   },
   {
     code: 'MEDB 1.9',
@@ -468,7 +468,7 @@ export const NASA_REQUIREMENTS: Requirement[] = [
     when: '2 hours each duty day for the first 45 days after landing',
     phase: 'ground',
     part: 'muscles',
-    signals: ['loading'],
+    signals: ['loading', 'balance'],
   },
   // For life.
   {

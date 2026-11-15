@@ -15,8 +15,9 @@ src/
     ui/       signal row, signal panel, NASA reference panel, charts, vital signs, live pulse
   mission/    destinations, habitats, the physiology engine and its panel
   checkup/    the daily check-up: planner and panel
-  exercises/  personal check-in and mini-missions
-  camera/     webcam features: face fitting (face/) and pulse measurement (pulse/)
+  selftests/  self-tests: catalogue, results, usual result, what is due, camera engine, sensors, screens
+  exercises/  the habitat exercise demo played by the avatar
+  camera/     webcam features: face fitting (face/), pulse measurement (pulse/), breathing (respiration/)
   ui/         shared components
   styles/     global styles
 ```
@@ -39,6 +40,14 @@ A confirmed avatar is stored in IndexedDB under a per-profile key. New crew prof
 
 `health/advice.ts` turns each signal that needs attention into one short action with a kind (exercise, stretching, heart, fatigue, stress and so on), and adds the mission's own, such as stretching the back in the first three weeks of weightlessness. The body screen pins the three most urgent to the body. `health/exams.ts` holds NASA's medical requirements for astronauts with their schedule, and `health/environment.ts` what each destination does to the body and what NASA does about it. [NASA_REFERENCE.md](NASA_REFERENCE.md) gives the sources and the limits.
 
+## Self-tests
+
+`selftests/catalog.ts` describes each test and exercise: what it measures, its steps, what NASA does on the same question and how this version differs, the signal it feeds and how a result is read (`judge`). `selftests/results.ts` keeps the results of each person in the browser; the first three runs of a test set the usual result (`baselineOf`), and `selftests/judge.ts` compares a run with it. `selftests/due.ts` says which tests are due on a mission day: NASA's flight days from `health/exams.ts`, signals that need attention, the first week after a change of gravity, and a flagged run to repeat within 24 hours.
+
+The results go back into the data through `selftests/facts.ts`. `health/readings.ts` takes a camera pulse of the day, camera-counted resistance sets and a vision change into the readings, and `health/signals.ts` reads the rest as `SelfTestFacts`: reaction and thinking tests in Sleep and alertness, balance and dexterity in Balance and coordination, sit-to-stand in loading, the pulse tests in Oxygen and resting pulse. `signals.ts` stays free of storage: `assess` receives the facts. `useDayReport` computes the day again when a result is saved, and `checkup/useCheckup.ts` adds the due tests to the check-up live, so a test ticks its task wherever it is done.
+
+The test logic is in pure modules with tests: `reaction/pvt.ts`, `cognition/cognition.ts`, `vision/acuity.ts`, `hearing/din.ts`, `balance/balance.ts` and `balance/phone.ts`, `movement/movement.ts`, `dexterity/pinch.ts`, `heart/ruffier.ts` and `heart/strap.ts`. `selftests/camera/session.ts` runs one camera with the MediaPipe models a test needs (pose, hands, face, with a crop of the head so the eyes can be read from a few metres), `voice.ts` speaks with a voice of this device and beeps, and `coach/` plays the movement on the avatar lab's VRM figure.
+
 ## Webcam
 
 The camera starts only when someone asks for it, and never uses the microphone. Frames are used while they are analysed, then dropped.
@@ -46,7 +55,7 @@ The camera starts only when someone asks for it, and never uses the microphone. 
 - `camera/pulse/` measures the pulse (POS method, see [VALIDATION.md](VALIDATION.md)) in one session shared by the whole app, so the 3D heart keeps beating with the measured pulse. The session stops on request (the camera button in the top bar, **Stop camera** on the heart-rate card, **Stop the camera** on the Pulse view), on an error, and when the page is hidden. Its tracks and the MediaPipe model are released when it stops.
 - `camera/face/` frames the face and prepares the portrait, which `body/portrait/` lays on the reference head ([FACE_FITTING.md](FACE_FITTING.md)). Its camera stops when the portrait is captured, when the face view closes and when the page is hidden.
 
-The two never film at the same time: the face view stops the pulse session before it starts its own camera or the sample.
+The two never film at the same time: the face view stops the pulse session before it starts its own camera or the sample. The self-tests do the same, except the pulse recovery test, which counts the squats on the pulse session's own stream. The AR view's eye control starts its own camera only while it is on.
 
 ## Changing or adding a signal
 

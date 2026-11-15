@@ -78,11 +78,63 @@ export interface Signal {
   sources: string[]
 }
 
+/** What one of the person's own self-tests says (camera, keyboard or headphones). */
+export interface SelfTestNote {
+  level: Level
+  /** The result in a few words, for example "reaction test 287 ms, 1 lapse". */
+  text: string
+  ageDays: number
+}
+
+/**
+ * The person's own self-tests as of one day, grouped by the signal they go to. They are real
+ * measurements, unlike the simulated readings, and are named as such in the interface.
+ */
+export interface SelfTestFacts {
+  /** Reaction and thinking tests, for sleep and alertness. */
+  alertness: SelfTestNote[]
+  /** Vision test, for the eyes; `changed` when it found a change. */
+  vision: (SelfTestNote & { changed: boolean }) | null
+  /** Balance and hand dexterity tests. */
+  balance: SelfTestNote[]
+  /** Sit-to-stand test, for the legs. */
+  legs: SelfTestNote[]
+  /** Pulse recovery, camera pulse and breathing rate. */
+  heart: SelfTestNote[]
+  /** Breathing breaks, for mood. */
+  calm: SelfTestNote[]
+  /** Pulse measured at rest with the camera on this day, bpm. */
+  measuredPulseBpm: number | null
+  /** Days, in the last 7, with a resistance set counted by the camera. */
+  exerciseDays: number
+  /** Two flagged runs of the same test in a row: what NASA hands to the flight surgeon. */
+  repeatedFlag: boolean
+}
+
+export const NO_SELF_TESTS: SelfTestFacts = {
+  alertness: [],
+  vision: null,
+  balance: [],
+  legs: [],
+  heart: [],
+  calm: [],
+  measuredPulseBpm: null,
+  exerciseDays: 0,
+  repeatedFlag: false,
+}
+
+const testLevel = (notes: SelfTestNote[]): Level =>
+  notes.some((n) => n.level === 'act') ? 'act' : notes.some((n) => n.level === 'watch') ? 'watch' : 'ok'
+const withTests = (value: string, notes: SelfTestNote[]) =>
+  notes.length ? `${value}; ${notes.map((n) => n.text).join('; ')}` : value
+const higher = (a: Level, b: Level): Level => (RANK[a] >= RANK[b] ? a : b)
+
 export const SIGNAL_IDS = [
   'opticNerve',
   'headache',
   'sleep',
   'mood',
+  'balance',
   'neckVein',
   'oxygen',
   'bodyChecks',
@@ -165,22 +217,30 @@ function redCells(r: Readings, b: Baseline): Signal {
   }
 }
 
-function opticNerve(r: Readings, b: Baseline): Signal {
+function opticNerve(r: Readings, b: Baseline, f: SelfTestFacts): Signal {
   const grown = r.opticNerveMm - b.opticNerveMm
+  const tested = f.vision?.changed === true
   const base = {
     id: 'opticNerve' as const,
     title: 'Optic nerve swelling',
-    value: `${r.opticNerveMm.toFixed(2)} mm (before launch ${b.opticNerveMm.toFixed(2)} mm)${r.visionChange ? ', vision change reported' : ''}`,
+    value: withTests(
+      `${r.opticNerveMm.toFixed(2)} mm (before launch ${b.opticNerveMm.toFixed(2)} mm)${r.visionChange ? ', vision change reported' : ''}`,
+      f.vision ? [f.vision] : [],
+    ),
   }
   if (r.visionChange || grown >= L.opticNerveChangeMm)
     return {
       ...base,
       level: 'watch',
-      meaning: r.visionChange
-        ? 'A vision change with this measurement needs a closer look for the eye syndrome of spaceflight (SANS).'
-        : `Grown ${grown.toFixed(2)} mm since launch. A change from this person's own value matters more than the size itself.`,
-      advice: 'Do a vision test and repeat the eye ultrasound.',
-      sources: ['ONSD_REVIEW', 'ONSD_CHANGE'],
+      meaning: tested
+        ? 'Your vision test found a change. With this measurement it needs a closer look for the eye syndrome of spaceflight (SANS).'
+        : r.visionChange
+          ? 'A vision change with this measurement needs a closer look for the eye syndrome of spaceflight (SANS).'
+          : `Grown ${grown.toFixed(2)} mm since launch. A change from this person's own value matters more than the size itself.`,
+      advice: tested
+        ? 'Tell the flight surgeon and repeat the eye ultrasound.'
+        : 'Do a vision test and repeat the eye ultrasound.',
+      sources: tested ? ['ONSD_REVIEW', 'ONSD_CHANGE', 'SELF_TEST'] : ['ONSD_REVIEW', 'ONSD_CHANGE'],
     }
   return {
     ...base,
@@ -244,41 +304,67 @@ function headache(r: Readings, cabin: Cabin): Signal | null {
   }
 }
 
-function sleep(r: Readings): Signal {
+function sleep(r: Readings, f: SelfTestFacts): Signal {
   const short = r.sleepHours < L.sleepMinHours
+  const tests = testLevel(f.alertness)
+  const slow = tests !== 'ok'
   return {
     id: 'sleep',
-    title: 'Sleep',
-    level: short ? 'watch' : 'ok',
-    value: `${r.sleepHours.toFixed(1)} h a night over 7 nights`,
-    meaning: short
-      ? 'A week of short nights lowers alertness and raises the risk of errors.'
-      : 'Enough sleep this week.',
-    advice: short ? 'Protect the sleep period: noise, light and cabin air.' : STEADY,
-    sources: ['SLEEP'],
+    title: 'Sleep and alertness',
+    level: higher(short ? 'watch' : 'ok', tests),
+    value: withTests(`${r.sleepHours.toFixed(1)} h a night over 7 nights`, f.alertness),
+    meaning: slow
+      ? `Your own test is below your usual result${short ? ', after a week of short nights' : ''}. NASA uses these tests to spot fatigue before it causes errors.`
+      : short
+        ? 'A week of short nights lowers alertness and raises the risk of errors.'
+        : f.alertness.length
+          ? 'Enough sleep this week, and your alertness test is as usual.'
+          : 'Enough sleep this week.',
+    advice: slow
+      ? f.repeatedFlag
+        ? 'Two tests in a row below your usual: tell the flight surgeon, and protect tonight’s sleep.'
+        : 'Protect tonight’s sleep, then repeat the test within 24 hours.'
+      : short
+        ? 'Protect the sleep period: noise, light and cabin air.'
+        : STEADY,
+    sources: slow ? ['SLEEP', 'SELF_TEST'] : ['SLEEP'],
   }
 }
 
-function oxygen(r: Readings): Signal {
-  const level: Level =
+function oxygen(r: Readings, f: SelfTestFacts): Signal {
+  const vitals: Level =
     r.spo2Pct < L.spo2Act
       ? 'act'
       : r.spo2Pct < L.spo2Watch || r.restingPulseBpm > L.restingPulseMax
         ? 'watch'
         : 'ok'
+  const tests = testLevel(f.heart)
+  const camera = f.measuredPulseBpm !== null ? ' (camera self-test today)' : ''
   return {
     id: 'oxygen',
     title: 'Oxygen and resting pulse',
-    level,
-    value: `Oxygen ${r.spo2Pct.toFixed(0)}%, pulse ${r.restingPulseBpm.toFixed(0)} bpm`,
-    meaning: level === 'ok' ? 'Both in the usual range.' : 'Outside the usual range.',
+    level: higher(vitals, tests),
+    value: withTests(
+      `Oxygen ${r.spo2Pct.toFixed(0)}%, pulse ${r.restingPulseBpm.toFixed(0)} bpm${camera}`,
+      f.heart.filter((n) => !n.text.startsWith('camera pulse')),
+    ),
+    meaning:
+      vitals !== 'ok'
+        ? 'Outside the usual range.'
+        : tests !== 'ok'
+          ? 'Both in the usual range, but your own heart test is below your usual result.'
+          : 'Both in the usual range.',
     advice:
-      level === 'act'
+      vitals === 'act'
         ? 'Sit down, check the sensor, and get medical advice now if the value stays low.'
-        : level === 'watch'
+        : vitals === 'watch'
           ? 'Measure again after 10 minutes at rest.'
-          : STEADY,
-    sources: ['VITALS'],
+          : tests !== 'ok'
+            ? f.repeatedFlag
+              ? 'Two tests in a row below your usual: tell the flight surgeon.'
+              : 'Rest today, then repeat the test within 24 hours.'
+            : STEADY,
+    sources: tests !== 'ok' ? ['VITALS', 'SELF_TEST'] : ['VITALS'],
   }
 }
 
@@ -297,33 +383,76 @@ function hydration(r: Readings): Signal {
   }
 }
 
-function loading(r: Readings): Signal {
+function loading(r: Readings, f: SelfTestFacts): Signal {
   const low = r.resistanceSessions < L.resistanceMinSessions
+  const legs = testLevel(f.legs)
+  const camera = f.exerciseDays ? `, ${f.exerciseDays} of them counted by the camera` : ''
   return {
     id: 'loading',
     title: 'Bone and muscle loading',
-    level: low ? 'watch' : 'ok',
-    value: `${r.resistanceSessions} resistance session${r.resistanceSessions === 1 ? '' : 's'} in 7 days`,
+    level: higher(low ? 'watch' : 'ok', legs),
+    value: withTests(
+      `${r.resistanceSessions} resistance session${r.resistanceSessions === 1 ? '' : 's'} in 7 days${camera}`,
+      f.legs,
+    ),
     meaning: low
       ? 'Too few for weightlessness, where unloaded hips and spine lose about 1 to 1.5% of their bone a month.'
-      : 'On plan. Resistance exercise is the main protection against bone and muscle loss.',
-    advice: low ? 'Make up the missed sessions this week.' : STEADY,
-    sources: ['BONE_LOSS', 'EXERCISE_PLAN'],
+      : legs !== 'ok'
+        ? 'On plan, but your sit-to-stand test is slower than your usual: the legs may be losing strength.'
+        : 'On plan. Resistance exercise is the main protection against bone and muscle loss.',
+    advice: low
+      ? 'Make up the missed sessions this week.'
+      : legs !== 'ok'
+        ? 'Keep up the resistance sessions and repeat the test within 24 hours.'
+        : STEADY,
+    sources: legs !== 'ok' ? ['BONE_LOSS', 'EXERCISE_PLAN', 'SELF_TEST'] : ['BONE_LOSS', 'EXERCISE_PLAN'],
   }
 }
 
-function mood(r: Readings): Signal {
+function mood(r: Readings, f: SelfTestFacts): Signal {
   const low = r.mood < L.moodLow
   return {
     id: 'mood',
     title: 'Mood',
     level: low ? 'watch' : 'ok',
-    value: `${r.mood.toFixed(1)} out of 5 over 7 days`,
+    value: withTests(`${r.mood.toFixed(1)} out of 5 over 7 days`, f.calm),
     meaning: low
       ? 'A week of low mood. Isolation and confinement weigh on sleep, teamwork and safety.'
       : 'Steady this week.',
     advice: low ? 'Talk with a crewmate, and keep your sleep and free time.' : STEADY,
     sources: ['HAZARDS', 'MOOD'],
+  }
+}
+
+function balance(f: SelfTestFacts): Signal {
+  const level = testLevel(f.balance)
+  if (!f.balance.length)
+    return {
+      id: 'balance',
+      title: 'Balance and coordination',
+      level: 'ok',
+      value: 'No self-test yet',
+      meaning:
+        'Each change of gravity upsets balance and fine hand control for days. Only your own tests measure them here.',
+      advice: 'Take the balance test after each change of gravity, and the hand test in the first week.',
+      sources: ['SENSORIMOTOR'],
+    }
+  return {
+    id: 'balance',
+    title: 'Balance and coordination',
+    level,
+    value: f.balance.map((n) => n.text.charAt(0).toUpperCase() + n.text.slice(1)).join('; '),
+    meaning:
+      level === 'ok'
+        ? 'In line with your usual results.'
+        : 'Below your usual result. After a change of gravity, balance and hand control take days to readapt.',
+    advice:
+      level === 'ok'
+        ? STEADY
+        : f.repeatedFlag
+          ? 'Two tests in a row below your usual: tell the flight surgeon, and move with care.'
+          : 'Move with care, avoid tasks at height, and repeat the test within 24 hours.',
+    sources: level === 'ok' ? ['SENSORIMOTOR'] : ['SENSORIMOTOR', 'SELF_TEST'],
   }
 }
 
@@ -437,20 +566,29 @@ function radiation(cabin: Cabin): Signal {
   }
 }
 
-/** Every signal for one person on one day, most serious first. */
-export function assess(r: Readings, b: Baseline, cabin: Cabin): Signal[] {
+/**
+ * Every signal for one person on one day, most serious first. `tests` are the person's own
+ * self-tests as of that day.
+ */
+export function assess(
+  r: Readings,
+  b: Baseline,
+  cabin: Cabin,
+  tests: SelfTestFacts = NO_SELF_TESTS,
+): Signal[] {
   const list = [
-    opticNerve(r, b),
+    opticNerve(r, b, tests),
     headache(r, cabin),
-    sleep(r),
-    mood(r),
+    sleep(r, tests),
+    mood(r, tests),
+    balance(tests),
     neckVein(r),
-    oxygen(r),
+    oxygen(r, tests),
     bodyChecks(r),
     redCells(r, b),
     immunity(r, b),
     hydration(r),
-    loading(r),
+    loading(r, tests),
     vitaminD(r, b),
     bodyMass(r, b),
     cabinAir(cabin),

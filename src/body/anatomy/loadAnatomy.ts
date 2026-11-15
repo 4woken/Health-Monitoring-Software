@@ -54,7 +54,7 @@ interface Manifest {
 
 /** Which signals each organ shows. */
 export const ORGAN_SIGNALS: Record<string, string[]> = {
-  brain: ['headache', 'sleep', 'mood'],
+  brain: ['headache', 'sleep', 'mood', 'balance'],
   'right eyeball': ['opticNerve'],
   'left eyeball': ['opticNerve'],
   heart: ['oxygen'],
@@ -87,6 +87,8 @@ function signalAnchors(organs: Organ[], height: number, source: Record<string, V
     opticNerve: at('left eyeball', 0, 0, 0.02),
     headache: at('brain', -0.03, 0.05, 0.07),
     sleep: at('brain', 0.03, 0.03, -0.06),
+    // The inner ear sits low on each side of the brain.
+    balance: at('brain', -0.07, -0.05, -0.01),
     neckVein: at('left internal jugular vein'),
     oxygen: at('heart', 0, 0, 0.05),
     redCells: at('aorta', 0, -0.1, 0),

@@ -1613,21 +1613,6 @@ export default function BodyScan({
           className="pointer-events-none absolute inset-x-3 z-[6] flex flex-col items-start gap-2 sm:hidden"
           style={{ bottom: insetBottom + 8 }}
         >
-          {credit && credit !== 'failed' && (
-            <p className="on-photo text-[10px] leading-tight text-white/65">
-              Reference body: {credit}{' '}
-              {backdrop?.href && (
-                <a
-                  className="pointer-events-auto underline"
-                  href={backdrop.href}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {backdrop.caption}
-                </a>
-              )}
-            </p>
-          )}
           <div className="pointer-events-auto flex flex-wrap items-center gap-1">
             {DEPTH_STOPS.map((label, i) => (
               <button
@@ -1715,26 +1700,13 @@ export default function BodyScan({
 
       {children}
 
-      {!exerciseMotion && credit && credit !== 'failed' && (
+      {/* The model and photo credits are in the README and docs/CREDITS.md, not over the scene. */}
+      {!exerciseMotion && layer === 'physiology' && (
         <p
-          className={`on-photo pointer-events-none absolute right-4 z-[5] max-w-[46ch] text-right text-[11.5px] leading-snug text-white/60 lg:right-8 ${studio ? '' : 'hidden sm:block'}`}
+          className="on-photo pointer-events-none absolute right-4 z-[5] max-w-[46ch] text-right text-[11.5px] leading-snug text-white/60 lg:right-8"
           style={{ bottom: insetBottom }}
         >
-          {layer === 'physiology' ? 'Face and leg change exaggerated about tenfold. ' : ''}Reference body:{' '}
-          {credit}{' '}
-          {backdrop &&
-            (backdrop.href ? (
-              <a
-                href={backdrop.href}
-                target="_blank"
-                rel="noreferrer"
-                className="pointer-events-auto underline underline-offset-2 hover:text-white"
-              >
-                {backdrop.caption}
-              </a>
-            ) : (
-              backdrop.caption
-            ))}
+          Face and leg change exaggerated about tenfold.
         </p>
       )}
     </div>
