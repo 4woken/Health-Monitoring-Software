@@ -1,23 +1,23 @@
 import { useState, type FormEvent } from 'react'
-import { ArrowClockwise, Check, Crosshair, Plus, X } from '@phosphor-icons/react'
+import { ArrowClockwise, Check, Plus, X } from '@phosphor-icons/react'
 import type { HabitatId } from '../mission/habitats'
 import type { OnExerciseDemo } from '../exercises/demoVitals'
 import EnvironmentExerciseDemo from '../exercises/EnvironmentExerciseDemo'
 import type { Member } from '../crew/roster'
 import type { SignalId } from '../health/signals'
 import { useDayReport } from '../health/useDayReport'
-import { MISSIONS, type MissionId } from '../mission/missions'
+import type { MissionId } from '../mission/missions'
 import type { SelfTestId } from '../selftests/ids'
 import { Button } from '../ui'
 import type { Task, TaskKind } from './planner'
 import { useCheckup } from './useCheckup'
 
 const GROUPS: { kind: TaskKind; title: string }[] = [
-  { kind: 'exam', title: 'Exams and NASA schedule' },
+  { kind: 'exam', title: 'Exams' },
   { kind: 'test', title: 'Self-tests' },
-  { kind: 'followUp', title: 'Follow-ups from the signals' },
+  { kind: 'followUp', title: 'Follow-ups' },
   { kind: 'routine', title: 'Every day' },
-  { kind: 'own', title: 'Added by hand' },
+  { kind: 'own', title: 'Added by you' },
 ]
 
 /** Today's check-up for one person: planned from their signals and NASA's schedule, then theirs to tick, add to and trim. */
@@ -56,23 +56,16 @@ export default function CheckupScreen({
 
   return (
     <div className="px-5 pb-8 sm:px-6">
-      <div className="flex items-baseline justify-between gap-3">
-        <p className="text-[15px] text-white/70">{MISSIONS[mission].name}</p>
-        <p className="font-cond text-[15px] tabular-nums">
-          {total === 0 ? (
-            <span className="text-white/55">Nothing planned yet</span>
-          ) : done === total ? (
-            <span className="text-holo">All done for today</span>
-          ) : (
-            <>
-              {done} <span className="text-white/55">of {total} done</span>
-            </>
-          )}
-        </p>
-      </div>
-      <div className="mt-2.5 h-1 w-full overflow-hidden rounded-full bg-white/10" aria-hidden="true">
+      <p className="font-cond text-[14px] text-white/60 tabular-nums">
+        {total === 0
+          ? 'Nothing planned yet'
+          : done === total
+            ? 'All done for today'
+            : `${done} of ${total} done`}
+      </p>
+      <div className="mt-2 h-0.5 w-full overflow-hidden rounded-full bg-white/10" aria-hidden="true">
         <div
-          className="h-full rounded-full bg-white transition-[width] duration-500"
+          className="h-full rounded-full bg-white/80 transition-[width] duration-500"
           style={{ width: `${total ? (done / total) * 100 : 0}%` }}
         />
       </div>
@@ -81,15 +74,9 @@ export default function CheckupScreen({
       {GROUPS.map(({ kind, title }) => {
         const tasks = checkup.tasks.filter((t) => t.kind === kind)
         if (tasks.length === 0) return null
-        const ticked = tasks.filter((t) => checkup.done.has(t.id)).length
         return (
-          <section key={kind} className="mt-8" aria-label={title}>
-            <h3 className="flex items-baseline justify-between gap-3 text-[15px] font-semibold">
-              {title}
-              <span className="font-cond text-[13px] font-normal text-white/45 tabular-nums">
-                {ticked} of {tasks.length}
-              </span>
-            </h3>
+          <section key={kind} className="mt-7" aria-label={title}>
+            <h3 className="text-[13.5px] font-medium text-white/55">{title}</h3>
             <ul className="mt-1">
               {tasks.map((task) => (
                 <TaskRow
@@ -153,7 +140,10 @@ export default function CheckupScreen({
   )
 }
 
-/** One task: a circle to tick, what to do and why, and the actions that go with it on the right. */
+/**
+ * One task: a circle to tick, what to do and why. The title shows the part of the body it is about;
+ * a self-test has its own start, and the cross that removes it appears on hover.
+ */
 function TaskRow({
   task,
   done,
@@ -170,57 +160,50 @@ function TaskRow({
   /** Starts the self-test that does this task. */
   onStart?: () => void
 }) {
-  const icon =
-    'press flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/55 hover:bg-white/10 hover:text-white'
+  const title = `text-left text-[15px] leading-snug ${done ? 'text-white/40' : 'font-medium'}`
   return (
-    <li className="group flex items-start gap-3.5 py-3">
+    <li className="group flex items-start gap-3 py-2.5">
       <button
         onClick={onToggle}
         role="checkbox"
         aria-checked={done}
         aria-label={task.title}
-        className={`press mt-0.5 flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full border ${done ? 'border-white bg-white text-[#0d0f12]' : 'border-white/35 hover:border-white'}`}
+        className={`press mt-[3px] flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${done ? 'border-white/60 bg-white/60 text-[#0d0f12]' : 'border-white/30 hover:border-white/70'}`}
       >
-        {done && <Check size={13} weight="bold" />}
+        {done && <Check size={12} weight="bold" />}
       </button>
       <div className="min-w-0 flex-1">
-        <p
-          className={`text-[15.5px] leading-snug ${done ? 'text-white/40 line-through decoration-white/25' : 'font-medium'}`}
-        >
-          {task.title}
-        </p>
-        {task.detail && !done && (
-          <p className="mt-0.5 line-clamp-2 text-[13.5px] leading-snug text-white/55">{task.detail}</p>
-        )}
-      </div>
-      <div className="-mt-1 flex shrink-0 items-center gap-0.5">
-        {!done && onStart && (
-          <button
-            onClick={onStart}
-            className="press mr-1 h-8 rounded-full bg-white px-3.5 text-[13px] font-medium text-[#0d0f12] hover:bg-white/85"
-          >
-            Start
-          </button>
-        )}
-        {!done && onShow && (
+        {onShow && !done ? (
           <button
             onClick={onShow}
-            aria-label="See it on the body"
             title="See it on the body"
-            className={icon}
+            className={`${title} underline-offset-4 hover:underline hover:decoration-white/40`}
           >
-            <Crosshair size={16} />
+            {task.title}
           </button>
+        ) : (
+          <p className={title}>{task.title}</p>
         )}
-        <button
-          onClick={onRemove}
-          aria-label={`Remove: ${task.title}`}
-          title="Remove from today"
-          className={`${icon} sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100`}
-        >
-          <X size={14} />
-        </button>
+        {task.detail && !done && (
+          <p className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-white/50">{task.detail}</p>
+        )}
       </div>
+      {!done && onStart && (
+        <button
+          onClick={onStart}
+          className="press h-7 shrink-0 rounded-full bg-white/10 px-3 text-[12.5px] font-medium hover:bg-white/20"
+        >
+          Start
+        </button>
+      )}
+      <button
+        onClick={onRemove}
+        aria-label={`Remove: ${task.title}`}
+        title="Remove from today"
+        className="press -mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white/45 hover:bg-white/10 hover:text-white sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100"
+      >
+        <X size={13} />
+      </button>
     </li>
   )
 }

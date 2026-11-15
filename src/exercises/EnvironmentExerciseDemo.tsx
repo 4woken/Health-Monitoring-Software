@@ -79,8 +79,8 @@ export default function EnvironmentExerciseDemo({
 
   const live = phase === 'running' || phase === 'paused'
   return (
-    <section aria-label="Exercise here" className="mt-9">
-      <h3 className="flex items-baseline justify-between gap-3 text-[15px] font-semibold">
+    <section aria-label="Exercise here" className="mt-8">
+      <h3 className="flex items-baseline justify-between gap-3 text-[13.5px] font-medium text-white/55">
         Exercise here
         <span className="font-cond text-[13px] font-normal text-white/45">
           {HABITATS[habitat].name}, {Number(gravityG.toFixed(2))} g
@@ -92,7 +92,7 @@ export default function EnvironmentExerciseDemo({
         <label className="mt-3 flex flex-wrap items-center gap-2.5 text-[13.5px] text-white/70">
           Gravity for the demo
           <select
-            className="h-8 rounded-full border border-white/15 bg-white/[0.06] px-3 text-[13px] text-white"
+            className="h-8 rounded-full border border-white/15 bg-[#202226] px-3 text-[13px] text-white [&>option]:bg-[#202226] [&>option]:text-white"
             value={gravityChoice}
             onChange={(event) => setGravityChoice(event.target.value)}
           >
