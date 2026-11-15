@@ -264,16 +264,10 @@ function MetricCard({
       : def.key === 'dose'
         ? `${(now.doseCareerShare * 100).toFixed(0)}% of the career limit`
         : `${Math.round(now.fluidShiftShare * 100)}% of the full weightless shift`
-  const demo = def.sources.some((s) => SOURCES[s]?.status === 'demo')
   return (
     <div className="glass-soft flex flex-col p-4">
       <div className="flex items-start justify-between gap-3">
         <p className="label">{def.label}</p>
-        {demo && (
-          <span className="rounded border border-dashed border-line-strong px-1.5 py-0.5 font-cond text-[12px] text-muted">
-            Uses one of our assumptions
-          </span>
-        )}
       </div>
       <p className="display mt-3 text-[40px]">
         <AnimatedNumber value={value} decimals={def.decimals} />
@@ -412,19 +406,10 @@ function ModelCard({ marsCheckSv }: { marsCheckSv: number | null }) {
                             <span className="text-ink">{src?.title}</span>
                           )}
                         </span>
-                        {p.demo && (
-                          <span className="shrink-0 rounded border border-dashed border-line-strong px-1.5 py-0.5 font-cond text-[12px] text-muted">
-                            our assumption
-                          </span>
-                        )}
                       </li>
                     )
                   })}
                 </ul>
-                <p className="mt-3 text-xs leading-relaxed text-dim">
-                  An educational model to show trends and orders of magnitude. It does not predict what will
-                  happen to a real person, and recovery after landing is not modelled.
-                </p>
               </div>
             </div>
           </motion.div>

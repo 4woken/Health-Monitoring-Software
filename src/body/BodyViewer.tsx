@@ -368,6 +368,8 @@ function createStage(
   let hot: Hotspot[] = []
   let pins: { id: string; at: string; side?: 'left' | 'right' }[] = []
   let sideInset = 0
+  /** Extra room the camera makes on the right so a card beside the body clears the controls there. */
+  let pinInset = 0
   let sideShift = 0
   let paused = false
   /** Space kept free at the bottom, and a box at the top left that cards must not cover. */
@@ -853,7 +855,7 @@ function createStage(
     zoom += (zoomTo - zoom) * ease
     focusY += (focusTo - focusY) * ease
     focusX += (focusXTo - focusX) * ease
-    sideShift += (sideInset - sideShift) * ease
+    sideShift += (sideInset + pinInset - sideShift) * ease
     // The camera and orbit targets use the same reference frame as the meshes.
     // A generous eye distance on narrow screens also accommodates broader builds.
     const viewScale = Math.max(group.scale.y, group.scale.x * Math.min(1, 0.6 / camera.aspect))
@@ -869,7 +871,7 @@ function createStage(
       const halfHeight = (cameraZ - world.z) * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))
       focusX = focusXTo = (world.x - screen.x * halfHeight * camera.aspect - shiftX) / group.scale.x
       focusY = focusTo = (world.y - screen.y * halfHeight) / group.scale.y
-      if (pinch === 0 && Math.abs(zoomTo - zoom) < 1e-6 && Math.abs(sideInset - sideShift) < 0.01)
+      if (pinch === 0 && Math.abs(zoomTo - zoom) < 1e-6 && Math.abs(sideInset + pinInset - sideShift) < 0.01)
         zoomAnchor = null
     }
     camera.position.set(focusX * group.scale.x + shiftX, focusY * group.scale.y, cameraZ)
@@ -988,9 +990,13 @@ function createStage(
       body.localToWorld(v)
       const front = v.z > -0.03
       v.project(camera)
-      node.style.transform = `translate(${((v.x + 1) / 2) * w}px, ${((1 - v.y) / 2) * h}px)`
+      const y = ((1 - v.y) / 2) * h
+      node.style.transform = `translate(${((v.x + 1) / 2) * w}px, ${y}px)`
+      // A marker that falls behind the vital signs along the bottom hides, so its name never covers them.
       node.style.visibility =
-        current && Math.abs(v.x) < 1 && Math.abs(v.y) < 1 && !isolated ? 'visible' : 'hidden'
+        current && Math.abs(v.x) < 1 && Math.abs(v.y) < 1 && !isolated && y < h - pinBottom
+          ? 'visible'
+          : 'hidden'
       node.style.opacity = always || front ? '1' : '0.3'
       node.style.zIndex = front ? '3' : '2'
     }
@@ -1010,7 +1016,10 @@ function createStage(
       y: number
       side: 'left' | 'right'
       height: number
+      width: number
       centre: number
+      /** Asked to stay on the right, like the card of a selected part. */
+      kept: boolean
     }[] = []
     const middle = (w - sideShift) / 2
     for (const p of pins) {
@@ -1041,8 +1050,17 @@ function createStage(
       const coversBox = (left: number) => left < pinAvoid.right && y - size.h / 2 < pinAvoid.bottom
       if (side === 'left' && (x - PIN_LEAD - size.w < 8 || coversBox(x - PIN_LEAD - size.w))) side = 'right'
       else if (side === 'right' && x + PIN_LEAD + size.w > w - 8) side = 'left'
-      placed.push({ node, x, y, side, height: size.h, centre: y })
+      placed.push({ node, x, y, side, height: size.h, width: size.w, centre: y, kept: p.side === 'right' })
     }
+    // A card kept on the right must clear the depth and view controls along the right edge: the
+    // camera moves the body left just enough, and back when the card closes. Measured without the
+    // current shift, so the move settles instead of chasing itself.
+    const controls = w >= 1024 ? 342 : w >= 640 ? 326 : 0
+    let room = 0
+    for (const q of placed)
+      if (q.kept && q.side === 'right')
+        room = Math.max(room, 2 * (q.x + sideShift / 2 + PIN_LEAD + q.width + 24 - (w - controls)))
+    pinInset = Math.min(w * 0.6, Math.max(0, room))
     // On each side, keep the cards in order, apart, below the header and above the vitals.
     const floor = h - pinBottom - 8
     for (const side of ['left', 'right'] as const) {
@@ -1147,6 +1165,16 @@ function createStage(
     zoomBy: (factor) => {
       zoomAnchor = null
       zoomTo *= factor
+      // The + button zooms on the upper body: the chest first, then the head, unless the view is
+      // already higher up.
+      if (factor > 1 && !portraitOnly) {
+        const height = current?.height ?? 1.75
+        const target = ((zoomTo >= 3 ? VIEWS.head.at : VIEWS.chest.at) - 0.5) * height
+        if (focusTo < target) {
+          focusTo = target
+          focusXTo = 0
+        }
+      }
       clampView()
     },
     setLayer: (l) => {
@@ -1406,7 +1434,7 @@ export default function BodyScan({
     },
     {
       id: 'heart',
-      label: heart.live ? 'Heart rate, webcam' : 'Heart rate, simulated',
+      label: heart.live ? 'Heart rate, webcam' : 'Heart rate',
       value: `${Math.round(heart.bpm)} bpm`,
       detail: heart.live ? 'Measured from your face' : 'Wearable feed',
     },

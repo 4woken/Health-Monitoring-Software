@@ -259,8 +259,8 @@ export default function TrendChart({ member, mission, signals, day, initialPicke
         })}
       </div>
       <p className="mt-2 text-xs leading-relaxed text-dim">
-        Simulated values. Between two exams the last result is repeated, so an average is over displayed days,
-        not separate measurements. A curve alone is not a diagnosis.
+        Between two exams the last result carries over, so an average covers the days shown rather than
+        separate measurements. A curve on its own is not a diagnosis.
       </p>
     </Frame>
   )

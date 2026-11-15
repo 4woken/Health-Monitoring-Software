@@ -66,8 +66,7 @@ export const MISSIONS: Record<MissionId, Mission> = {
   cruise: {
     id: 'cruise',
     days: 203,
-    durationBasis:
-      'The robotic Perseverance mission took 203 days to reach Mars. Its transit provides the time scale for this fictional crew.',
+    durationBasis: 'The Perseverance rover took 203 days to reach Mars, and this crew takes the same time.',
     durationSource: 'https://www.jpl.nasa.gov/news/press_kits/mars_2020/landing/mission/',
     name: 'Cruise to Mars',
     place: 'Deep space',

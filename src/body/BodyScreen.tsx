@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { CaretDown, CheckCircle, ListPlus, X } from '@phosphor-icons/react'
+import { ArrowRight, CaretDown, CheckCircle, ListPlus, X } from '@phosphor-icons/react'
 import BodyViewer, { type Hotspot, type Layer, type Pin } from './BodyViewer'
 import { ORGAN_SIGNALS } from './anatomy/loadAnatomy'
 import { regionOf } from './anatomy/bodyShape'
@@ -8,7 +8,6 @@ import { anatomyChoices, organNote } from './anatomy/organs'
 import type { PersonalAvatar } from '../camera/face/portrait'
 import type { BreathReading } from '../camera/breathReading'
 import { useCheckup } from '../checkup/useCheckup'
-import DashboardDimensions from '../crew/DashboardDimensions'
 import type { Member } from '../crew/roster'
 import { KIND_LABEL, advise, type Advice } from '../health/advice'
 import { requirementsFor, type Phase } from '../health/exams'
@@ -26,6 +25,9 @@ import MissionLab, { type ProfileId, type SimInput } from '../mission/MissionLab
 import { MISSIONS, type MissionId } from '../mission/missions'
 import { MISSION_PROFILES, simulateProfile, type MissionPhase } from '../mission/physiology'
 import { SELF_TESTS, testsFor } from '../selftests/catalog'
+import { liveReport, liveVitals } from '../simulation/live'
+import MissionLog from '../simulation/MissionLog'
+import { useSimulation } from '../simulation/SimulationProvider'
 import type { SelfTestId } from '../selftests/ids'
 import { Button, Chip, EASE, LEVEL_LINE, Sparkline, StatusDot } from '../ui'
 import { useNarrow } from '../ui/useNarrow'
@@ -41,8 +43,9 @@ const SHEET_WIDTH: Record<SheetKind, number> = {
 }
 /** Recommendations drawn on the body at once. The list on the left has all of them. */
 const PINNED = 3
-/** Rows in the list on the left before "more". */
+/** Rows in the list on the left before "more"; fewer while the simulation's log sits above it. */
 const LISTED = 6
+const LISTED_LIVE = 3
 
 const LEVEL_WORD = { ok: 'Normal', watch: 'Needs a check today', act: 'Act now' } as const
 /** The self-test offered beside an organ shown on its own. */
@@ -87,6 +90,10 @@ interface Props {
   paused: boolean
   /** A signal to show on the body, asked from elsewhere (the check-up). */
   request: { signal: SignalId; at: number } | null
+  /** Opens today's check-up. */
+  onOpenCheckup: () => void
+  /** A panel or a pop-up of this screen opens: the app closes its own panel, so they do not overlap. */
+  onOpenPanel: () => void
 }
 
 /**
@@ -107,6 +114,8 @@ export default function BodyScreen({
   covered,
   paused,
   request,
+  onOpenCheckup,
+  onOpenPanel,
 }: Props) {
   const narrow = useNarrow()
   const demonstrating = exerciseDemo !== null
@@ -147,12 +156,36 @@ export default function BodyScreen({
   const [layer, setLayer] = useState<Layer>('signals')
   /** On phones the list of the day folds away. */
   const [todoOpen, setTodoOpen] = useState(false)
-  const [sizeOpen, setSizeOpen] = useState(false)
 
-  const report = useDayReport(member, day, mission)
+  const base = useDayReport(member, day, mission)
+  // While the mission simulation runs, the signals are judged on its minute: the markers and the
+  // list of the day follow it, and the vital signs and the heart show its values.
+  const simulation = useSimulation()
+  const running = simulation.active && simulation.sim ? simulation.sim : null
+  const report = useMemo(
+    () => (running ? liveReport(base, running, mission, simulation.t) : base),
+    [base, running, mission, simulation.t],
+  )
+  const vitals = running ? liveVitals(running, simulation.t) : null
+  const listed = running ? LISTED_LIVE : LISTED
   const signals = report.signals
-  const advice = useMemo(() => advise(report, mission), [report, mission])
-  const checkup = useCheckup(report, mission)
+  const levelKey = signals.map((s) => `${s.id}:${s.level}`).join(',')
+  const checkup = useCheckup(base, mission)
+  // A signal whose tasks are all ticked in the check-up is handled for today: its marker turns back
+  // to normal and it leaves the list of things to do.
+  const handled = new Set<SignalId>()
+  const pending = new Set<SignalId>()
+  for (const t of checkup.tasks) {
+    if (!t.signal || t.kind === 'routine') continue
+    if (checkup.done.has(t.id)) handled.add(t.signal)
+    else pending.add(t.signal)
+  }
+  for (const id of pending) handled.delete(id)
+  const handledKey = [...handled].sort().join(',')
+  const advice = useMemo(() => {
+    const done = new Set(handledKey.split(','))
+    return advise(report, mission).filter((a) => !done.has(a.signal))
+  }, [report, mission, handledKey])
   const m = MISSIONS[mission]
   const place = HABITATS[habitat]
   const focused = sheet === 'signal' ? signals.find((s) => s.id === openId) : undefined
@@ -165,6 +198,13 @@ export default function BodyScreen({
     setOrgan(null)
     setLayer('signals')
   }, [member.id])
+
+  // The check-up opens on the right: what this screen had open there closes.
+  useEffect(() => {
+    if (!covered) return
+    setSheet(null)
+    setSelected(null)
+  }, [covered])
 
   // Asked from the check-up: show that part.
   useEffect(() => {
@@ -186,6 +226,7 @@ export default function BodyScreen({
   const pinnedKey = pinned.map((a) => a.signal).join(',')
   const hotspots = useMemo<Hotspot[]>(() => {
     const quiet = new Set(pinnedKey.split(','))
+    const done = new Set(handledKey.split(','))
     return signals.flatMap((s) => {
       const region = regionOf(s.id, member.build)
       return region
@@ -194,13 +235,14 @@ export default function BodyScreen({
               id: s.id,
               label: region.label,
               pos: region.pos,
-              level: s.level,
+              level: done.has(s.id) ? 'ok' : s.level,
               quiet: quiet.has(s.id) || s.id === selected,
             },
           ]
         : []
     })
-  }, [signals, member.build, pinnedKey, selected])
+    // Keyed on the levels, not the report: during the simulation the report is new every few frames.
+  }, [levelKey, member.build, pinnedKey, selected, handledKey])
 
   // Physiology engine. It follows the destination and this person's exercise log; moving a slider
   // switches to what-if values until reset.
@@ -237,6 +279,7 @@ export default function BodyScreen({
 
   /** Open the pop-up of one part: the camera moves to it. */
   const select = (id: SignalId) => {
+    onOpenPanel()
     setLayer('signals')
     setSheet(null)
     setOrgan(null)
@@ -244,6 +287,7 @@ export default function BodyScreen({
   }
   /** Everything about one signal, in the panel on the right. */
   const details = (id: SignalId, metric?: MetricId) => {
+    onOpenPanel()
     setOpenMetric(metric)
     setLayer('signals')
     setOrgan(null)
@@ -257,6 +301,7 @@ export default function BodyScreen({
     setOrgan(null)
   }
   const showMission = (on: boolean) => {
+    if (on) onOpenPanel()
     setSelected(null)
     setOrgan(null)
     setLayer(on ? 'physiology' : 'signals')
@@ -288,7 +333,9 @@ export default function BodyScreen({
       advice={advice.find((a) => a.signal === picked.id)}
       trend={trendOf(picked.id).values}
       planned={checkup.covers(picked)}
+      handled={handled.has(picked.id)}
       onPlan={() => checkup.follow(picked)}
+      onOpenCheckup={onOpenCheckup}
       onDetails={() => details(picked.id)}
       onClose={() => setSelected(null)}
       test={
@@ -353,6 +400,7 @@ export default function BodyScreen({
         hidden={sheet === 'organ'}
         className="absolute top-20 left-4 z-[6] w-[min(21rem,calc(100%-2rem))] lg:top-24 lg:left-8"
       >
+        <MissionLog />
         <p className="on-photo font-cond text-[13px] text-white/65">
           {m.name}, day {day}
         </p>
@@ -371,7 +419,7 @@ export default function BodyScreen({
         </h2>
         {advice.length > 0 && (
           <ul className={`mt-3 flex-col gap-1.5 ${todoOpen ? 'flex' : 'hidden'} sm:flex`}>
-            {advice.slice(0, LISTED).map((a) => (
+            {advice.slice(0, listed).map((a) => (
               <li key={a.id}>
                 <button
                   onClick={() => {
@@ -402,6 +450,7 @@ export default function BodyScreen({
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <button
             onClick={() => {
+              onOpenPanel()
               setSelected(null)
               setOrgan(null)
               setLayer('signals')
@@ -409,11 +458,12 @@ export default function BodyScreen({
             }}
             className="press rounded-full bg-black/40 px-3.5 py-1.5 text-[13px] text-white/85 backdrop-blur-md hover:text-white"
           >
-            {advice.length > LISTED ? `${advice.length - LISTED} more, and` : 'See'} all {signals.length}{' '}
+            {advice.length > listed ? `${advice.length - listed} more, and` : 'See'} all {signals.length}{' '}
             signals
           </button>
           <button
             onClick={() => {
+              onOpenPanel()
               setSelected(null)
               setOrgan(null)
               setLayer('signals')
@@ -424,24 +474,6 @@ export default function BodyScreen({
             NASA reference
           </button>
         </div>
-        {narrow && (
-          <button
-            type="button"
-            onClick={() => setSizeOpen(!sizeOpen)}
-            aria-expanded={sizeOpen}
-            className="press mt-2 rounded-full bg-black/65 px-3 py-1.5 text-[13px] text-white"
-          >
-            Avatar dimensions
-          </button>
-        )}
-        {(!narrow || sizeOpen) && <DashboardDimensions memberId={member.id} />}
-        {face && (
-          <p className="on-photo mt-3 text-[12px] text-white/60">
-            {face.sample
-              ? 'Fictional sample face saved to this profile.'
-              : 'Fitted face saved to this profile.'}
-          </p>
-        )}
       </div>
 
       {/* On phones the pop-up sits above the vitals instead of beside the body. */}
@@ -457,6 +489,7 @@ export default function BodyScreen({
       >
         <VitalsStrip
           readings={report.readings}
+          live={vitals}
           breath={breath}
           onPick={details}
           onOpenCamera={() => onOpenTest('restingPulse')}
@@ -586,6 +619,7 @@ export default function BodyScreen({
                   metric={openMetric}
                   planned={checkup.covers(focused)}
                   onPlan={() => checkup.follow(focused)}
+                  onOpenCheckup={onOpenCheckup}
                   onReference={() => setSheet('nasa')}
                   onTest={onOpenTest}
                 />
@@ -656,12 +690,13 @@ export default function BodyScreen({
         onOrgan={(name) => {
           setOrgan(name)
           if (name) {
+            onOpenPanel()
             setSelected(null)
             setSheet('organ')
           } else setSheet((s) => (s === 'organ' ? null : s))
         }}
         physiology={physiology}
-        restingBpm={report.readings.restingPulseBpm}
+        restingBpm={vitals?.bpm ?? report.readings.restingPulseBpm}
         exerciseMotion={exerciseDemo?.mode}
         exerciseStartedAt={exerciseDemo?.startedAt}
         layer={layer}
@@ -687,7 +722,9 @@ function PartCard({
   advice,
   trend,
   planned,
+  handled,
   onPlan,
+  onOpenCheckup,
   onDetails,
   onClose,
   test,
@@ -696,7 +733,10 @@ function PartCard({
   advice?: Advice
   trend: number[]
   planned: boolean
+  /** Every task of the check-up about this signal is ticked. */
+  handled: boolean
   onPlan: () => void
+  onOpenCheckup: () => void
   onDetails: () => void
   onClose: () => void
   /** The self-test on the same question. */
@@ -704,7 +744,7 @@ function PartCard({
 }) {
   const nasa = requirementsFor(signal.id)
   const reference = nasa.find((r) => r.phase === 'flight') ?? nasa[0]
-  const color = LEVEL_LINE[signal.level]
+  const color = LEVEL_LINE[handled ? 'ok' : signal.level]
   return (
     <motion.div
       role="dialog"
@@ -717,8 +757,8 @@ function PartCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="flex items-center gap-1.5 text-[13px] font-medium" style={{ color }}>
-            <StatusDot level={signal.level} />
-            {LEVEL_WORD[signal.level]}
+            {handled ? <CheckCircle size={14} weight="fill" /> : <StatusDot level={signal.level} />}
+            {handled ? 'Checked today' : LEVEL_WORD[signal.level]}
           </p>
           <h3 className="mt-1 text-[18px] leading-tight font-semibold text-white">{signal.title}</h3>
         </div>
@@ -749,9 +789,15 @@ function PartCard({
           Details
         </Button>
         {signal.level !== 'ok' && (
-          <Button size="sm" kind="ghost" onClick={onPlan} disabled={planned}>
+          <Button
+            size="sm"
+            kind={planned ? 'secondary' : 'ghost'}
+            onClick={planned ? onOpenCheckup : onPlan}
+            title={planned ? 'Open today’s check-up' : undefined}
+          >
             {planned ? <CheckCircle size={15} weight="fill" /> : <ListPlus size={15} />}
             {planned ? 'In the check-up' : 'Add to the check-up'}
+            {planned && <ArrowRight size={13} />}
           </Button>
         )}
         {test && (

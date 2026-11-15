@@ -93,8 +93,8 @@ describe('cabin air and headache', () => {
   it('a headache is flagged, and blamed on the air only when CO2 is high', () => {
     const stuffy = assess({ ...normal, headache: true }, baseline, { ...cabin, co2MmHg: 3.1 })
     const clean = assess({ ...normal, headache: true }, baseline, cabin)
-    expect(stuffy.find((s) => s.id === 'headache')?.meaning).toMatch(/likely cause/)
-    expect(clean.find((s) => s.id === 'headache')?.meaning).toMatch(/unlikely/)
+    expect(stuffy.find((s) => s.id === 'headache')?.meaning).toMatch(/likely culprit/)
+    expect(clean.find((s) => s.id === 'headache')?.meaning).toMatch(/probably not the cause/)
   })
   it('no headache, no headache signal', () => {
     expect(level({}, 'headache')).toBeUndefined()

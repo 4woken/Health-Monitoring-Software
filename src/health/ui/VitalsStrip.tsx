@@ -2,6 +2,7 @@ import type { MetricId } from '../metrics'
 import type { Readings, SignalId } from '../signals'
 import { formatMetric } from '../metrics'
 import type { BreathReading } from '../../camera/breathReading'
+import type { LiveVitals } from '../../simulation/live'
 import LivePulse from './LivePulse'
 
 interface Cell {
@@ -23,45 +24,48 @@ export default function VitalsStrip({
   onOpenCamera,
   onBreathing,
   breath,
+  live,
 }: {
   readings: Readings
   onPick: (signal: SignalId, metric?: MetricId) => void
   onOpenCamera: () => void
   onBreathing: () => void
   breath: BreathReading | null
+  /** The minute of the mission simulation, when it runs. */
+  live?: LiveVitals | null
 }) {
   const cells: Cell[] = [
     {
       metric: 'spo2',
       signal: 'oxygen',
       label: 'Blood oxygen',
-      value: formatMetric(readings.spo2Pct),
+      value: formatMetric(live?.spo2Pct ?? readings.spo2Pct),
       unit: '%',
-      source: 'Wearable, simulated',
+      source: live ? 'Live' : 'Wearable',
     },
     {
       metric: 'systolic',
       signal: 'bodyChecks',
       label: 'Blood pressure',
-      value: `${readings.systolic}/${readings.diastolic}`,
+      value: `${live?.systolic ?? readings.systolic}/${live?.diastolic ?? readings.diastolic}`,
       unit: 'mmHg',
-      source: 'Health kit, simulated',
+      source: live ? 'Live' : 'Morning check',
     },
     {
       metric: 'temperature',
       signal: 'bodyChecks',
       label: 'Temperature',
-      value: formatMetric(readings.temperatureC),
+      value: formatMetric(live?.temperatureC ?? readings.temperatureC),
       unit: '°C',
-      source: 'Health kit, simulated',
+      source: live ? 'Core, live' : 'Morning check',
     },
     {
       metric: 'glucose',
       signal: 'bodyChecks',
       label: 'Blood sugar',
-      value: formatMetric(readings.glucoseMgDl),
+      value: formatMetric(live?.glucoseMgDl ?? readings.glucoseMgDl),
       unit: 'mg/dL',
-      source: 'Health kit, simulated',
+      source: live ? 'Live' : 'Morning check',
     },
     {
       metric: 'sleep',
@@ -69,7 +73,7 @@ export default function VitalsStrip({
       label: 'Sleep',
       value: formatMetric(readings.sleepHours),
       unit: 'h a night',
-      source: 'Wearable, simulated',
+      source: 'Last 7 nights',
     },
   ]
   return (
@@ -77,6 +81,7 @@ export default function VitalsStrip({
       <div className="shrink-0 pr-6">
         <LivePulse
           restingPulseBpm={readings.restingPulseBpm}
+          liveBpm={live?.bpm}
           onOpenCamera={onOpenCamera}
           onOpen={() => onPick('oxygen', 'pulse')}
         />
@@ -89,12 +94,12 @@ export default function VitalsStrip({
         <span className="block font-cond text-[13px] text-white/65">Breathing</span>
         <span className="mt-1 flex items-baseline gap-1.5">
           <span className="display text-[38px] text-white">
-            {breath ? Math.round(breath.breathsPerMinute) : '—'}
+            {live ? live.breaths : breath ? Math.round(breath.breathsPerMinute) : '—'}
           </span>
           <span className="text-[13px] text-white/65">breaths/min</span>
         </span>
         <span className="block font-cond text-[13px] text-white/75">
-          {breath ? 'Recent webcam estimate' : 'Measure with camera'}
+          {live ? 'Live' : breath ? 'Recent webcam estimate' : 'Measure with camera'}
         </span>
       </button>
       {cells.map((c) => (

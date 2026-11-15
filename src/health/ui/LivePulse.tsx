@@ -129,10 +129,13 @@ function CameraThumb() {
 /** Heart-rate card over the body: webcam pulse when it is measuring, otherwise the simulated wearable. */
 export default function LivePulse({
   restingPulseBpm,
+  liveBpm,
   onOpenCamera,
   onOpen,
 }: {
   restingPulseBpm: number
+  /** The heart rate of the mission simulation, when it runs. */
+  liveBpm?: number
   onOpenCamera: () => void
   /** Opens the heart rate and oxygen detail. */
   onOpen?: () => void
@@ -147,7 +150,7 @@ export default function LivePulse({
     return () => clearInterval(t)
   }, [])
   const wobble = (seed: number) => Math.round(Math.sin(tick * 1.7 + seed) * 1.6)
-  const bpm = live ? Math.round(pulse.bpm!) : restingPulseBpm + wobble(0)
+  const bpm = live ? Math.round(pulse.bpm!) : liveBpm !== undefined ? liveBpm : restingPulseBpm + wobble(0)
 
   return (
     <div className="on-photo w-[250px]">
@@ -166,12 +169,12 @@ export default function LivePulse({
           <span
             className={`rounded px-1.5 py-0.5 font-cond text-[12px] ${live ? 'border border-holo/60 text-ink' : 'border border-line-strong text-dim'}`}
           >
-            {live ? 'Webcam estimate, live' : 'Wearable, simulated'}
+            {live ? 'Webcam estimate, live' : liveBpm !== undefined ? 'Live' : 'Wearable'}
           </span>
         </div>
         <div className="mt-2 flex items-end gap-2">
           <motion.span
-            key={live ? 'live' : 'sim'}
+            key={live ? 'camera' : 'wearable'}
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
             className="display text-[46px] text-white"

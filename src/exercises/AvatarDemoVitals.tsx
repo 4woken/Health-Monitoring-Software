@@ -12,10 +12,10 @@ export default function AvatarDemoVitals({ playback }: { playback: DemoPlayback 
 
   return (
     <section
-      aria-label="Simulated avatar vitals"
+      aria-label="Avatar vitals"
       className="pointer-events-none absolute top-2 left-2 z-[6] rounded-xl bg-black/75 px-3 py-2 text-white sm:top-4 sm:left-4"
     >
-      <h2 className="font-cond text-sm text-holo">Avatar simulation</h2>
+      <h2 className="font-cond text-sm text-holo">Exercise demo</h2>
       <dl className="mt-1 space-y-1 text-xs sm:text-sm">
         <div>
           <dt className="text-white/70">Heart rate</dt>

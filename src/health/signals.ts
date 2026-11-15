@@ -177,7 +177,7 @@ export const LIMITS = {
 } as const
 
 const L = LIMITS
-const STEADY = 'Nothing to add. Keep the usual routine.'
+const STEADY = 'Nothing to change. Carry on as usual.'
 const pct = (n: number) => `${n.toFixed(1)}%`
 const change = (now: number, before: number) => ((now - before) / before) * 100
 
@@ -193,15 +193,15 @@ function redCells(r: Readings, b: Baseline): Signal {
     return {
       ...base,
       level: 'watch',
-      meaning: `Up ${rise.toFixed(0)}% on this person's value before launch, more than the 10-12% rise usually seen in flight.`,
-      advice: 'Drink more through the day, log urine volume and repeat the blood test.',
+      meaning: `Up ${rise.toFixed(0)}% on your value before launch. Flights usually bring 10 to 12%, so this is more than expected.`,
+      advice: 'Drink more through the day, log your urine and repeat the blood test.',
       sources: ['HCT_FLIGHT', 'HCT_HIGH'],
     }
   if (r.redCellsPct < low)
     return {
       ...base,
       level: 'watch',
-      meaning: 'Below the lab range. A low value is not one of the usual changes in flight.',
+      meaning: 'Below the lab range. Red cells do not usually drop in flight, so it is worth a second look.',
       advice: 'Repeat the blood test.',
       sources: ['HCT_REF', 'HCT_FLIGHT'],
     }
@@ -210,8 +210,8 @@ function redCells(r: Readings, b: Baseline): Signal {
     level: 'ok',
     meaning:
       rise > 3
-        ? `Up ${rise.toFixed(0)}% since launch, as expected: the body sheds plasma early in flight, so red cells make a bigger share of the blood.`
-        : 'Close to the value before launch.',
+        ? `Up ${rise.toFixed(0)}% since launch, which is normal: your body sheds plasma early in a flight, so red cells make up more of your blood.`
+        : 'About where it was before launch.',
     advice: STEADY,
     sources: ['HCT_FLIGHT'],
   }
@@ -233,13 +233,13 @@ function opticNerve(r: Readings, b: Baseline, f: SelfTestFacts): Signal {
       ...base,
       level: 'watch',
       meaning: tested
-        ? 'Your vision test found a change. With this measurement it needs a closer look for the eye syndrome of spaceflight (SANS).'
+        ? 'Your vision test found a change. With this scan, that needs a closer look for SANS, the eye syndrome of spaceflight.'
         : r.visionChange
-          ? 'A vision change with this measurement needs a closer look for the eye syndrome of spaceflight (SANS).'
-          : `Grown ${grown.toFixed(2)} mm since launch. A change from this person's own value matters more than the size itself.`,
+          ? 'A change in your vision, with this scan, needs a closer look for SANS, the eye syndrome of spaceflight.'
+          : `Up ${grown.toFixed(2)} mm since launch. What counts is the change from your own value, more than the size itself.`,
       advice: tested
         ? 'Tell the flight surgeon and repeat the eye ultrasound.'
-        : 'Do a vision test and repeat the eye ultrasound.',
+        : 'Take a vision test and repeat the eye ultrasound.',
       sources: tested ? ['ONSD_REVIEW', 'ONSD_CHANGE', 'SELF_TEST'] : ['ONSD_REVIEW', 'ONSD_CHANGE'],
     }
   return {
@@ -247,8 +247,8 @@ function opticNerve(r: Readings, b: Baseline, f: SelfTestFacts): Signal {
     level: 'ok',
     meaning:
       r.opticNerveMm > L.opticNerveReferenceMm
-        ? 'Wider than the usual cut-off, as for over half of astronauts before launch, but unchanged since and with no vision complaint.'
-        : 'Unchanged since launch, with no vision complaint.',
+        ? 'Wider than the usual cut-off, as it is for more than half of astronauts before launch, but it has not changed and your vision is fine.'
+        : 'No change since launch, and your vision is fine.',
     advice: STEADY,
     sources: ['ONSD_REVIEW'],
   }
@@ -264,15 +264,15 @@ function neckVein(r: Readings): Signal {
     return {
       ...base,
       level: 'act',
-      meaning: 'A clot in this vein has happened in flight before and needed treatment.',
-      advice: 'Stop and get medical advice now. Do not start any medicine from this screen.',
+      meaning: 'Clots in this vein have happened in flight before, and they needed treatment.',
+      advice: 'Stop and get medical advice now. Do not start any medicine on your own.',
       sources: ['IJV_STUDY', 'IJV_CASE'],
     }
   if (r.neckVeinFlow === 'forward')
     return {
       ...base,
       level: 'ok',
-      meaning: 'Blood drains forward from the head, as it should.',
+      meaning: 'Blood drains forward from your head, the way it should.',
       advice: STEADY,
       sources: ['IJV_STUDY'],
     }
@@ -280,7 +280,7 @@ function neckVein(r: Readings): Signal {
     ...base,
     level: 'watch',
     meaning:
-      'Slow or backward flow is common in weightlessness (6 of 11 station crew in one study), but 1 of those 11 developed a clot.',
+      'Slow or backward flow is common up here (6 of 11 station crew in one study), but one of those 11 developed a clot.',
     advice: 'Repeat the neck ultrasound and look for a clot.',
     sources: ['IJV_STUDY'],
   }
@@ -295,11 +295,11 @@ function headache(r: Readings, cabin: Cabin): Signal | null {
     level: 'watch',
     value: `Headache reported, cabin CO2 ${cabin.co2MmHg.toFixed(1)} mmHg`,
     meaning: fromAir
-      ? `Cabin CO2 is above ${L.co2HeadacheMmHg} mmHg. On the station, each extra 1 mmHg doubled the odds of a headache, so the air is the likely cause.`
-      : 'Cabin CO2 is low, so the air is unlikely to be the cause.',
+      ? `The cabin CO2 is above ${L.co2HeadacheMmHg} mmHg. On the station, every extra 1 mmHg doubled the odds of a headache, so the air is the likely culprit.`
+      : 'The cabin CO2 is low, so the air is probably not the cause.',
     advice: fromAir
       ? 'Check the CO2 scrubber and the airflow where you sleep.'
-      : 'Note when it comes back and check sleep and drinking.',
+      : 'Note when it comes back, and look at your sleep and how much you drink.',
     sources: ['CO2_HEADACHE', 'CO2_LIMIT'],
   }
 }
@@ -314,18 +314,18 @@ function sleep(r: Readings, f: SelfTestFacts): Signal {
     level: higher(short ? 'watch' : 'ok', tests),
     value: withTests(`${r.sleepHours.toFixed(1)} h a night over 7 nights`, f.alertness),
     meaning: slow
-      ? `Your own test is below your usual result${short ? ', after a week of short nights' : ''}. NASA uses these tests to spot fatigue before it causes errors.`
+      ? `Your test is below your usual result${short ? ', after a week of short nights' : ''}. NASA uses this test to catch fatigue before it leads to mistakes.`
       : short
-        ? 'A week of short nights lowers alertness and raises the risk of errors.'
+        ? 'A week of short nights. Your alertness drops, and so does your margin for error.'
         : f.alertness.length
-          ? 'Enough sleep this week, and your alertness test is as usual.'
-          : 'Enough sleep this week.',
+          ? 'You are sleeping enough, and your alertness test is normal for you.'
+          : 'You are sleeping enough this week.',
     advice: slow
       ? f.repeatedFlag
         ? 'Two tests in a row below your usual: tell the flight surgeon, and protect tonight’s sleep.'
         : 'Protect tonight’s sleep, then repeat the test within 24 hours.'
       : short
-        ? 'Protect the sleep period: noise, light and cabin air.'
+        ? 'Guard your sleep period: noise, light and the air in your quarters.'
         : STEADY,
     sources: slow ? ['SLEEP', 'SELF_TEST'] : ['SLEEP'],
   }
@@ -350,19 +350,19 @@ function oxygen(r: Readings, f: SelfTestFacts): Signal {
     ),
     meaning:
       vitals !== 'ok'
-        ? 'Outside the usual range.'
+        ? 'Outside the normal range.'
         : tests !== 'ok'
-          ? 'Both in the usual range, but your own heart test is below your usual result.'
-          : 'Both in the usual range.',
+          ? 'Both normal, but your heart test came out below your usual result.'
+          : 'Both normal.',
     advice:
       vitals === 'act'
-        ? 'Sit down, check the sensor, and get medical advice now if the value stays low.'
+        ? 'Sit down, check the sensor, and get medical advice now if it stays low.'
         : vitals === 'watch'
-          ? 'Measure again after 10 minutes at rest.'
+          ? 'Rest for 10 minutes, then measure again.'
           : tests !== 'ok'
             ? f.repeatedFlag
               ? 'Two tests in a row below your usual: tell the flight surgeon.'
-              : 'Rest today, then repeat the test within 24 hours.'
+              : 'Take it easy today, and repeat the test within 24 hours.'
             : STEADY,
     sources: tests !== 'ok' ? ['VITALS', 'SELF_TEST'] : ['VITALS'],
   }
@@ -376,9 +376,9 @@ function hydration(r: Readings): Signal {
     level: low ? 'watch' : 'ok',
     value: `${r.urineLitres.toFixed(1)} L of urine in 24 h`,
     meaning: low
-      ? `Below the ${L.urineMinLitres.toFixed(1)} L a day target. In space the bones release calcium into the urine, so concentrated urine raises the risk of kidney stones.`
-      : `At or above the ${L.urineMinLitres.toFixed(1)} L a day target, which keeps stone-forming salts diluted.`,
-    advice: low ? 'Drink more through the day and log urine volume again tomorrow.' : STEADY,
+      ? `Below the ${L.urineMinLitres.toFixed(1)} L a day target. Up here your bones release calcium into the urine, and concentrated urine is how kidney stones start.`
+      : `At or above the ${L.urineMinLitres.toFixed(1)} L a day target, which keeps the stone-forming salts diluted.`,
+    advice: low ? 'Drink more through the day, and log your urine again tomorrow.' : STEADY,
     sources: ['URINE_TARGET', 'URINE_RISK'],
   }
 }
@@ -396,10 +396,10 @@ function loading(r: Readings, f: SelfTestFacts): Signal {
       f.legs,
     ),
     meaning: low
-      ? 'Too few for weightlessness, where unloaded hips and spine lose about 1 to 1.5% of their bone a month.'
+      ? 'Not enough for weightlessness: unloaded hips and spine lose about 1 to 1.5% of their bone every month.'
       : legs !== 'ok'
-        ? 'On plan, but your sit-to-stand test is slower than your usual: the legs may be losing strength.'
-        : 'On plan. Resistance exercise is the main protection against bone and muscle loss.',
+        ? 'On plan, but your sit-to-stand test is slower than usual. Your legs may be losing strength.'
+        : 'On plan. Resistance exercise is your main defence against bone and muscle loss.',
     advice: low
       ? 'Make up the missed sessions this week.'
       : legs !== 'ok'
@@ -417,9 +417,9 @@ function mood(r: Readings, f: SelfTestFacts): Signal {
     level: low ? 'watch' : 'ok',
     value: withTests(`${r.mood.toFixed(1)} out of 5 over 7 days`, f.calm),
     meaning: low
-      ? 'A week of low mood. Isolation and confinement weigh on sleep, teamwork and safety.'
+      ? 'A low week. Isolation and confinement wear on sleep, teamwork and safety.'
       : 'Steady this week.',
-    advice: low ? 'Talk with a crewmate, and keep your sleep and free time.' : STEADY,
+    advice: low ? 'Talk to a crewmate, and protect your sleep and your free time.' : STEADY,
     sources: ['HAZARDS', 'MOOD'],
   }
 }
@@ -433,7 +433,7 @@ function balance(f: SelfTestFacts): Signal {
       level: 'ok',
       value: 'No self-test yet',
       meaning:
-        'Each change of gravity upsets balance and fine hand control for days. Only your own tests measure them here.',
+        'Every change of gravity throws off your balance and hand control for a few days. Only your own tests measure them.',
       advice: 'Take the balance test after each change of gravity, and the hand test in the first week.',
       sources: ['SENSORIMOTOR'],
     }
@@ -445,20 +445,20 @@ function balance(f: SelfTestFacts): Signal {
     meaning:
       level === 'ok'
         ? 'In line with your usual results.'
-        : 'Below your usual result. After a change of gravity, balance and hand control take days to readapt.',
+        : 'Below your usual result. After a change of gravity, balance and hand control take a few days to come back.',
     advice:
       level === 'ok'
         ? STEADY
         : f.repeatedFlag
-          ? 'Two tests in a row below your usual: tell the flight surgeon, and move with care.'
-          : 'Move with care, avoid tasks at height, and repeat the test within 24 hours.',
+          ? 'Two tests in a row below your usual: tell the flight surgeon, and move carefully.'
+          : 'Move carefully, skip work at height, and repeat the test within 24 hours.',
     sources: level === 'ok' ? ['SENSORIMOTOR'] : ['SENSORIMOTOR', 'SELF_TEST'],
   }
 }
 
 function bodyChecks(r: Readings): Signal {
   const issues: string[] = []
-  if (r.temperatureC >= L.feverC) issues.push('temperature in the fever range')
+  if (r.temperatureC >= L.feverC) issues.push('a temperature in the fever range')
   if (r.systolic >= L.systolicHigh || r.diastolic >= L.diastolicHigh) issues.push('high blood pressure')
   if (r.systolic < L.systolicLow) issues.push('low blood pressure')
   if (r.glucoseMgDl < L.glucoseLow) issues.push('low blood sugar')
@@ -469,9 +469,9 @@ function bodyChecks(r: Readings): Signal {
     level: issues.length ? 'watch' : 'ok',
     value: `${r.systolic.toFixed(0)}/${r.diastolic.toFixed(0)} mmHg, ${r.temperatureC.toFixed(1)} °C, ${r.glucoseMgDl.toFixed(0)} mg/dL`,
     meaning: issues.length
-      ? `Found: ${issues.join(' and ')}. These use ordinary limits, as no space-specific ones exist.`
-      : 'All three inside ordinary limits. No space-specific limits exist for them.',
-    advice: issues.length ? 'Measure again after 10 minutes at rest.' : STEADY,
+      ? `${issues.join(' and ').charAt(0).toUpperCase()}${issues.join(' and ').slice(1)}.`
+      : 'All three are normal.',
+    advice: issues.length ? 'Rest for 10 minutes, then measure again.' : STEADY,
     sources: ['BASICS'],
   }
 }
@@ -490,9 +490,9 @@ function immunity(r: Readings, b: Baseline): Signal {
       level: 'watch',
       meaning:
         rise > L.whiteCellsRiseMaxPct
-          ? `White cells are up ${rise.toFixed(0)}% since launch. A rise is common in flight, but this is more than usual.`
-          : `Lymphocytes are down ${drop.toFixed(0)}% since launch. Spaceflight can lower them.`,
-      advice: 'Look for fever, rash or signs of infection, and repeat the blood count.',
+          ? `Your white cells are up ${rise.toFixed(0)}% since launch. A rise is common in flight, but this is more than usual.`
+          : `Your lymphocytes are down ${drop.toFixed(0)}% since launch. Spaceflight can lower them.`,
+      advice: 'Watch for fever, a rash or other signs of infection, and repeat the blood count.',
       sources: ['IMMUNE_WBC', 'IMMUNE_DEMO'],
     }
   return {
@@ -500,8 +500,8 @@ function immunity(r: Readings, b: Baseline): Signal {
     level: 'ok',
     meaning:
       rise > 3
-        ? `White cells are up ${rise.toFixed(0)}% since launch, as seen on long station flights. On its own this is not a sign of infection.`
-        : 'Close to the values before launch.',
+        ? `Your white cells are up ${rise.toFixed(0)}% since launch, as on most long station flights. That alone does not mean an infection.`
+        : 'Close to your values before launch.',
     advice: STEADY,
     sources: ['IMMUNE_WBC'],
   }
@@ -515,9 +515,9 @@ function vitaminD(r: Readings, b: Baseline): Signal {
     level: low ? 'watch' : 'ok',
     value: `${r.vitaminDNgMl.toFixed(0)} ng/mL (before launch ${b.vitaminDNgMl.toFixed(0)})`,
     meaning: low
-      ? `Below ${L.vitaminDLowNgMl} ng/mL. Without sunlight, food is the only source, and station crews' levels fell even with supplements.`
-      : `At or above ${L.vitaminDLowNgMl} ng/mL. Levels tend to fall during flight.`,
-    advice: low ? 'Take the planned vitamin D supplement and the vitamin D food items.' : STEADY,
+      ? `Below ${L.vitaminDLowNgMl} ng/mL. With no sunlight, food is the only source, and station crews' levels dropped even with supplements.`
+      : `At or above ${L.vitaminDLowNgMl} ng/mL. Levels tend to fall during a flight, so it is checked again later.`,
+    advice: low ? 'Take your vitamin D supplement, and the vitamin D foods on your menu.' : STEADY,
     sources: ['VITD_NASA', 'VITD_FLIGHT'],
   }
 }
@@ -531,8 +531,8 @@ function bodyMass(r: Readings, b: Baseline): Signal {
     level: low ? 'watch' : 'ok',
     value: `${r.bodyMassKg.toFixed(1)} kg (before launch ${b.bodyMassKg.toFixed(1)} kg${loss > 0.5 ? `, down ${loss.toFixed(1)}%` : ''})`,
     meaning: low
-      ? `Down ${loss.toFixed(1)}% since launch. Eating too little is a common cause in space.`
-      : 'Steady since launch. Falling body mass is an early sign of eating too little.',
+      ? `Down ${loss.toFixed(1)}% since launch. Up here the usual reason is simply eating too little.`
+      : 'Steady since launch. Losing mass is often the first sign of eating too little.',
     advice: low ? 'Log what you eat for three days.' : STEADY,
     sources: ['MASS'],
   }
@@ -546,7 +546,7 @@ function cabinAir(cabin: Cabin): Signal {
     level: high ? 'watch' : 'ok',
     value: `${cabin.co2MmHg.toFixed(1)} mmHg, daily average`,
     meaning: high
-      ? `Above the ${L.co2LimitMmHg} mmHg limit. Crews get headaches at lower CO2 in space than on Earth.`
+      ? `Above the ${L.co2LimitMmHg} mmHg limit. In space, crews get headaches at lower CO2 than on Earth.`
       : `Under the ${L.co2LimitMmHg} mmHg limit.`,
     advice: high ? 'Check the CO2 scrubber and the airflow where the crew sleeps.' : STEADY,
     sources: ['CO2_LIMIT', 'CO2_HEADACHE'],
@@ -560,7 +560,7 @@ function radiation(cabin: Cabin): Signal {
     title: 'Radiation dose',
     level: share >= 1 ? 'act' : share >= L.radiationWatchShare ? 'watch' : 'ok',
     value: `${cabin.doseMSv.toFixed(0)} mSv since launch (day ${cabin.day})`,
-    meaning: `${(share * 100).toFixed(0)}% of the ${L.radiationCareerMSv} mSv career limit. About ${cabin.doseRateMSvDay} mSv a day is expected ${cabin.where}.`,
+    meaning: `Simulated environmental dose equivalent, about ${cabin.doseRateMSvDay} mSv/day ${cabin.where}. The ${L.radiationCareerMSv} mSv NASA career limit is for personal effective dose, a different quantity. The app's 300/600 mSv flags are scenario thresholds, not a validated career or eye-dose assessment.`,
     advice: share >= L.radiationWatchShare ? 'Use the most shielded area during solar storms.' : STEADY,
     sources: [cabin.doseSourceId, 'RAD_LIMIT', 'RAD_WATCH'],
   }

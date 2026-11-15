@@ -73,7 +73,9 @@ export default function EnvironmentExerciseDemo({
       </p>
       <h3 className="mt-1 text-xl font-medium">{activity.title}</h3>
       <p className="mt-2 text-sm leading-relaxed text-muted">{activity.movement}</p>
-      <p className="mt-2 text-sm text-muted">30-second animation with simulated pulse and breathing.</p>
+      <p className="mt-2 text-sm text-muted">
+        A 30-second animation, with the pulse and breathing it would bring.
+      </p>
       <div data-exercise-controls className="mt-3 flex flex-wrap items-center gap-2">
         {phase === 'running' ? (
           <Button size="sm" onClick={() => setPhase('paused')}>

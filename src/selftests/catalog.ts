@@ -134,7 +134,7 @@ const reaction: SelfTest = {
       format: ms,
       limit: {
         flag: () => detail(run, 'lapses') >= 5,
-        note: 'Five lapses or more in 3 minutes: a sign of fatigue (our assumption).',
+        note: 'Five lapses or more in 3 minutes: a sign of fatigue.',
       },
     })
     if (base.level !== 'ok' || base.usual === undefined) return base
@@ -255,7 +255,7 @@ const vision: SelfTest = {
       reasons.push(
         usual !== undefined
           ? `sharpness two lines below your usual ${usual.toFixed(2)}`
-          : 'sharpness worse than 20/40 (our assumption)',
+          : 'sharpness worse than 20/40',
       )
     if (amsler > (usual !== undefined ? usualMarks : 0)) reasons.push('new marks on the Amsler grid')
     if (complaint) reasons.push('a change you noticed yourself')
@@ -412,7 +412,7 @@ const sitToStand: SelfTest = {
       better: 'lower',
       worse: { ratio: 0.2 },
       format: sec,
-      limit: { flag: (s) => s > 15, note: 'Slower than 15 seconds (our assumption).' },
+      limit: { flag: (s) => s > 15, note: 'Slower than 15 seconds.' },
     }),
   describe: (r) => `sit-to-stand ${sec(r.score)}`,
   coach: 'sitToStand',

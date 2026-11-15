@@ -15,6 +15,10 @@ import { DEFAULT_HABITAT, type HabitatId } from '../mission/habitats'
 import MissionMenu from '../mission/MissionMenu'
 import { MISSIONS, missionDay, type MissionId } from '../mission/missions'
 import type { SelfTestId } from '../selftests/ids'
+import { tasksAt, visorReadings } from '../simulation/live'
+import SimulationBar from '../simulation/SimulationBar'
+import SimulationChecklist from '../simulation/SimulationChecklist'
+import { SimulationProvider, useSimulation } from '../simulation/SimulationProvider'
 import { Cover, Drawer, Logo } from '../ui'
 
 // The 3D body, the self-tests and the camera tools are the heaviest parts, so they load when first needed.
@@ -24,10 +28,9 @@ const SelfTestsScreen = lazy(() => import('../selftests/ui/SelfTestsScreen'))
 const CrewLogin = lazy(() => import('../crew/CrewLogin'))
 const NewMember = lazy(() => import('../crew/NewMember'))
 const ArVisor = lazy(() => import('./ArVisor'))
-const SimulationScreen = lazy(() => import('../simulation/SimulationScreen'))
 
 /** Panels that open over the body. There is no other page. */
-type Panel = 'checkup' | 'tests' | 'simulation'
+type Panel = 'checkup' | 'tests'
 type Page = 'intro' | 'profile' | 'dashboard'
 
 const CHECKUP_WIDTH = 560
@@ -158,182 +161,236 @@ function Shell() {
   const cameraOn = pulse.phase !== 'off' && pulse.phase !== 'error'
 
   return (
-    <div key={member.id} className="min-h-[100dvh]">
-      <header className="fixed inset-x-0 top-0 z-30 border-b border-white/[0.06] bg-[#0d0f12]/80 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 max-w-[1680px] items-center gap-2 px-3 sm:gap-3 sm:px-6">
-          <button
-            onClick={showIntro}
-            className="press flex shrink-0 items-center rounded"
-            aria-label="Pulsar, back to the crew list"
-          >
-            <span className="hidden sm:inline-flex">
-              <Logo variant="full" size={24} />
-            </span>
-            <span className="inline-flex sm:hidden">
-              <Logo size={24} />
-            </span>
-          </button>
-          <span className="mx-1 hidden h-5 w-px bg-white/15 sm:block" aria-hidden="true" />
-          <CrewMenu
-            onPick={(id) => {
-              if (id !== member.id) openDashboard(id)
-            }}
-            onAdd={startAdding}
-            onFace={() => openAvatarSetup(member.id)}
-          />
-
-          <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
-            {cameraOn && (
-              <button
-                onClick={stopPulse}
-                className="press flex h-9 items-center gap-2 rounded-full bg-white/[0.08] px-3 text-[13px] hover:bg-white/[0.14]"
-                title="The camera is on and processed on this device. Click to stop it."
-              >
-                <Camera size={15} weight="fill" className="text-holo" />
-                <span className="hidden tabular-nums md:inline">
-                  {pulse.bpm ? `${Math.round(pulse.bpm)} bpm, stop` : 'Camera on, stop'}
-                </span>
-              </button>
-            )}
-            <HeaderButton on={panel === 'simulation'} onClick={() => toggle('simulation')} label="Simulation">
-              <PlayCircle size={17} />
-            </HeaderButton>
-            <HeaderButton on={ar} onClick={() => setAr(true)} label="AR view">
-              <Eyeglasses size={17} />
-            </HeaderButton>
-            <HeaderButton on={panel === 'checkup'} onClick={() => toggle('checkup')} label="Check-up">
-              <ListChecks size={17} />
-              <PendingCount member={member} mission={mission} day={day} />
-            </HeaderButton>
-            <HeaderButton on={panel === 'tests'} onClick={() => toggle('tests')} label="Tests">
-              <Heartbeat size={17} />
-            </HeaderButton>
-            <MissionMenu
-              mission={mission}
-              onMission={chooseMission}
-              habitat={habitat}
-              onHabitat={setHabitat}
-              day={day}
-              onDay={setDay}
+    <SimulationProvider member={member} mission={mission} day={day}>
+      <div key={member.id} className="min-h-[100dvh]">
+        <header className="fixed inset-x-0 top-0 z-30 border-b border-white/[0.06] bg-[#0d0f12]/80 backdrop-blur-xl">
+          <div className="mx-auto flex h-16 max-w-[1680px] items-center gap-2 px-3 sm:gap-3 sm:px-6">
+            <button
+              onClick={showIntro}
+              className="press flex shrink-0 items-center rounded"
+              aria-label="Pulsar, back to the crew list"
+            >
+              <span className="hidden sm:inline-flex">
+                <Logo variant="full" size={24} />
+              </span>
+              <span className="inline-flex sm:hidden">
+                <Logo size={24} />
+              </span>
+            </button>
+            <span className="mx-1 hidden h-5 w-px bg-white/15 sm:block" aria-hidden="true" />
+            <CrewMenu
+              onPick={(id) => {
+                if (id !== member.id) openDashboard(id)
+              }}
+              onAdd={startAdding}
+              onFace={() => openAvatarSetup(member.id)}
             />
-          </div>
-        </div>
-      </header>
+            {/* While the mission simulation runs, its playback sits in the middle of the bar. */}
+            <div className="hidden min-w-0 flex-1 justify-center md:flex">
+              <div className="flex w-full max-w-[760px] min-w-0">
+                <SimulationBar />
+              </div>
+            </div>
 
-      <main className="relative">
-        <Suspense fallback={<Loading />}>
-          <BodyScreen
-            member={member}
-            face={crew.faceOf(member.id)}
-            mission={mission}
-            day={day}
-            setDay={setDay}
-            habitat={habitat}
-            onGravity={setGravity}
-            exerciseDemo={playing}
-            onOpenTest={openTest}
-            breath={recentBreath(breath, member.id, Date.now())}
-            covered={panel === 'checkup' ? CHECKUP_WIDTH : 0}
-            paused={panel === 'tests' || panel === 'simulation' || ar}
-            request={request}
-          />
-        </Suspense>
-      </main>
-
-      <AnimatePresence>
-        {panel === 'checkup' && (
-          <Drawer
-            key="checkup"
-            title="Today's check-up"
-            subtitle={`${member.short}, day ${day}`}
-            onClose={close}
-            width={CHECKUP_WIDTH}
-            showAvatar={!!playing}
-          >
-            <Suspense fallback={<Loading />}>
-              <CheckupScreen
+            <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
+              {cameraOn && (
+                <button
+                  onClick={stopPulse}
+                  className="press flex h-9 items-center gap-2 rounded-full bg-white/[0.08] px-3 text-[13px] hover:bg-white/[0.14]"
+                  title="The camera is on and processed on this device. Click to stop it."
+                >
+                  <Camera size={15} weight="fill" className="text-holo" />
+                  <span className="hidden tabular-nums md:inline">
+                    {pulse.bpm ? `${Math.round(pulse.bpm)} bpm, stop` : 'Camera on, stop'}
+                  </span>
+                </button>
+              )}
+              <SimulationButton onStart={() => setPanel((p) => (p === 'tests' ? null : p))} />
+              <HeaderButton on={ar} onClick={() => setAr(true)} label="AR view">
+                <Eyeglasses size={17} />
+              </HeaderButton>
+              <HeaderButton on={panel === 'checkup'} onClick={() => toggle('checkup')} label="Check-up">
+                <ListChecks size={17} />
+                <PendingCount member={member} mission={mission} day={day} />
+              </HeaderButton>
+              <HeaderButton on={panel === 'tests'} onClick={() => toggle('tests')} label="Tests">
+                <Heartbeat size={17} />
+              </HeaderButton>
+              <MissionMenu
+                mission={mission}
+                onMission={chooseMission}
                 habitat={habitat}
-                gravity={gravity}
-                onDemo={onDemo}
-                member={member}
-                mission={mission}
+                onHabitat={setHabitat}
                 day={day}
-                onShow={(signal) => {
-                  setRequest({ signal, at: Date.now() })
-                  close()
-                }}
-                onStartTest={openTest}
+                onDay={setDay}
               />
-            </Suspense>
-          </Drawer>
-        )}
-        {panel === 'simulation' && (
-          <Cover key="simulation" title={`Mission simulation, ${member.short}`} onClose={close}>
-            <Suspense fallback={<Loading />}>
-              <SimulationScreen member={member} mission={mission} days={days} onStartTest={openTest} />
-            </Suspense>
-          </Cover>
-        )}
-        {panel === 'tests' && (
-          <Cover key="tests" title={`Self-tests, ${member.short}`} onClose={close}>
-            <Suspense fallback={<Loading />}>
-              <SelfTestsScreen
-                key={`${member.id}:${testRequest.at}`}
-                member={member}
-                mission={mission}
-                day={day}
-                initialTest={testRequest.test}
-                onBreathReading={acceptBreath}
-                onBreathUnavailable={clearBreath}
-                onShowSignal={(signal) => {
-                  setRequest({ signal, at: Date.now() })
-                  close()
-                }}
-                onPortraitSaved={() => {
-                  close()
-                  setToast(`Portrait saved to ${member.short}'s profile in this browser.`)
-                }}
-              />
-            </Suspense>
-          </Cover>
-        )}
-      </AnimatePresence>
+            </div>
+          </div>
+        </header>
 
-      <AnimatePresence>
-        {ar && (
-          <Suspense key="ar" fallback={null}>
-            <ArVisor
+        <main className="relative">
+          <Suspense fallback={<Loading />}>
+            <BodyScreen
               member={member}
+              face={crew.faceOf(member.id)}
               mission={mission}
               day={day}
-              onMission={chooseMission}
-              onClose={() => setAr(false)}
+              setDay={setDay}
+              habitat={habitat}
+              onGravity={setGravity}
+              exerciseDemo={playing}
+              onOpenTest={openTest}
+              breath={recentBreath(breath, member.id, Date.now())}
+              covered={panel === 'checkup' ? CHECKUP_WIDTH : 0}
+              paused={panel === 'tests' || ar}
+              request={request}
+              onOpenCheckup={() => setPanel('checkup')}
+              onOpenPanel={() => setPanel((p) => (p === 'checkup' ? null : p))}
             />
           </Suspense>
-        )}
-      </AnimatePresence>
+        </main>
 
-      <div
-        className="pointer-events-none fixed inset-x-0 bottom-6 z-40 flex justify-center px-4"
-        aria-live="polite"
-      >
         <AnimatePresence>
-          {toast && (
-            <motion.p
-              key={toast}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.18 }}
-              className="flex items-center gap-2.5 rounded-full bg-white px-5 py-3 text-sm text-[#0d0f12] shadow-[0_12px_32px_rgb(0_0_0/0.4)]"
+          {panel === 'checkup' && (
+            <Drawer
+              key="checkup"
+              title="Today's check-up"
+              subtitle={`${member.short}, day ${day}`}
+              onClose={close}
+              width={CHECKUP_WIDTH}
+              showAvatar={!!playing}
             >
-              <Check size={15} weight="bold" />
-              {toast}
-            </motion.p>
+              <Suspense fallback={<Loading />}>
+                <CheckupContent
+                  habitat={habitat}
+                  gravity={gravity}
+                  onDemo={onDemo}
+                  member={member}
+                  mission={mission}
+                  day={day}
+                  onShow={(signal) => {
+                    setRequest({ signal, at: Date.now() })
+                    close()
+                  }}
+                  onStartTest={openTest}
+                />
+              </Suspense>
+            </Drawer>
+          )}
+          {panel === 'tests' && (
+            <Cover key="tests" title={`Self-tests, ${member.short}`} onClose={close}>
+              <Suspense fallback={<Loading />}>
+                <SelfTestsScreen
+                  key={`${member.id}:${testRequest.at}`}
+                  member={member}
+                  mission={mission}
+                  day={day}
+                  initialTest={testRequest.test}
+                  onBreathReading={acceptBreath}
+                  onBreathUnavailable={clearBreath}
+                  onShowSignal={(signal) => {
+                    setRequest({ signal, at: Date.now() })
+                    close()
+                  }}
+                  onPortraitSaved={() => {
+                    close()
+                    setToast(`Portrait saved to ${member.short}'s profile in this browser.`)
+                  }}
+                />
+              </Suspense>
+            </Cover>
           )}
         </AnimatePresence>
+
+        <AnimatePresence>
+          {ar && (
+            <Suspense key="ar" fallback={null}>
+              <Visor
+                member={member}
+                mission={mission}
+                day={day}
+                onMission={chooseMission}
+                onClose={() => setAr(false)}
+              />
+            </Suspense>
+          )}
+        </AnimatePresence>
+
+        <div
+          className="pointer-events-none fixed inset-x-0 bottom-6 z-40 flex justify-center px-4"
+          aria-live="polite"
+        >
+          <AnimatePresence>
+            {toast && (
+              <motion.p
+                key={toast}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.18 }}
+                className="flex items-center gap-2.5 rounded-full bg-white px-5 py-3 text-sm text-[#0d0f12] shadow-[0_12px_32px_rgb(0_0_0/0.4)]"
+              >
+                <Check size={15} weight="bold" />
+                {toast}
+              </motion.p>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
-    </div>
+    </SimulationProvider>
+  )
+}
+
+/** Starts the mission simulation over the dashboard, or ends it. */
+function SimulationButton({ onStart }: { onStart: () => void }) {
+  const s = useSimulation()
+  return (
+    <HeaderButton
+      on={s.active}
+      onClick={() => {
+        if (s.active) return s.stop()
+        onStart()
+        s.start()
+      }}
+      label="Simulation"
+    >
+      <PlayCircle size={17} />
+    </HeaderButton>
+  )
+}
+
+/** The check-up of the day, or the list of the simulated day while the simulation runs. */
+function CheckupContent(props: React.ComponentProps<typeof CheckupScreen>) {
+  const s = useSimulation()
+  if (s.active) return <SimulationChecklist onStartTest={props.onStartTest} />
+  return <CheckupScreen {...props} />
+}
+
+/** The AR view, with the simulated minute in the helmet while the simulation runs. */
+function Visor({
+  member,
+  mission,
+  day,
+  onMission,
+  onClose,
+}: {
+  member: Member
+  mission: MissionId
+  day: number
+  onMission: (mission: MissionId) => void
+  onClose: () => void
+}) {
+  const s = useSimulation()
+  const live = s.active && s.sim ? visorReadings(s.sim, s.t) : undefined
+  return (
+    <ArVisor
+      member={member}
+      mission={mission}
+      day={day}
+      onMission={live ? undefined : onMission}
+      onClose={onClose}
+      live={live}
+    />
   )
 }
 
@@ -363,9 +420,13 @@ function HeaderButton({
 
 /** Tasks of today's check-up not done yet, next to its button. */
 function PendingCount({ member, mission, day }: { member: Member; mission: MissionId; day: number }) {
+  const s = useSimulation()
   const report = useDayReport(member, day, mission)
   const checkup = useCheckup(report, mission)
-  const left = checkup.tasks.filter((t) => !checkup.done.has(t.id)).length
+  const left =
+    s.active && s.sim
+      ? tasksAt(s.sim, s.t).filter((t) => t.state !== 'done').length
+      : checkup.tasks.filter((t) => !checkup.done.has(t.id)).length
   if (left === 0) return null
   return (
     <span className="order-last rounded-full bg-urgent px-1.5 font-cond text-[12px] leading-5 font-semibold text-white">

@@ -174,8 +174,10 @@ const wobble = (t: number) => 1.2 * Math.sin(t / 3.1) + 0.8 * Math.sin(t / 7.7 +
  * Plays the day. `checkup` is the person's own check-up for that day, laid out at the free times of
  * the scenario: routine checks in the morning health check, the rest in order.
  */
-export function simulate(scenario: Scenario, person: Person, checkup: Task[]): Simulation {
+export function simulate(scenario: Scenario, person: Person, checkup: Task[], cabinCo2?: number): Simulation {
   const { blocks, start, end } = scenario
+  // The story's CO2 starts from the day's own cabin level, when it is given.
+  const co2Shift = cabinCo2 === undefined ? 0 : cabinCo2 - profile(scenario.co2, start, cabinCo2)
   const gravity = MISSIONS[scenario.mission].gravity
   const usualRate = (MISSIONS[scenario.mission].radiationMSvDay * 1000) / 24
   const events: SimEvent[] = scenario.events.map((e) => ({ ...e, from: 'story' }))
@@ -267,7 +269,7 @@ export function simulate(scenario: Scenario, person: Person, checkup: Task[]): S
     spent = spent * Math.exp(-1 / 40) + 0.12 * Math.max(0, met - 3)
     const sugar = person.glucoseMgDl + meals.reduce((s, m) => s + 38 * mealRise(t - m), 0) - spent
     water += drinks.get(t) ?? 0
-    const co2 = profile(scenario.co2, t, 2.4)
+    const co2 = profile(scenario.co2, t, 2.4) + co2Shift
     const suitCo2 = suited ? 1.3 + 0.28 * Math.max(0, met - 2) + profile(scenario.suitCo2, t, 0) : null
     const outsideRate = usualRate * profile(scenario.radiation, t, 1)
     const shielding = b.activity === 'shelter' ? 0.2 : 0.85
@@ -306,7 +308,7 @@ export function simulate(scenario: Scenario, person: Person, checkup: Task[]): S
         t,
         'watch',
         `Cabin CO2 above the ${LIMITS.co2LimitMmHg} mmHg limit`,
-        `${s.co2MmHg} mmHg and rising. Crews get headaches at lower CO2 in space than on Earth.`,
+        `${s.co2MmHg} mmHg. Crews get headaches at lower CO2 in space than on Earth.`,
       )
     }
     co2High = co2 >= 4 ? co2High + 1 : 0

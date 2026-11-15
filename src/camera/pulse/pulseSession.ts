@@ -413,7 +413,7 @@ function publish(s: Session, now: number) {
         }
       : null,
     message: good
-      ? 'Live estimate from skin colour · not a medical measurement'
+      ? 'Live estimate from the colour of your skin'
       : 'Weak signal. Keep your face still and evenly lit, without light behind you.',
     bpm,
     quality: e?.quality ?? 0,

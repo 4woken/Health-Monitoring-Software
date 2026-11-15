@@ -39,6 +39,7 @@ export default function SignalPanel({
   metric,
   planned,
   onPlan,
+  onOpenCheckup,
   onReference,
   onTest,
 }: {
@@ -49,6 +50,8 @@ export default function SignalPanel({
   /** True when today's check-up already has a task for this signal. */
   planned: boolean
   onPlan: () => void
+  /** Opens today's check-up, once the signal is on it. */
+  onOpenCheckup?: () => void
   /** Opens the whole NASA reference. */
   onReference?: () => void
   /** Opens a self-test on the same question. */
@@ -62,23 +65,17 @@ export default function SignalPanel({
   const tests = testsFor(signal.id)
   const results = useResults(report.member.id).filter((r) => r.day <= report.day)
   const blocks: [string, string][] = [
-    ['Value', signal.value],
+    ['Today', signal.value],
     ['What it is', guide.what],
-    ['What it means here', signal.meaning],
-    ['How it is taken', guide.how],
+    ['What it means for you', signal.meaning],
+    ['How it is measured', guide.how],
     ['What to do', signal.advice],
   ]
+  // Only published sources are listed; the app's own thresholds are explained in the docs.
+  const sources = signal.sources.map((id) => SOURCES[id]).filter((s) => s && s.status !== 'demo')
   return (
     <div className="space-y-5 px-5 pb-6">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-[13px] text-muted">
-          {report.member.short}, day {report.day}.{' '}
-          {signal.id === 'balance'
-            ? 'Your own self-tests only.'
-            : tests.length
-              ? 'Simulated data, with your own self-tests.'
-              : 'Simulated data.'}
-        </p>
+      <div className="flex justify-end">
         <Chip level={signal.level} />
       </div>
 
@@ -87,7 +84,7 @@ export default function SignalPanel({
           <div key={title}>
             <dt className="font-cond text-[13px] text-white/60">{title}</dt>
             <dd
-              className={`mt-1 leading-relaxed ${title === 'Value' ? 'font-cond text-[17px] text-ink' : 'text-[15px]'}`}
+              className={`mt-1 leading-relaxed ${title === 'Today' ? 'font-cond text-[17px] text-ink' : 'text-[15px]'}`}
             >
               {text}
             </dd>
@@ -99,7 +96,7 @@ export default function SignalPanel({
       )}
 
       {signal.level !== 'ok' && (
-        <Button size="sm" onClick={onPlan} disabled={planned}>
+        <Button size="sm" onClick={planned ? onOpenCheckup : onPlan} disabled={planned && !onOpenCheckup}>
           {planned ? <CheckCircle size={16} weight="fill" /> : <ListPlus size={16} />}
           {planned ? "In today's check-up" : "Add to today's check-up"}
         </Button>
@@ -139,9 +136,8 @@ export default function SignalPanel({
 
       {GRAVITY_SENSITIVE.has(signal.id) && m.gravity > 0 && (
         <p className="text-[13px] leading-relaxed text-check">
-          {m.name}: gravity is {m.gravity} of Earth&apos;s, and these limits come from weightless flights. The
-          simulation assumes {Math.round(m.fluidShift * 100)}% of the weightless fluid shift, interpolated
-          from a{' '}
+          On {m.name}, gravity is {m.gravity} of Earth&apos;s, and these limits come from weightless flights.
+          Pulsar counts {Math.round(m.fluidShift * 100)}% of the weightless fluid shift here, after a{' '}
           <a
             href={SOURCES.GRAVITY_PARTIAL.url}
             target="_blank"
@@ -149,8 +145,8 @@ export default function SignalPanel({
             className="underline underline-offset-4"
           >
             short-flight study
-          </a>{' '}
-          (our assumption).
+          </a>
+          .
         </p>
       )}
 
@@ -210,36 +206,34 @@ export default function SignalPanel({
         </div>
       )}
 
-      <div className="space-y-2 border-t border-line-soft pt-4 text-[13px] leading-relaxed text-muted">
-        <p className="font-cond text-white/60">Why we say so</p>
-        {signal.sources.map((id) => {
-          const s = SOURCES[id]
-          if (!s) return null
-          return (
-            <p key={id}>
-              {s.status === 'demo' ? (
-                <span className="text-ink">Our own value, no published source.</span>
-              ) : (
+      {(sources.length > 0 || risk) && (
+        <div className="space-y-2 border-t border-line-soft pt-4 text-[13px] leading-relaxed text-muted">
+          <p className="font-cond text-white/60">Sources</p>
+          {sources.map((s) => (
+            <p key={s.id}>
+              {s.url ? (
                 <a href={s.url} target="_blank" rel="noreferrer" className={link}>
                   {s.title}
                 </a>
+              ) : (
+                <span className="text-ink">{s.title}</span>
               )}{' '}
               {s.says}
             </p>
-          )
-        })}
-        {risk && (
-          <a
-            href={risk.url}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1 text-ink hover:underline"
-          >
-            NASA risk: {risk.name}
-            <ArrowUpRight size={12} />
-          </a>
-        )}
-      </div>
+          ))}
+          {risk && (
+            <a
+              href={risk.url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-ink hover:underline"
+            >
+              NASA risk: {risk.name}
+              <ArrowUpRight size={12} />
+            </a>
+          )}
+        </div>
+      )}
     </div>
   )
 }

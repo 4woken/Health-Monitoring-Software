@@ -15,21 +15,22 @@ The days follow the routine of a station day: wake at 06:00, a planning conferen
 
 ## How to use it
 
-- Pick a day. The one of the dashboard's destination comes first, with the person's mission day.
-- **Play** and **Pause**, at 2, 5 or 15 simulated minutes per second. A whole day lasts about three minutes at 5 min/s.
-- **Next event** jumps to the next thing that happens. The bar of the day can be clicked or dragged to any minute; each block names its activity on hover, and its height is the planned effort.
-- **Open the visor** shows the same moment in the AR view: the simulated readings in the helmet (heart rate, blood oxygen, blood pressure, the next drink, temperature, blood sugar, sleep) and the newest warning under the menu. During a spacewalk the button says so.
-- A task with a self-test offers **Try the real test**, which leaves the simulation for that test.
+- **Simulation** in the top bar starts the day of the dashboard's destination, for the person shown and their mission day. Pick another destination in the mission menu to play its day.
+- The playback sits in the top bar. **Play** and **Pause**; the speed button goes through 5, 15 and 2 simulated minutes per second, and a whole day lasts about three minutes at 5. **Next event** jumps to the next thing that happens, and the cross ends the simulation. The bar of the day can be clicked or dragged to any minute; each block names its activity on hover, and its height is the planned effort.
+- The dashboard plays the day. The vital signs along the bottom say **Live** and show the minute's heart rate, breathing, blood oxygen, blood pressure, core temperature and blood sugar, and the 3D heart beats at that rate. The signals are judged again every minute, so the markers on the body and the list of things to do follow: the dosimeter turns red in the solar storm, the air turns amber when the scrubber stops. At the top of the list, the clock, the current activity and the latest news.
+- **Check-up** shows the list of the simulated day, and everything that happened under it.
+- **AR view** shows the same minute in the helmet: heart rate, blood oxygen, blood pressure, the next drink, temperature, blood sugar and sleep, the simulated time, and the newest warning under the menu.
+- A task with a self-test offers **Take the test**, which opens that test.
 
 ## What changes during the day
 
-- **Readings.** Heart rate with its trace and its curve since waking, blood oxygen, blood pressure, breathing, core temperature, blood sugar and the water drunk. Cabin CO2 (the suit's CO2 on a spacewalk) and the radiation dose rate, each with its limit or usual level. A value out of range takes its warning colour and an icon.
+- **Readings.** Heart rate, breathing, blood oxygen, blood pressure, core temperature and blood sugar along the bottom of the dashboard, and the heartbeat of the 3D body. Cabin CO2 (the suit's on a spacewalk) and the radiation dose rate decide the air and radiation markers. A value out of range lights the marker of its part.
 - **Events.** What happens in the mission (a scrubber fault, a flare, a dust storm) and what Pulsar reads in the values: a limit crossed, the peak of a session, a recovery, a core temperature, a water deficit.
 - **To do today.** The person's own check-up for that day (the routine checks, the exams due, NASA's tasks of the day and the follow-ups of their signals), laid out at sensible times, beside the mission plan. Tasks tick themselves when they get done. When a value goes out of range, a rule adds a task, marked as added by Pulsar: "Drink 500 ml now", "Thinking test, now the air is clean", "Head back to the airlock", "Stay in the shelter until the all-clear". A storm moves the tasks that fell during it.
 
 ## The model
 
-Everything is computed once, ahead, in `src/simulation/engine.ts`, so the day can be played back and forth; the scenarios are in `src/simulation/scenarios.ts`.
+Everything is computed once, ahead, in `src/simulation/engine.ts`, so the day can be played back and forth; the scenarios are in `src/simulation/scenarios.ts`. `src/simulation/live.ts` turns a minute into what the dashboard shows: the day's report with its signals judged again on that minute's values, the vital signs, the helmet readings and the list of the day.
 
 - **Effort** comes from the activity, in METs (1 is sitting still): about 1.6 for desk work, 4 to 7 on a spacewalk, 8 on the treadmill. Resistance exercise comes in sets, runs warm up and cool down, a spacewalk varies from task to task.
 - **Heart rate** moves towards a target between the person's resting rate and a maximum of 181 bpm, faster on the way up than on the way down. Profiles have no age, so the maximum is the one of a 38-year-old, 208 − 0.7 × age. It is a few beats under the resting rate in sleep, and stress adds a few beats.

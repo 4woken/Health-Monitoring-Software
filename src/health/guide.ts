@@ -1,5 +1,5 @@
-// Plain words for each signal: what it is, and how it is taken. Nobody on board is assumed to know
-// how to assess their own health.
+// Plain words for each signal: what it is, and how it is measured, written to the crew member.
+// Nobody on board is expected to be a doctor.
 
 import type { SignalId } from './signals'
 
@@ -12,68 +12,68 @@ export interface Guide {
 
 export const GUIDE: Record<SignalId, Guide> = {
   opticNerve: {
-    what: 'The width of the sleeve around the nerve behind the eye. Fluid moving toward the head can change the eye and vision on long flights: about 70% of station astronauts show some swelling at the back of the eye.',
-    how: 'An ultrasound probe held gently on the closed eyelid, with gel. A crewmate can help.',
+    what: 'The sleeve of fluid around the nerve at the back of your eye. Without gravity, fluid drifts toward your head and can press on the eye, and about 70% of station astronauts end up with some swelling there.',
+    how: 'A small ultrasound probe on your closed eyelid, with a little gel. A crewmate can hold it for you.',
   },
   headache: {
-    what: 'A headache the person reports. In a sealed cabin, the carbon dioxide everyone breathes out can build up and cause it.',
-    how: 'Said by the person, on the day it happens.',
+    what: 'A headache you report. In a sealed cabin, the CO2 everyone breathes out can build up, and that is the usual cause.',
+    how: 'You say so, on the day it happens.',
   },
   sleep: {
-    what: 'Average sleep over the last week. Noise, workload and the lack of a normal day make sleep harder: the station sees 16 sunrises a day.',
-    how: 'Measured by the wearable sensor. Alertness comes from your own reaction and thinking tests, in Self-tests.',
+    what: 'How long you have slept, on average, over the past week. Noise, workload and sixteen sunrises a day on the station make good sleep hard.',
+    how: 'Your wearable tracks it. Your reaction and thinking tests, in Tests, show how alert you are.',
   },
   mood: {
-    what: 'How the person rates their own mood, averaged over a week. Months in a small space far from home wear on anyone.',
-    how: 'A rating from 1 (very low) to 5 (very good), once a day.',
+    what: 'How you rate your mood, averaged over the week. Months in a small space far from home wear on anyone.',
+    how: 'A score from 1 (very low) to 5 (very good), once a day.',
   },
   balance: {
-    what: 'Balance and fine control of the hands. The inner ear senses gravity, so each change of it, into weightlessness or back into gravity, upsets balance and coordination for days.',
-    how: 'Your own tests in Self-tests: the balance test with the camera (or your phone on your chest), and the hand dexterity test.',
+    what: 'Your balance and the fine control of your hands. Your inner ear senses gravity, so every change of gravity throws them off for a few days.',
+    how: 'Your own tests, in Tests: balance with the camera (or a phone held on your chest) and the hand dexterity test.',
   },
   neckVein: {
-    what: 'How blood drains from the head through the large vein in the neck. Without gravity pulling it down, the flow can slow or stall.',
-    how: 'An ultrasound probe on the left side of the neck.',
+    what: 'How blood drains from your head through the large vein in your neck. With no gravity pulling it down, the flow can slow down or even stall.',
+    how: 'An ultrasound probe on the left side of your neck.',
   },
   oxygen: {
-    what: 'The oxygen level in the blood and the resting pulse. Low gravity changes the heart and the vessels, so the trend matters as much as one value.',
-    how: 'The wearable sensor, at rest. Your own pulse can also be read with the camera, in Self-tests.',
+    what: 'The oxygen in your blood and your pulse at rest. Space changes the heart and the blood vessels, so the trend tells you more than any one reading.',
+    how: 'Your wearable, while you rest. You can also read your pulse with the camera, in Tests.',
   },
   bodyChecks: {
-    what: 'Blood pressure, temperature and blood sugar: the first checks a doctor would make. Far from a doctor, the crew makes them.',
+    what: 'Blood pressure, temperature and blood sugar: the first things a doctor checks. There is no doctor down the corridor up here, so you check them yourself.',
     how: 'An arm cuff, a thermometer and a finger-prick meter.',
   },
   redCells: {
-    what: 'The share of the blood made of red cells (hematocrit). In weightlessness the body sheds plasma, so this share goes up.',
-    how: 'A small blood sample in the onboard blood analyser.',
+    what: 'How much of your blood is red cells, the hematocrit. In weightlessness your body sheds plasma, so that share goes up.',
+    how: 'A drop of blood in the onboard analyser.',
   },
   immunity: {
-    what: 'White blood cells fight infection; lymphocytes are one important kind. Radiation, stress, poor sleep and diet all change the immune system in flight.',
-    how: 'The same small blood sample as the red cells, in the blood analyser.',
+    what: 'White blood cells fight infection, and lymphocytes are one of the main kinds. Radiation, stress, short nights and packed food all change the immune system in flight.',
+    how: 'The same drop of blood as for the red cells, in the analyser.',
   },
   hydration: {
-    what: 'How much urine is passed in a day. Bones lose calcium in weightlessness and it leaves through the urine, where it can form kidney stones if the urine is concentrated.',
+    what: 'How much urine you pass in a day. Your bones lose calcium in weightlessness and it leaves in the urine, where it can form kidney stones if you do not drink enough.',
     how: 'The volume from the collection device, once a day.',
   },
   loading: {
-    what: 'How often the bones and muscles get a real load from resistance exercise. Without it they weaken.',
-    how: 'Counted by the exercise device. Nothing to do.',
+    what: 'How often your bones and muscles get real work. Without a load they weaken, and quickly.',
+    how: 'The exercise machines count your sessions. Nothing for you to do.',
   },
   vitaminD: {
-    what: 'The vitamin D in the blood. Skin makes it from sunlight, which never reaches a sealed cabin, so food and supplements are the only source. Bones need it to take up calcium.',
-    how: 'A blood sample. On the station these samples go back to Earth, so the result comes late.',
+    what: 'The vitamin D in your blood. Your skin makes it from sunlight, which never reaches a sealed cabin, so it has to come from food and supplements. Your bones need it to take up calcium.',
+    how: 'A blood sample. On the station these go back to Earth, so the result arrives late.',
   },
   bodyMass: {
-    what: 'Body mass compared with before launch. Food is limited to what was packed, and losing mass is an early sign of eating too little.',
+    what: 'Your mass compared with launch day. You only eat what was packed, and losing mass is often the first sign that you are eating too little.',
     how: 'The onboard mass device, once a week.',
   },
   cabinAir: {
-    what: 'Carbon dioxide in the cabin air. Everyone breathes it out and machines must take it out again.',
-    how: 'Measured by the cabin sensors. Nothing to do.',
+    what: 'The CO2 in the cabin air. Everyone breathes it out, and machines have to take it out again.',
+    how: 'The cabin sensors measure it. Nothing for you to do.',
   },
   radiation: {
-    what: "The radiation dose received since launch. Outside Earth's magnetic shield it is much higher.",
-    how: 'Measured by the dosimeter. Nothing to do.',
+    what: 'Simulated environmental dose equivalent. Personal effective dose and organ gray-equivalent are different quantities; the organ panel integrates absorbed doses by particle type.',
+    how: 'NASA active dosimeters timestamp absorbed-dose readings. Organ estimates require calibrated radiation data and transport through shielding and the body. Pulsar uses labelled examples or imported organ inputs.',
   },
 }
 

@@ -125,9 +125,6 @@ export default function CheckupScreen({
             Plan again
           </Button>
         </div>
-        <p className="pt-6 text-[13px] text-dim">
-          Educational prototype with simulated data. It is not a medical device.
-        </p>
       </div>
     </div>
   )

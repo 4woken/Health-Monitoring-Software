@@ -40,11 +40,13 @@ export interface LiveReadings {
   diastolic: number
   coreTempC: number
   glucoseMgDl: number
+  /** Environmental dose-equivalent rate, not absorbed eye dose. */
+  radiationUSvH?: number
   sleepHours: number
   /** Minutes to the next drink, or null when none is planned. */
   nextDrinkMin: number | null
-  /** Shown at the foot of the view, such as "Simulation · 11:10 · Climbing the crater rim". */
-  caption: string
+  /** The simulated time, shown beside the suit's status. */
+  clock?: string
   /** The newest warning of the simulation, shown under the menu. */
   alert: { level: Level; text: string } | null
 }
@@ -158,7 +160,6 @@ export default function ArVisor({
     glucoseMgDl: eva.glucoseMgDl,
     sleepHours: r.sleepHours,
     nextDrinkMin: nextDrinkMinutes(seconds),
-    caption: 'AI-generated environment · simulated spacewalk readings, built from the resting pulse',
     alert: null,
   }
   // The suit battery runs about eight hours.
@@ -166,9 +167,6 @@ export default function ArVisor({
   // Eye control starts with the view; the mouse and the keyboard keep working beside it.
   const gaze = useGaze({ auto: true })
   const gazing = gaze.state !== 'off' && gaze.state !== 'error'
-  /** A typical gaze error past a tenth of the screen diagonal makes the buttons hard to tell apart. */
-  const rough =
-    gaze.errorPx !== null && gaze.errorPx > 0.1 * Math.hypot(window.innerWidth, window.innerHeight)
 
   useEffect(() => {
     back.current?.focus({ preventScroll: true })
@@ -264,8 +262,9 @@ export default function ArVisor({
           <div
             className="ar-status absolute flex items-center gap-[0.7em]"
             style={{ right: '20%', top: '7.6%' }}
-            title="Biosensor link, voice link to the crew and suit battery (simulated)"
+            title="Biosensor link, voice link and suit battery"
           >
+            {shown.clock && <span className="tabular-nums">{shown.clock}</span>}
             <Bluetooth size="1.25em" />
             <Broadcast size="1.25em" />
             <span className="flex items-center gap-[0.25em]">
@@ -297,6 +296,13 @@ export default function ArVisor({
               className="absolute inset-0"
               aria-label="Health readings"
             >
+              <Reading
+                left={42.4}
+                top={59}
+                label="Radiation · sim /"
+                value={(shown.radiationUSvH ?? (MISSIONS[mission].radiationMSvDay * 1000) / 24).toFixed(1)}
+                unit="µSv/h"
+              />
               <Reading
                 left={17.6}
                 top={60}
@@ -369,40 +375,24 @@ export default function ArVisor({
         <ArrowLeft size={16} />
         Back
       </button>
-      <div className="fixed right-4 bottom-4 z-[6] flex max-w-[min(420px,calc(100vw-140px))] flex-col items-end gap-2">
-        {gaze.state !== 'off' && gaze.state !== 'calibrating' && (
-          <p
-            className="rounded-2xl bg-black/60 px-3 py-2 text-right font-cond text-[13px] leading-snug tracking-wide text-holo/90 backdrop-blur-md"
-            aria-live="polite"
-          >
-            {gaze.state === 'on'
-              ? gaze.lost
-                ? 'Face not found: look at the screen, with your face in the light.'
-                : `Look at a button for a second to press it.${gaze.errorPx === null ? '' : ` Typical error ${Math.round(gaze.errorPx)} px.`}${rough ? ' Tracking is rough: face the camera in even light, then recalibrate.' : ''}`
-              : gaze.message}
-            {gaze.state === 'on' && (
-              <button
-                onClick={gaze.recalibrate}
-                className="ml-2 underline underline-offset-4 hover:text-white"
-              >
-                Recalibrate
-              </button>
-            )}
-          </p>
+      <div className="fixed right-4 bottom-4 z-[6] flex items-center gap-2">
+        {gaze.state === 'on' && (
+          <button onClick={gaze.recalibrate} className={corner}>
+            Recalibrate
+          </button>
         )}
         <button
           onClick={gazing ? gaze.stop : gaze.start}
           aria-pressed={gazing}
-          title="Press the buttons by looking at them, with the webcam"
+          title={
+            gaze.state === 'error' ? gaze.message : 'Press the buttons by looking at them, with the webcam'
+          }
           className={`${corner} ${gazing ? 'border-holo text-white' : ''}`}
         >
           <Crosshair size={16} />
           {gazing ? 'Eye control on' : 'Eye control off'}
         </button>
       </div>
-      <p className="pointer-events-none fixed bottom-1.5 left-1/2 z-[5] w-[min(560px,60vw)] -translate-x-1/2 text-center font-cond text-[11px] tracking-wide text-white/50">
-        {shown.caption}
-      </p>
 
       {/* Calibration: nine dots, one after the other, each with a ring that closes on it. */}
       <AnimatePresence>

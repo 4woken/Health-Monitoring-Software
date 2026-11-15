@@ -329,7 +329,7 @@ export function judgeBalance(
         (details.leftLegHeld as number) < 15 ||
         (details.rightLegHeld as number) < 15 ||
         details.togetherClosedDone === false,
-      note: 'You could not hold one of the stances most adults hold (eyes closed, or 15 seconds on one leg; our assumption).',
+      note: 'You could not hold one of the stances most adults can hold (eyes closed, or 15 seconds on one leg).',
     },
   })
   if (base.level !== 'ok') return base

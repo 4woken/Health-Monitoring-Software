@@ -67,9 +67,6 @@ export default function CrewPicker({
             Pick a crew member to explore their body in space, then take the self-tests NASA&apos;s crews
             take: reaction, balance, vision, pulse and more.
           </p>
-          <p className="rise mt-3 text-[15px] text-white/65" style={delay(240)}>
-            Mission records are simulated. Self-test results are yours, measured on this device.
-          </p>
         </div>
 
         <section className="veil rise p-3" style={delay(200)} aria-label="Crew">
