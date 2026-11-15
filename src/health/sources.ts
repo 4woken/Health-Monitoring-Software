@@ -289,7 +289,7 @@ export const SOURCES: Record<string, Source> = {
   BASICS: {
     id: 'BASICS',
     title: 'Our assumption: ordinary Earth clinical limits for blood pressure, temperature and blood sugar',
-    says: 'Fever from 38.0 C, blood pressure high from 140/90 and low under 90, blood sugar low under 70 and high over 180 mg/dL. Common clinical conventions, not yet tied to a cited guideline, and not space-specific.',
+    says: 'Fever from 38.0 C (red from 38.5), blood pressure high from 140/90 and low under 90, blood sugar low under 70 (red under 54) and high over 180 mg/dL. Common clinical conventions, not yet tied to a cited guideline, and not space-specific.',
     status: 'demo',
   },
   VITALS: {

@@ -1,6 +1,16 @@
 import type { MetricId } from '../metrics'
-import type { Readings, SignalId } from '../signals'
+import type { Level, Readings, SignalId } from '../signals'
 import { formatMetric } from '../metrics'
+import {
+  glucoseLevel,
+  oxygenLevel,
+  pressureLevel,
+  radiationLevel,
+  sleepLevel,
+  temperatureLevel,
+  type VitalLevel,
+} from '../vitalLevels'
+import { valueColor, VitalLabel, VitalSource } from './VitalParts'
 import type { BreathReading } from '../../camera/breathReading'
 import type { LiveVitals } from '../../simulation/live'
 import LivePulse from './LivePulse'
@@ -14,6 +24,7 @@ interface Cell {
   value: string
   unit: string
   source: string
+  vital: VitalLevel
 }
 
 /**
@@ -29,6 +40,8 @@ export default function VitalsStrip({
   onBreathing,
   breath,
   live,
+  pulse,
+  radiation,
 }: {
   readings: Readings
   mission: MissionId
@@ -39,39 +52,52 @@ export default function VitalsStrip({
   breath: BreathReading | null
   /** The minute of the mission simulation, when it runs. */
   live?: LiveVitals | null
+  /** How the heart rate stands: at rest, or for the task of the simulated minute. */
+  pulse: VitalLevel
+  /** The level of the radiation signal. */
+  radiation: Level
 }) {
+  const spo2 = live?.spo2Pct ?? readings.spo2Pct
+  const systolic = live?.systolic ?? readings.systolic
+  const diastolic = live?.diastolic ?? readings.diastolic
+  const temperature = live?.temperatureC ?? readings.temperatureC
+  const glucose = live?.glucoseMgDl ?? readings.glucoseMgDl
   const cells: Cell[] = [
     {
       metric: 'spo2',
       signal: 'oxygen',
       label: 'Blood oxygen',
-      value: formatMetric(live?.spo2Pct ?? readings.spo2Pct),
+      value: formatMetric(spo2),
       unit: '%',
       source: live ? 'Live' : 'Wearable',
+      vital: oxygenLevel(spo2),
     },
     {
       metric: 'systolic',
       signal: 'bodyChecks',
       label: 'Blood pressure',
-      value: `${live?.systolic ?? readings.systolic}/${live?.diastolic ?? readings.diastolic}`,
+      value: `${systolic}/${diastolic}`,
       unit: 'mmHg',
       source: live ? 'Live' : 'Morning check',
+      vital: pressureLevel(systolic, diastolic),
     },
     {
       metric: 'temperature',
       signal: 'bodyChecks',
       label: 'Temperature',
-      value: formatMetric(live?.temperatureC ?? readings.temperatureC),
+      value: formatMetric(temperature),
       unit: '°C',
       source: live ? 'Core, live' : 'Morning check',
+      vital: temperatureLevel(temperature),
     },
     {
       metric: 'glucose',
       signal: 'bodyChecks',
       label: 'Blood sugar',
-      value: formatMetric(live?.glucoseMgDl ?? readings.glucoseMgDl),
+      value: formatMetric(glucose),
       unit: 'mg/dL',
       source: live ? 'Live' : 'Morning check',
+      vital: glucoseLevel(glucose),
     },
     {
       metric: 'sleep',
@@ -80,6 +106,7 @@ export default function VitalsStrip({
       value: formatMetric(readings.sleepHours),
       unit: 'h a night',
       source: 'Last 7 nights',
+      vital: sleepLevel(readings.sleepHours),
     },
   ]
   return (
@@ -88,6 +115,7 @@ export default function VitalsStrip({
         <LivePulse
           restingPulseBpm={readings.restingPulseBpm}
           liveBpm={live?.bpm}
+          level={pulse}
           onOpenCamera={onOpenCamera}
           onOpen={() => onPick('oxygen', 'pulse')}
         />
@@ -113,17 +141,25 @@ export default function VitalsStrip({
           key={c.metric}
           onClick={() => onPick(c.signal, c.metric)}
           title={`Open ${c.label}`}
+          aria-label={`${c.label} ${c.value} ${c.unit}${c.vital.word ? `, ${c.vital.word.toLowerCase()}` : ''}. Open the detail`}
           className="press on-photo group shrink-0 border-l border-white/15 px-6 py-1 text-left"
         >
-          <span className="block font-cond text-[13px] text-white/65 group-hover:text-white">{c.label}</span>
+          <VitalLabel vital={c.vital}>{c.label}</VitalLabel>
           <span className="mt-1 flex items-baseline gap-1.5">
-            <span className="display text-[38px] text-white">{c.value}</span>
+            <span className="display text-[38px]" style={{ color: valueColor(c.vital.level) }}>
+              {c.value}
+            </span>
             <span className="text-[13px] text-white/60">{c.unit}</span>
           </span>
-          <span className="block font-cond text-[13px] text-white/75">{c.source}</span>
+          <VitalSource vital={c.vital}>{c.source}</VitalSource>
         </button>
       ))}
-      <RadiationReadout mission={mission} day={day} onOpen={() => onPick('radiation', 'dose')} />
+      <RadiationReadout
+        mission={mission}
+        day={day}
+        vital={radiationLevel(radiation)}
+        onOpen={() => onPick('radiation', 'dose')}
+      />
     </section>
   )
 }

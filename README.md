@@ -29,7 +29,7 @@ Four crew members are on board, each with their own story over the mission. Pick
 
 ### Your body, today
 
-The dashboard is the whole app. At the top left is the list of things to do today, most urgent first. The three most urgent also point at the body, red for now and amber for today, and every part that Pulsar follows has a marker: white when it's fine, amber or red when it isn't.
+The dashboard is the whole app. The controls sit down the left side: how deep to look, the view and the NASA reference. The things to do today run down the right side, most urgent first, red for now and amber for today. Every part that Pulsar follows has a marker on the body: white when it's fine, amber or red when it isn't.
 
 ![Clicking the air marker opens a card: cabin CO2 at 3.4 mmHg, above the 3 mmHg limit, check the CO2 scrubber](docs/screenshots/part.jpg)
 
@@ -39,7 +39,7 @@ Click a marker or a line of the list. The camera flies to that part and a card o
 
 ![The details of the optic nerve: the value, what it is, what it means for you, how it is measured, what to do](docs/screenshots/details.jpg)
 
-The vital signs run along the bottom like the numbers on a bedside monitor, with the radiation dose rate at the end. The 3D heart beats and the chest breathes all the time; start the camera and the heart beats at your own pulse.
+The vital signs run along the bottom like the numbers on a bedside monitor, with the radiation dose rate at the end. A value outside its limits turns amber or red, with a word that says why, and so does the same reading in the AR view. The 3D heart beats and the chest breathes all the time; start the camera and the heart beats at your own pulse.
 
 You can also look inside, or outside. The depth control starts from the two spacesuits, **EVA** for NASA's EMU spacewalk suit and **IVA** for the orange ACES launch and entry suit, then goes through the skin to the vessels, the organs and the skeleton. A click on an organ shows it on its own: what it does, what space does to it, and which signals are followed there. **Mission effects** runs the physiology model on the body: fluid moving toward the head, bone and muscle loss and the radiation dose, day after day ([how the model works](docs/PHYSIOLOGY.md)).
 

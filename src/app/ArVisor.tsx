@@ -13,6 +13,7 @@ import {
 } from '@phosphor-icons/react'
 import type { Member } from '../crew/roster'
 import type { Level } from '../health/signals'
+import { glucoseLevel, oxygenLevel, pressureLevel, sleepLevel, temperatureLevel } from '../health/vitalLevels'
 import { useDayReport } from '../health/useDayReport'
 import { MISSION_ORDER, MISSIONS, type MissionId } from '../mission/missions'
 import { EASE, LEVEL_LINE, Logo } from '../ui'
@@ -97,7 +98,10 @@ function Reading({
 }) {
   return (
     <div className="absolute" style={{ left: `${left}%`, top: `${top}%` }}>
-      <p className="ar-label flex items-center gap-[0.35em]">
+      <p
+        className="ar-label flex items-center gap-[0.35em]"
+        style={level === 'ok' ? undefined : { color: LEVEL_LINE[level] }}
+      >
         {icon}
         {label}
       </p>
@@ -116,10 +120,10 @@ function Reading({
  */
 const glassTop = (pct: number, em: number) => `max(${pct}%, calc(var(--ar-cut) + ${em}em))`
 
+/** On a spacewalk the heart works hard: amber from 150, red from 170 beats a minute. */
 const pulseLevel = (bpm: number): Level => (bpm >= 170 ? 'act' : bpm >= 150 ? 'watch' : 'ok')
-const oxygenLevel = (pct: number): Level => (pct < 90 ? 'act' : pct < 94 ? 'watch' : 'ok')
-const heatLevel = (c: number): Level => (c >= 38.5 ? 'act' : c >= 38 ? 'watch' : 'ok')
-const sugarLevel = (mg: number): Level => (mg < 54 ? 'act' : mg < 70 || mg > 180 ? 'watch' : 'ok')
+/** Red during a radiation storm: five times the usual dose rate of the place, as the simulation flags it. */
+const doseLevel = (rate: number, usual: number): Level => (rate >= 5 * usual ? 'act' : 'ok')
 
 /**
  * A simulated augmented-reality view: what a crew member could see inside the helmet visor on a
@@ -168,6 +172,7 @@ export default function ArVisor({
     nextDrinkMin: nextDrinkMinutes(seconds),
     alert: null,
   }
+  const usualRate = (MISSIONS[mission].radiationMSvDay * 1000) / 24
   // The suit battery runs about eight hours.
   const battery = Math.max(5, Math.round(100 - (seconds / 3600) * 12))
   // Eye control starts with the view; the mouse and the keyboard keep working beside it.
@@ -309,10 +314,9 @@ export default function ArVisor({
                 left={42.4}
                 top={59}
                 label="Radiation /"
-                value={String(
-                  Math.round(shown.radiationUSvH ?? (MISSIONS[mission].radiationMSvDay * 1000) / 24),
-                )}
+                value={String(Math.round(shown.radiationUSvH ?? usualRate))}
                 unit="µSv/h"
+                level={doseLevel(shown.radiationUSvH ?? usualRate, usualRate)}
               />
               <Reading
                 left={17.6}
@@ -333,7 +337,7 @@ export default function ArVisor({
                 label="Blood oxygen /"
                 value={String(shown.spo2Pct)}
                 unit="%"
-                level={oxygenLevel(shown.spo2Pct)}
+                level={oxygenLevel(shown.spo2Pct).level}
               />
               <Reading
                 left={42.4}
@@ -341,6 +345,7 @@ export default function ArVisor({
                 label="Blood pressure /"
                 value={`${shown.systolic}/${shown.diastolic}`}
                 unit="mmHg"
+                level={pressureLevel(shown.systolic, shown.diastolic).level}
               />
               {shown.nextDrinkMin !== null && (
                 <Reading
@@ -358,7 +363,7 @@ export default function ArVisor({
                 label="Temperature /"
                 value={shown.coreTempC.toFixed(1)}
                 unit="°C"
-                level={heatLevel(shown.coreTempC)}
+                level={temperatureLevel(shown.coreTempC).level}
               />
               <Reading
                 left={72}
@@ -366,7 +371,7 @@ export default function ArVisor({
                 label="Glucose level /"
                 value={String(shown.glucoseMgDl)}
                 unit="mg/dL"
-                level={sugarLevel(shown.glucoseMgDl)}
+                level={glucoseLevel(shown.glucoseMgDl).level}
               />
               <Reading
                 left={68.6}
@@ -374,7 +379,7 @@ export default function ArVisor({
                 label="Sleep /"
                 value={shown.sleepHours.toFixed(1)}
                 unit="h a night"
-                level={shown.sleepHours < 6 ? 'watch' : 'ok'}
+                level={sleepLevel(shown.sleepHours).level}
               />
             </motion.div>
           )}

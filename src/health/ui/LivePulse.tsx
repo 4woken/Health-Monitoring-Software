@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 import { Camera, Heart } from '@phosphor-icons/react'
 import { getPulse, getPulseVideo, startPulse, stopPulse, usePulse } from '../../camera/pulse/pulseSession'
+import { restingPulseLevel, type VitalLevel } from '../vitalLevels'
+import { LEVEL_LINE, LEVEL_TEXT, StatusDot } from '../../ui'
 
 const WAVE_W = 196
 const WAVE_H = 44
@@ -130,12 +132,15 @@ function CameraThumb() {
 export default function LivePulse({
   restingPulseBpm,
   liveBpm,
+  level,
   onOpenCamera,
   onOpen,
 }: {
   restingPulseBpm: number
   /** The heart rate of the mission simulation, when it runs. */
   liveBpm?: number
+  /** How the wearable or simulated rate stands; a webcam reading is judged as a resting rate. */
+  level: VitalLevel
   onOpenCamera: () => void
   /** Opens the heart rate and oxygen detail. */
   onOpen?: () => void
@@ -151,6 +156,7 @@ export default function LivePulse({
   }, [])
   const wobble = (seed: number) => Math.round(Math.sin(tick * 1.7 + seed) * 1.6)
   const bpm = live ? Math.round(pulse.bpm!) : liveBpm !== undefined ? liveBpm : restingPulseBpm + wobble(0)
+  const vital = live ? restingPulseLevel(bpm) : level
 
   return (
     <div className="on-photo w-[250px]">
@@ -158,13 +164,20 @@ export default function LivePulse({
         type="button"
         onClick={onOpen}
         disabled={!onOpen}
-        aria-label={`Heart rate ${bpm} bpm. Open the detail`}
+        aria-label={`Heart rate ${bpm} bpm${vital.word ? `, ${vital.word.toLowerCase()}` : ''}. Open the detail`}
         className="press -m-2 block w-[calc(100%+1rem)] rounded-2xl p-2 text-left enabled:hover:bg-white/[0.035]"
       >
         <div className="flex items-center justify-between gap-2">
-          <p className="flex items-center gap-1.5 font-cond text-[13px] text-white/65">
-            <Heart size={12} weight="fill" className="text-accent" />
+          <p
+            className={`flex items-center gap-1.5 font-cond text-[13px] ${vital.level === 'ok' ? 'text-white/65' : LEVEL_TEXT[vital.level]}`}
+          >
+            {vital.level === 'ok' ? (
+              <Heart size={12} weight="fill" className="text-accent" />
+            ) : (
+              <StatusDot level={vital.level} />
+            )}
             Heart rate
+            {vital.word && <span className="font-medium">· {vital.word}</span>}
           </p>
           <span
             className={`rounded px-1.5 py-0.5 font-cond text-[12px] ${live ? 'border border-holo/60 text-ink' : 'border border-line-strong text-dim'}`}
@@ -177,7 +190,8 @@ export default function LivePulse({
             key={live ? 'camera' : 'wearable'}
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
-            className="display text-[46px] text-white"
+            className="display text-[46px]"
+            style={{ color: vital.level === 'ok' ? '#ffffff' : LEVEL_LINE[vital.level] }}
           >
             {bpm}
           </motion.span>

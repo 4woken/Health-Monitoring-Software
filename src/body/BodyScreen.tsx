@@ -25,7 +25,8 @@ import MissionLab, { type ProfileId, type SimInput } from '../mission/MissionLab
 import { MISSIONS, type MissionId } from '../mission/missions'
 import { MISSION_PROFILES, simulateProfile, type MissionPhase } from '../mission/physiology'
 import { SELF_TESTS, testsFor } from '../selftests/catalog'
-import { liveReport, liveVitals } from '../simulation/live'
+import { heartTooHard, liveReport, liveVitals } from '../simulation/live'
+import { restingPulseLevel } from '../health/vitalLevels'
 import MissionLog from '../simulation/MissionLog'
 import { useSimulation } from '../simulation/SimulationProvider'
 import type { SelfTestId } from '../selftests/ids'
@@ -41,9 +42,7 @@ const SHEET_WIDTH: Record<SheetKind, number> = {
   nasa: 480,
   trends: 640,
 }
-/** Recommendations drawn on the body at once. The list on the left has all of them. */
-const PINNED = 3
-/** Rows in the list on the left before "more"; fewer while the simulation's log sits above it. */
+/** Rows in the list of the day before "more"; fewer while the simulation's log sits above it. */
 const LISTED = 6
 const LISTED_LIVE = 3
 /** Breaths a minute for the chest when nothing has been measured: a calm adult at rest. */
@@ -118,19 +117,6 @@ export default function BodyScreen({
   const narrow = useNarrow()
   const demonstrating = exerciseDemo !== null
   const gauges = useRef<HTMLDivElement>(null)
-  // The list of the day, at the top left: pins keep clear of it.
-  const todo = useRef<HTMLDivElement>(null)
-  const [todoBox, setTodoBox] = useState({ right: 0, bottom: 0 })
-  useEffect(() => {
-    const el = todo.current
-    if (!el) return
-    const measure = () =>
-      setTodoBox({ right: el.offsetLeft + el.offsetWidth + 12, bottom: el.offsetTop + el.offsetHeight + 12 })
-    measure()
-    const observer = new ResizeObserver(measure)
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [demonstrating])
   const [gaugeHeight, setGaugeHeight] = useState(160)
   useEffect(() => {
     const el = gauges.current
@@ -220,10 +206,7 @@ export default function BodyScreen({
     return () => document.removeEventListener('keydown', key)
   }, [selected])
 
-  const pinned = narrow || covered || sheet || picked || layer !== 'signals' ? [] : advice.slice(0, PINNED)
-  const pinnedKey = pinned.map((a) => a.signal).join(',')
   const hotspots = useMemo<Hotspot[]>(() => {
-    const quiet = new Set(pinnedKey.split(','))
     const done = new Set(handledKey.split(','))
     return signals.flatMap((s) => {
       const region = regionOf(s.id, member.build)
@@ -234,13 +217,13 @@ export default function BodyScreen({
               label: region.label,
               pos: region.pos,
               level: done.has(s.id) ? 'ok' : s.level,
-              quiet: quiet.has(s.id) || s.id === selected,
+              quiet: s.id === selected,
             },
           ]
         : []
     })
     // Keyed on the levels, not the report: during the simulation the report is new every few frames.
-  }, [levelKey, member.build, pinnedKey, selected, handledKey])
+  }, [levelKey, member.build, selected, handledKey])
 
   // Physiology engine. It follows the destination and this person's exercise log; moving a slider
   // switches to what-if values until reset.
@@ -356,19 +339,6 @@ export default function BodyScreen({
       tone: LEVEL_LINE[picked.level],
       children: partCard,
     })
-  for (const a of pinned)
-    pins.push({
-      id: a.id,
-      at: a.signal,
-      tone: LEVEL_LINE[a.level],
-      children: (
-        <AdvicePin
-          advice={a}
-          onOpen={() => select(a.signal)}
-          onHover={(on) => setHoverId(on ? a.signal : null)}
-        />
-      ),
-    })
 
   const sheetTitle =
     sheet === 'nasa'
@@ -395,12 +365,11 @@ export default function BodyScreen({
 
   const overlays = (
     <>
-      {/* What to do today. */}
+      {/* What to do today, down the right side, in the colours of their urgency. */}
       <div
-        ref={todo}
         // It stops above the vital signs: on a short screen the list scrolls, the buttons stay in view.
         style={{ maxHeight: `calc(100% - ${gaugeHeight + 112}px)` }}
-        className={`absolute top-20 left-4 z-[6] w-[min(21rem,calc(100%-2rem))] flex-col lg:top-24 lg:left-8 ${sheet === 'organ' ? 'hidden' : 'flex'}`}
+        className={`absolute inset-x-4 top-20 z-[6] flex-col sm:inset-x-auto sm:right-4 sm:w-[21rem] lg:top-24 lg:right-8 ${sheet === 'organ' ? 'hidden' : 'flex'}`}
       >
         <MissionLog />
         <p className="on-photo font-cond text-[13px] text-white/65">
@@ -421,32 +390,19 @@ export default function BodyScreen({
         </h2>
         {advice.length > 0 && (
           <ul
-            className={`no-scrollbar mt-3 min-h-0 shrink flex-col gap-1.5 overflow-y-auto ${todoOpen ? 'flex' : 'hidden'} sm:flex`}
+            className={`no-scrollbar mt-3 min-h-0 shrink flex-col gap-2 overflow-y-auto ${todoOpen ? 'flex' : 'hidden'} sm:flex`}
           >
             {advice.slice(0, listed).map((a) => (
               <li key={a.id}>
-                <button
-                  onClick={() => {
+                <Notice
+                  advice={a}
+                  selected={selected === a.signal}
+                  onOpen={() => {
                     setTodoOpen(false)
                     select(a.signal)
                   }}
-                  onPointerEnter={() => setHoverId(a.signal)}
-                  onPointerLeave={() => setHoverId(null)}
-                  aria-current={selected === a.signal ? 'true' : undefined}
-                  className={`press flex w-full items-stretch gap-3 rounded-xl px-3 py-2 text-left backdrop-blur-md ${selected === a.signal ? 'bg-white/[0.16]' : 'bg-black/40 hover:bg-black/55'}`}
-                >
-                  <span
-                    className="w-1 shrink-0 rounded-full"
-                    style={{ background: LEVEL_LINE[a.level] }}
-                    aria-hidden="true"
-                  />
-                  <span className="min-w-0">
-                    <span className="block text-[12px] font-medium" style={{ color: LEVEL_LINE[a.level] }}>
-                      {KIND_LABEL[a.kind]}, {a.level === 'act' ? 'now' : 'today'}
-                    </span>
-                    <span className="block text-[15px] leading-snug font-medium text-white">{a.title}</span>
-                  </span>
-                </button>
+                  onHover={(on) => setHoverId(on ? a.signal : null)}
+                />
               </li>
             ))}
           </ul>
@@ -464,18 +420,6 @@ export default function BodyScreen({
           >
             {advice.length > listed ? `${advice.length - listed} more, and` : 'See'} all {signals.length}{' '}
             signals
-          </button>
-          <button
-            onClick={() => {
-              onOpenPanel()
-              setSelected(null)
-              setOrgan(null)
-              setLayer('signals')
-              setSheet('nasa')
-            }}
-            className="press rounded-full bg-black/40 px-3.5 py-1.5 text-[13px] text-white/85 backdrop-blur-md hover:text-white"
-          >
-            NASA reference
           </button>
         </div>
       </div>
@@ -500,6 +444,14 @@ export default function BodyScreen({
           onPick={details}
           onOpenCamera={() => onOpenTest('restingPulse')}
           onBreathing={() => onOpenTest('breathingRate')}
+          pulse={
+            running
+              ? heartTooHard(running, simulation.t)
+                ? { level: 'watch', word: 'High' }
+                : { level: 'ok', word: '' }
+              : restingPulseLevel(report.readings.restingPulseBpm)
+          }
+          radiation={signals.find((s) => s.id === 'radiation')?.level ?? 'ok'}
         />
       </div>
 
@@ -682,9 +634,23 @@ export default function BodyScreen({
 
   // A panel on the right moves the body into the space left between it and the list on the left,
   // so the body never slips behind the list.
-  const rightPanel = covered || (sheet && !narrow ? SHEET_WIDTH[sheet] : 0)
-  const listWidth = narrow || sheet === 'organ' ? 0 : todoBox.right
-  const panelInset = rightPanel ? Math.max(0, rightPanel - listWidth) : 0
+  const rightPanel = covered || (sheet && !narrow ? SHEET_WIDTH[sheet] + 32 : 0)
+  const controls = (
+    <>
+      <button
+        onClick={() => {
+          onOpenPanel()
+          setSelected(null)
+          setOrgan(null)
+          setLayer('signals')
+          setSheet('nasa')
+        }}
+        className="press shrink-0 self-start rounded-full bg-black/40 px-3.5 py-1.5 text-[13px] text-white/85 backdrop-blur-md hover:text-white"
+      >
+        NASA reference
+      </button>
+    </>
+  )
 
   return (
     <section
@@ -712,6 +678,7 @@ export default function BodyScreen({
         restingBpm={vitals?.bpm ?? report.readings.restingPulseBpm}
         exerciseMotion={exerciseDemo?.mode}
         exerciseStartedAt={exerciseDemo?.startedAt}
+        controls={demonstrating ? undefined : controls}
         layer={layer}
         onLayer={(l) => showMission(l === 'physiology')}
         avatar={face}
@@ -719,9 +686,8 @@ export default function BodyScreen({
         breathingRate={breath?.breathsPerMinute ?? vitals?.breaths ?? RESTING_BREATHS}
         backdrop={{ src: place.image, position: place.imagePosition, caption, href: place.sourceUrl }}
         pins={demonstrating ? [] : pins}
-        sideInset={demonstrating ? 0 : panelInset}
+        sideInset={demonstrating ? 0 : rightPanel}
         paused={paused}
-        pinAvoid={narrow ? undefined : todoBox}
       >
         {exerciseDemo ? <AvatarDemoVitals playback={exerciseDemo} /> : overlays}
       </BodyViewer>
@@ -823,32 +789,37 @@ function PartCard({
   )
 }
 
-/** A recommendation pointed at the part it is about: red to act now, amber for today. */
-function AdvicePin({
+/** Something to do today, in the colour of its urgency: red to act now, amber for today. It opens the
+ * part it is about. */
+function Notice({
   advice,
+  selected,
   onOpen,
   onHover,
 }: {
   advice: Advice
+  selected: boolean
   onOpen: () => void
   onHover: (on: boolean) => void
 }) {
   return (
-    <motion.button
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, ease: EASE }}
-      onClick={onOpen}
-      onPointerEnter={() => onHover(true)}
-      onPointerLeave={() => onHover(false)}
-      onFocus={() => onHover(true)}
-      onBlur={() => onHover(false)}
-      className={`press block w-[min(15rem,34vw)] rounded-xl px-3 py-2 text-left shadow-[0_10px_28px_rgb(0_0_0/0.45)] ${PIN_STYLE[advice.level]}`}
+    <div
+      className={`flex overflow-hidden rounded-xl shadow-[0_10px_28px_rgb(0_0_0/0.35)] ${PIN_STYLE[advice.level]} ${selected ? 'ring-2 ring-white' : ''}`}
     >
-      <span className="block text-[12px] font-medium opacity-80">
-        {KIND_LABEL[advice.kind]}, {advice.level === 'act' ? 'now' : 'today'}
-      </span>
-      <span className="block text-[14px] leading-snug font-semibold">{advice.title}</span>
-    </motion.button>
+      <button
+        onClick={onOpen}
+        onPointerEnter={() => onHover(true)}
+        onPointerLeave={() => onHover(false)}
+        onFocus={() => onHover(true)}
+        onBlur={() => onHover(false)}
+        aria-current={selected ? 'true' : undefined}
+        className="press min-w-0 flex-1 px-3.5 py-2.5 text-left"
+      >
+        <span className="block text-[12px] font-medium opacity-80">
+          {KIND_LABEL[advice.kind]}, {advice.level === 'act' ? 'now' : 'today'}
+        </span>
+        <span className="block text-[15px] leading-snug font-semibold">{advice.title}</span>
+      </button>
+    </div>
   )
 }

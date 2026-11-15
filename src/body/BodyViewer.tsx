@@ -93,6 +93,8 @@ interface Props {
   breathingRate?: number
   exerciseMotion?: ExerciseMotion | null
   exerciseStartedAt?: number
+  /** The page's own controls, under the depth and view controls down the left side. */
+  controls?: ReactNode
   layer: Layer
   onLayer: (l: Layer) => void
   /** The person's portrait, laid on this body's face. */
@@ -115,8 +117,6 @@ interface Props {
   sideInset?: number
   /** Stop drawing while something covers the whole scene. */
   paused?: boolean
-  /** A box at the top left of the scene, in pixels, that pins must not cover. */
-  pinAvoid?: { right: number; bottom: number }
 }
 
 /** Bone meshes of the reference skeleton. */
@@ -518,10 +518,15 @@ function createStage(
     const sphere = bounds.getBoundingSphere(new THREE.Sphere())
     const available = Math.max(0.3, (host.clientWidth - sideInset) / host.clientHeight)
     const radius = Math.max(0.025, sphere.radius) * Math.max(1, group.scale.x / group.scale.y)
+    // The body stays on its axis: zoom only as far as the structure still fits across the view.
+    const viewScale = Math.max(group.scale.y, group.scale.x * Math.min(1, 0.6 / camera.aspect))
+    const across = (Math.abs(sphere.center.x) + sphere.radius) * group.scale.x
+    const fits =
+      (0.9 * baseDist * viewScale * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * available) /
+      Math.max(0.01, across)
     flyTo(
-      Math.min(MAX_ZOOM, (current.height * 0.45 * Math.min(1, available)) / radius),
+      Math.min(MAX_ZOOM, fits, (current.height * 0.45 * Math.min(1, available)) / radius),
       sphere.center.y - current.height / 2,
-      sphere.center.x,
     )
   }
 
@@ -890,10 +895,11 @@ function createStage(
     if (zoomAnchor) {
       // Solve perspective projection for the camera position at this frame's
       // depth. Undo the panel offset and body scale when storing the new focus.
+      // Only the height under the pointer stays put: the body keeps to its axis across the screen.
       const { world, screen } = zoomAnchor
       const halfHeight = (cameraZ - world.z) * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))
-      focusX = focusXTo = (world.x - screen.x * halfHeight * camera.aspect - shiftX) / group.scale.x
       focusY = focusTo = (world.y - screen.y * halfHeight) / group.scale.y
+      focusXTo = 0
       if (pinch === 0 && Math.abs(zoomTo - zoom) < 1e-6 && Math.abs(sideInset + pinInset - sideShift) < 0.01)
         zoomAnchor = null
     }
@@ -1074,15 +1080,15 @@ function createStage(
       else if (side === 'right' && x + PIN_LEAD + size.w > w - 8) side = 'left'
       placed.push({ node, x, y, side, height: size.h, width: size.w, centre: y, kept: p.side === 'right' })
     }
-    // A card kept on the right must clear the depth and view controls along the right edge: the
-    // camera moves the body left just enough, and back when the card closes. Measured without the
-    // current shift, so the move settles instead of chasing itself.
-    const controls = w >= 1024 ? 342 : w >= 640 ? 326 : 0
+    // A card kept on the right must clear the notifications along the right edge: the camera moves
+    // the body left just enough, and back when the card closes, but never under the controls on the
+    // left. Measured without the current shift, so the move settles instead of chasing itself.
+    const notices = w >= 1024 ? 368 : w >= 640 ? 352 : 0
     let room = 0
     for (const q of placed)
       if (q.kept && q.side === 'right')
-        room = Math.max(room, 2 * (q.x + sideShift / 2 + PIN_LEAD + q.width + 24 - (w - controls)))
-    pinInset = Math.min(w * 0.6, Math.max(0, room))
+        room = Math.max(room, 2 * (q.x + sideShift / 2 + PIN_LEAD + q.width + 24 - (w - notices)))
+    pinInset = Math.min(w * 0.6, Math.max(0, room), Math.max(0, w - 2 * (pinAvoid.right + 80) - sideInset))
     // On each side, keep the cards in order, apart, below the header and above the vitals.
     const floor = h - pinBottom - 8
     for (const side of ['left', 'right'] as const) {
@@ -1156,7 +1162,7 @@ function createStage(
     },
     setFocus: (id) => {
       const h = id ? hot.find((x) => x.id === id) : undefined
-      if (h && current) flyTo(2.6, resolve(h)[1] - current.height / 2, resolve(h)[0])
+      if (h && current) flyTo(2.6, resolve(h)[1] - current.height / 2)
       else if (!isolated) flyTo(1, 0)
     },
     setDepth: (d, fly) => {
@@ -1193,11 +1199,9 @@ function createStage(
       if (factor > 1 && !portraitOnly) {
         const height = current?.height ?? 1.75
         const target = ((zoomTo >= 3 ? VIEWS.head.at : VIEWS.chest.at) - 0.5) * height
-        if (focusTo < target) {
-          focusTo = target
-          focusXTo = 0
-        }
+        if (focusTo < target) focusTo = target
       }
+      focusXTo = 0
       clampView()
     },
     setLayer: (l) => {
@@ -1298,6 +1302,7 @@ export default function BodyScan({
   breathingRate,
   exerciseMotion = null,
   exerciseStartedAt,
+  controls,
   layer,
   onLayer,
   avatar = null,
@@ -1312,10 +1317,12 @@ export default function BodyScan({
   pins = [],
   sideInset = 0,
   paused = false,
-  pinAvoid,
 }: Props) {
   const dimensions = useMannequinDimensions()
   const host = useRef<HTMLDivElement>(null)
+  // The controls down the left side: cards keep clear of them, and so does the body.
+  const leftColumn = useRef<HTMLDivElement>(null)
+  const [leftBox, setLeftBox] = useState({ right: 0, bottom: 0 })
   const stage = useRef<Stage | null>(null)
   const markers = useRef(new Map<string, HTMLElement>())
   const callouts = useRef(new Map<CalloutId, HTMLElement>())
@@ -1401,13 +1408,32 @@ export default function BodyScan({
   useEffect(() => {
     stage.current?.setPins(latestPins.current.map(({ id, at, side }) => ({ id, at, side })))
   }, [pinKey, studio, portraitOnly])
-  useEffect(() => stage.current?.setSideInset(sideInset), [sideInset, studio, portraitOnly])
+  const showControls = !studio && !portraitOnly && !exerciseMotion
+  useEffect(() => {
+    const el = leftColumn.current
+    if (!el) {
+      setLeftBox({ right: 0, bottom: 0 })
+      return
+    }
+    const measure = () =>
+      setLeftBox(
+        el.offsetWidth
+          ? { right: el.offsetLeft + el.offsetWidth + 12, bottom: el.offsetTop + el.offsetHeight + 12 }
+          : { right: 0, bottom: 0 },
+      )
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [showControls])
+  // A panel on the right covers part of the scene: the body moves into the room left between the
+  // controls on the left and that panel.
+  const inset = sideInset ? Math.max(0, sideInset - leftBox.right) : 0
+  useEffect(() => stage.current?.setSideInset(inset), [inset, studio, portraitOnly])
   useEffect(() => stage.current?.setPaused(paused), [paused, studio, portraitOnly])
-  const avoidRight = pinAvoid?.right ?? 0
-  const avoidBottom = pinAvoid?.bottom ?? 0
   useEffect(
-    () => stage.current?.setPinBounds(insetBottom, { right: avoidRight, bottom: avoidBottom }),
-    [insetBottom, avoidRight, avoidBottom, studio, portraitOnly],
+    () => stage.current?.setPinBounds(insetBottom, leftBox),
+    [insetBottom, leftBox, studio, portraitOnly],
   )
 
   const goDepth = (d: number, fly: boolean) => {
@@ -1500,6 +1526,45 @@ export default function BodyScan({
       detail: 'Volume since scenario start',
     },
   ]
+
+  const viewButtons = (
+    <>
+      {studio &&
+        [-35, 35].map((degrees) => (
+          <button
+            key={degrees}
+            aria-label={degrees < 0 ? 'View left cheek' : 'View right cheek'}
+            onClick={() => stage.current?.setView('head', THREE.MathUtils.degToRad(degrees))}
+            className="press h-9 rounded-full bg-black/40 px-3 text-[13px] text-white/80 backdrop-blur-md hover:text-white"
+          >
+            {degrees < 0 ? 'Left ¾' : 'Right ¾'}
+          </button>
+        ))}
+      {(studio ? (['head', 'full'] as const) : (['head', 'chest', 'full'] as const)).map((view) => (
+        <button
+          key={view}
+          onClick={() => stage.current?.setView(view)}
+          className="press h-9 rounded-full bg-black/40 px-3.5 text-[13px] text-white/80 backdrop-blur-md hover:text-white"
+        >
+          {view === 'full' ? 'Whole body' : view === 'head' ? 'Head' : 'Chest'}
+        </button>
+      ))}
+      <button
+        onClick={() => stage.current?.zoomBy(1.4)}
+        aria-label="Zoom in"
+        className="press flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white/80 backdrop-blur-md hover:text-white"
+      >
+        <Plus size={15} />
+      </button>
+      <button
+        onClick={() => stage.current?.zoomBy(1 / 1.4)}
+        aria-label="Zoom out"
+        className="press flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white/80 backdrop-blur-md hover:text-white"
+      >
+        <Minus size={15} />
+      </button>
+    </>
+  )
 
   return (
     <div
@@ -1637,71 +1702,83 @@ export default function BodyScan({
         </p>
       )}
 
-      {/* Keep layer controls clear of the crew information on the left of the scene. */}
-      {!studio && !exerciseMotion && (
-        <div className="absolute top-24 right-4 z-[7] hidden w-[344px] rounded-2xl bg-black/45 p-3 text-white backdrop-blur-md sm:block lg:right-8">
-          <div className="flex items-center justify-between text-[13px] text-white/75">
-            Depth <span>{fullDepthLabel}</span>
-          </div>
-          <input
-            className="range mt-1 w-full"
-            type="range"
-            aria-label="Depth"
-            min={FIRST_DEPTH}
-            max={LAST_DEPTH}
-            step={0.1}
-            value={depth}
-            style={
-              { '--fill': `${((depth - FIRST_DEPTH) / (LAST_DEPTH - FIRST_DEPTH)) * 100}%` } as CSSProperties
-            }
-            aria-valuetext={fullDepthLabel}
-            onKeyDown={(e) => {
-              const increment = ['ArrowRight', 'ArrowUp'].includes(e.key)
-                ? 1
-                : ['ArrowLeft', 'ArrowDown'].includes(e.key)
-                  ? -1
-                  : 0
-              if (increment) {
-                e.preventDefault()
-                goDepth(Math.min(LAST_DEPTH, Math.max(FIRST_DEPTH, stopAt + increment)), true)
-              }
-            }}
-            onChange={(e) => goDepth(Number(e.target.value), false)}
-            onPointerUp={() => goDepth(Math.round(depth), true)}
-          />
-          <div className="flex gap-1">
-            {DEPTH_STOPS.map((label, i) => (
-              <button
-                key={label}
-                title={label === 'EVA' || label === 'IVA' ? SUITS[label].title : undefined}
-                onClick={() => goDepth(i + FIRST_DEPTH, true)}
-                aria-pressed={stopAt === i + FIRST_DEPTH && layer === 'signals'}
-                className={`press min-h-9 flex-1 rounded-full px-1.5 text-[13px] ${stopAt === i + FIRST_DEPTH && layer === 'signals' ? 'bg-white text-[#0d0f12]' : 'text-white/65 hover:text-white'}`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          {explorer}
-          {suitNotice}
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-1 border-t border-white/10 pt-2">
-            {shortcuts || (
-              <p className="text-[12px] text-white/65">
-                {isSuit
-                  ? suitInfo.name
-                  : depth < 0.5
-                    ? 'Point at the body to look inside.'
-                    : 'Select a structure to look closer.'}
-              </p>
-            )}
-            <button
-              onClick={() => onLayer(layer === 'physiology' ? 'signals' : 'physiology')}
-              aria-pressed={layer === 'physiology'}
-              className="press shrink-0 rounded-full px-2 py-1.5 text-[12px] text-white/80 hover:bg-white/10"
-            >
-              Mission effects
-            </button>
-          </div>
+      {/* The controls down the left side: how deep to look, the view, then the page's own. */}
+      {showControls && (
+        <div
+          ref={leftColumn}
+          className="no-scrollbar absolute top-20 left-4 z-[7] hidden w-[344px] flex-col gap-2.5 overflow-y-auto sm:flex lg:top-24 lg:left-8"
+          style={{ maxHeight: `calc(100% - ${insetBottom + 96}px)` }}
+        >
+          {!exerciseMotion && (
+            <div className="shrink-0 rounded-2xl bg-black/45 p-3 text-white backdrop-blur-md">
+              <div className="flex items-center justify-between text-[13px] text-white/75">
+                Depth <span>{fullDepthLabel}</span>
+              </div>
+              <input
+                className="range mt-1 w-full"
+                type="range"
+                aria-label="Depth"
+                min={FIRST_DEPTH}
+                max={LAST_DEPTH}
+                step={0.1}
+                value={depth}
+                style={
+                  {
+                    '--fill': `${((depth - FIRST_DEPTH) / (LAST_DEPTH - FIRST_DEPTH)) * 100}%`,
+                  } as CSSProperties
+                }
+                aria-valuetext={fullDepthLabel}
+                onKeyDown={(e) => {
+                  const increment = ['ArrowRight', 'ArrowUp'].includes(e.key)
+                    ? 1
+                    : ['ArrowLeft', 'ArrowDown'].includes(e.key)
+                      ? -1
+                      : 0
+                  if (increment) {
+                    e.preventDefault()
+                    goDepth(Math.min(LAST_DEPTH, Math.max(FIRST_DEPTH, stopAt + increment)), true)
+                  }
+                }}
+                onChange={(e) => goDepth(Number(e.target.value), false)}
+                onPointerUp={() => goDepth(Math.round(depth), true)}
+              />
+              <div className="flex gap-1">
+                {DEPTH_STOPS.map((label, i) => (
+                  <button
+                    key={label}
+                    title={label === 'EVA' || label === 'IVA' ? SUITS[label].title : undefined}
+                    onClick={() => goDepth(i + FIRST_DEPTH, true)}
+                    aria-pressed={stopAt === i + FIRST_DEPTH && layer === 'signals'}
+                    className={`press min-h-9 flex-1 rounded-full px-1.5 text-[13px] ${stopAt === i + FIRST_DEPTH && layer === 'signals' ? 'bg-white text-[#0d0f12]' : 'text-white/65 hover:text-white'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {explorer}
+              {suitNotice}
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-1 border-t border-white/10 pt-2">
+                {shortcuts || (
+                  <p className="text-[12px] text-white/65">
+                    {isSuit
+                      ? suitInfo.name
+                      : depth < 0.5
+                        ? 'Point at the body to look inside.'
+                        : 'Select a structure to look closer.'}
+                  </p>
+                )}
+                <button
+                  onClick={() => onLayer(layer === 'physiology' ? 'signals' : 'physiology')}
+                  aria-pressed={layer === 'physiology'}
+                  className="press shrink-0 rounded-full px-2 py-1.5 text-[12px] text-white/80 hover:bg-white/10"
+                >
+                  Mission effects
+                </button>
+              </div>
+            </div>
+          )}
+          <div className="flex shrink-0 flex-wrap gap-1.5">{viewButtons}</div>
+          {controls}
         </div>
       )}
 
@@ -1731,50 +1808,9 @@ export default function BodyScan({
         </div>
       )}
 
-      {!portraitOnly && !exerciseMotion && (
-        <div
-          className={
-            studio
-              ? 'absolute inset-x-3 bottom-20 z-[5] flex flex-col items-center gap-3'
-              : 'absolute top-1/2 right-4 z-[5] hidden -translate-y-1/2 flex-col items-end gap-3 sm:flex lg:right-8'
-          }
-        >
-          <div className="flex flex-wrap justify-center gap-1.5">
-            {studio &&
-              [-35, 35].map((degrees) => (
-                <button
-                  key={degrees}
-                  aria-label={degrees < 0 ? 'View left cheek' : 'View right cheek'}
-                  onClick={() => stage.current?.setView('head', THREE.MathUtils.degToRad(degrees))}
-                  className="press h-9 rounded-full bg-black/40 px-3 text-[13px] text-white/80 backdrop-blur-md hover:text-white"
-                >
-                  {degrees < 0 ? 'Left ¾' : 'Right ¾'}
-                </button>
-              ))}
-            {(studio ? (['head', 'full'] as const) : (['head', 'chest', 'full'] as const)).map((view) => (
-              <button
-                key={view}
-                onClick={() => stage.current?.setView(view)}
-                className="press h-9 rounded-full bg-black/40 px-3.5 text-[13px] text-white/80 backdrop-blur-md hover:text-white"
-              >
-                {view === 'full' ? 'Whole body' : view === 'head' ? 'Head' : 'Chest'}
-              </button>
-            ))}
-            <button
-              onClick={() => stage.current?.zoomBy(1.4)}
-              aria-label="Zoom in"
-              className="press flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white/80 backdrop-blur-md hover:text-white"
-            >
-              <Plus size={15} />
-            </button>
-            <button
-              onClick={() => stage.current?.zoomBy(1 / 1.4)}
-              aria-label="Zoom out"
-              className="press flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white/80 backdrop-blur-md hover:text-white"
-            >
-              <Minus size={15} />
-            </button>
-          </div>
+      {studio && !portraitOnly && (
+        <div className="absolute inset-x-3 bottom-20 z-[5] flex flex-col items-center gap-3">
+          <div className="flex flex-wrap justify-center gap-1.5">{viewButtons}</div>
         </div>
       )}
 

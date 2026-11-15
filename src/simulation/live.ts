@@ -28,6 +28,16 @@ const doneAt = (sim: Simulation, id: string, t: number) => {
   return !!task && task.doneAt !== null && t >= task.doneAt
 }
 
+/** Exercise sessions, when a hard-working heart is expected. */
+const trainingAt = (sim: Simulation, t: number) => {
+  const { now } = activityAt(sim, t)
+  return now.activity === 'resistance' || now.activity === 'cycle' || now.activity === 'run'
+}
+
+/** A heart working harder than the task asks: 80% of its maximum or more outside an exercise session. */
+export const heartTooHard = (sim: Simulation, t: number) =>
+  !trainingAt(sim, t) && sampleAt(sim, t).bpm >= 0.8 * sim.person.maxBpm
+
 /** The report of minute `t`: the signals are judged again on that minute's values. */
 export function liveReport(base: DayReport, sim: Simulation, mission: MissionId, t: number): DayReport {
   const s = sampleAt(sim, t)
@@ -59,7 +69,7 @@ export function liveReport(base: DayReport, sim: Simulation, mission: MissionId,
     mission,
   )
   const { now } = activityAt(sim, t)
-  const training = now.activity === 'resistance' || now.activity === 'cycle' || now.activity === 'run'
+  const training = trainingAt(sim, t)
   // What the day's signals cannot see in a minute: a storm's dose rate, a heart working too hard,
   // a body running hot. The marker of that part lights up while it lasts.
   const live: Partial<Record<Signal['id'], Pick<Signal, 'level' | 'value' | 'meaning' | 'advice'>>> = {}
@@ -70,7 +80,7 @@ export function liveReport(base: DayReport, sim: Simulation, mission: MissionId,
       meaning: `A solar storm. Outside the shelter it would be ${s.outsideRate} µSv/h.`,
       advice: 'Stay in the storm shelter until the all-clear.',
     }
-  if (!training && s.bpm >= 0.8 * sim.person.maxBpm)
+  if (heartTooHard(sim, t))
     live.oxygen = {
       level: 'watch',
       value: `Heart rate ${s.bpm} bpm, ${Math.round((100 * s.bpm) / sim.person.maxBpm)}% of maximum`,

@@ -165,11 +165,13 @@ export const LIMITS = {
   resistanceMinSessions: 5, // EXERCISE_PLAN (demo)
   moodLow: 2.5, // MOOD (demo)
   feverC: 38.0, // BASICS (demo)
+  feverHighC: 38.5, // BASICS (demo): red on the vital signs
   systolicHigh: 140, // BASICS (demo)
   diastolicHigh: 90, // BASICS (demo)
   systolicLow: 90, // BASICS (demo)
   glucoseLow: 70, // BASICS (demo)
   glucoseHigh: 180, // BASICS (demo)
+  glucoseVeryLow: 54, // BASICS (demo): red on the vital signs
   whiteCellsRiseMaxPct: 40, // IMMUNE_DEMO (demo). The in-flight rise is published (IMMUNE_WBC), this limit is not
   lymphocytesDropMaxPct: 40, // IMMUNE_DEMO (demo)
   vitaminDLowNgMl: 30, // VITD_NASA
