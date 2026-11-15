@@ -532,3 +532,125 @@ input[type='range'].day-range::-moz-range-thumb {
     animation: none;
   }
 }
+
+/* ---------- Eye control ---------- */
+
+/* Where the eyes point: a bright ring with a white centre, moved by the gaze hook. */
+.gaze-cursor {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 8;
+  width: 46px;
+  height: 46px;
+  margin: -23px 0 0 -23px;
+  border: 3px solid #6fd0ec;
+  border-radius: 9999px;
+  background: radial-gradient(
+    circle,
+    #ffffff 0 4px,
+    rgb(111 208 236 / 0.45) 5px 8px,
+    rgb(111 208 236 / 0.12) 9px
+  );
+  box-shadow:
+    0 0 20px 5px rgb(111 208 236 / 0.6),
+    inset 0 0 10px rgb(111 208 236 / 0.45);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.2s,
+    width 0.2s,
+    height 0.2s,
+    margin 0.2s;
+  will-change: transform;
+}
+.gaze-cursor[data-show] {
+  opacity: 1;
+}
+/* On a button, the cursor gets small: the button itself shows the gaze. */
+.gaze-cursor[data-snapped] {
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  opacity: 0.8;
+}
+/* The button under the gaze lights up, and a bar fills along its foot until it is pressed. */
+[data-gaze] {
+  position: relative;
+}
+[data-gaze][data-gaze-hover] {
+  border-color: #ffffff;
+  background-color: rgb(111 208 236 / 0.32);
+  color: #ffffff;
+  box-shadow:
+    0 0 0 2px #6fd0ec,
+    0 0 28px 6px rgb(111 208 236 / 0.55);
+}
+[data-gaze]::after {
+  content: '';
+  position: absolute;
+  left: 14%;
+  right: 14%;
+  bottom: 5px;
+  height: 3px;
+  border-radius: 9999px;
+  background: #ffffff;
+  box-shadow: 0 0 8px #6fd0ec;
+  opacity: 0;
+  transform: scaleX(var(--gaze-progress, 0));
+  transform-origin: left;
+  pointer-events: none;
+}
+[data-gaze][data-gaze-hover]::after {
+  opacity: 1;
+}
+[data-gaze][data-gaze-pressed] {
+  animation: gaze-press 0.4s ease-out;
+}
+@keyframes gaze-press {
+  from {
+    box-shadow:
+      0 0 0 6px #ffffff,
+      0 0 44px 16px rgb(111 208 236 / 0.85);
+  }
+}
+/* A calibration dot: a white core, and a ring that closes on it while the samples are taken. */
+.gaze-dot {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+.gaze-dot::before,
+.gaze-dot::after {
+  content: '';
+  position: absolute;
+  border-radius: 9999px;
+}
+.gaze-dot::before {
+  left: -8px;
+  top: -8px;
+  width: 16px;
+  height: 16px;
+  background: #ffffff;
+  box-shadow: 0 0 16px 5px #6fd0ec;
+}
+.gaze-dot::after {
+  left: -36px;
+  top: -36px;
+  width: 72px;
+  height: 72px;
+  border: 3px solid #6fd0ec;
+  box-shadow: 0 0 14px rgb(111 208 236 / 0.6);
+  animation: gaze-close var(--dot-ms, 1300ms) linear forwards;
+}
+.gaze-dot[data-paused]::after {
+  animation-play-state: paused;
+}
+@keyframes gaze-close {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(0.24);
+  }
+}

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { ArrowLeft, Crosshair, Eye, EyeSlash } from '@phosphor-icons/react'
 import type { Member } from '../crew/roster'
@@ -164,10 +164,12 @@ export default function ArVisor({
   const back = useRef<HTMLButtonElement>(null)
   const eva = evaVitals(report.readings.restingPulseBpm, MISSIONS[mission].gravity, seconds)
   const outside = OUTSIDE[mission]
-  const gaze = useGaze()
+  // Eye control starts with the view; the mouse and the keyboard keep working beside it.
+  const gaze = useGaze({ auto: true })
   const gazing = gaze.state !== 'off' && gaze.state !== 'error'
-  /** A ring on a button the gaze rests on. */
-  const looked = (id: string) => (gaze.hover.id === id ? ' ring-2 ring-holo/80' : '')
+  /** A typical gaze error past a tenth of the screen diagonal makes the buttons hard to tell apart. */
+  const rough =
+    gaze.errorPx !== null && gaze.errorPx > 0.1 * Math.hypot(window.innerWidth, window.innerHeight)
 
   useEffect(() => {
     back.current?.focus({ preventScroll: true })
@@ -183,8 +185,11 @@ export default function ArVisor({
     }
   }, [onClose])
 
-  const control =
-    'press inline-flex h-10 items-center gap-2 rounded-full border border-holo/50 bg-black/40 px-4 font-cond text-[14px] tracking-wide text-holo backdrop-blur-md hover:bg-holo/15'
+  /** A control of the visor; with eye control on, the buttons grow and spread so the gaze can tell them apart. */
+  const control = (selected = false) =>
+    `press inline-flex items-center justify-center gap-2 rounded-full border font-cond tracking-wide backdrop-blur-md ${
+      selected ? 'border-holo bg-holo/25 text-white' : 'border-holo/50 bg-black/40 text-holo hover:bg-holo/15'
+    } ${gazing ? 'h-12 min-w-[124px] px-5 text-[15px]' : 'h-10 px-4 text-[14px]'}`
   return (
     <motion.div
       role="dialog"
@@ -303,24 +308,22 @@ export default function ArVisor({
         </AnimatePresence>
         {!hud && <div className="flex-1" />}
 
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-          <button ref={back} onClick={onClose} className={control}>
+        <div
+          className={`mt-4 flex flex-wrap items-center justify-center ${gazing ? 'gap-x-4 gap-y-3' : 'gap-2'}`}
+        >
+          {/* Back is left to the mouse and the keyboard, so a glance cannot close the view. */}
+          <button ref={back} onClick={onClose} className={control()}>
             <ArrowLeft size={16} />
             Back
           </button>
-          <button
-            data-gaze="hud"
-            onClick={() => setHud((h) => !h)}
-            aria-pressed={!hud}
-            className={control + looked('hud')}
-          >
+          <button data-gaze="hud" onClick={() => setHud((h) => !h)} aria-pressed={!hud} className={control()}>
             {hud ? <EyeSlash size={16} /> : <Eye size={16} />}
             {hud ? 'Hide info' : 'Show info'}
           </button>
           <div
             role="group"
             aria-label="Mission"
-            className="inline-flex h-10 items-center gap-0.5 rounded-full border border-holo/50 bg-black/40 p-1 backdrop-blur-md"
+            className={`flex flex-wrap items-center justify-center ${gazing ? 'gap-x-4 gap-y-3' : 'gap-1.5'}`}
           >
             {MISSION_ORDER.map((id) => (
               <button
@@ -328,7 +331,7 @@ export default function ArVisor({
                 data-gaze={`mission:${id}`}
                 onClick={() => onMission(id)}
                 aria-pressed={mission === id}
-                className={`press h-8 rounded-full px-3 font-cond text-[13px] tracking-wide ${mission === id ? 'bg-holo/25 text-white' : 'text-holo/85 hover:bg-holo/10'}${looked(`mission:${id}`)}`}
+                className={control(mission === id)}
               >
                 {MISSIONS[id].name}
               </button>
@@ -338,21 +341,25 @@ export default function ArVisor({
             onClick={gazing ? gaze.stop : gaze.start}
             aria-pressed={gazing}
             title="Press the buttons by looking at them, with the webcam"
-            className={control}
+            className={control(gazing)}
           >
             <Crosshair size={16} />
-            {gazing ? 'Eye control on' : 'Eye control'}
+            {gazing ? 'Eye control on' : 'Eye control off'}
           </button>
         </div>
-        {(gazing || gaze.state === 'error') && (
-          <p
-            className="mt-2 text-center font-cond text-[12.5px] tracking-wide text-holo/90"
-            aria-live="polite"
-          >
-            {gaze.message}
+        {gaze.state !== 'off' && gaze.state !== 'calibrating' && (
+          <p className="mt-2 text-center font-cond text-[13px] tracking-wide text-holo/90" aria-live="polite">
+            {gaze.state === 'on'
+              ? gaze.lost
+                ? 'Face not found: look at the screen, with your face in the light.'
+                : `Look at a button for a second to press it.${gaze.errorPx === null ? '' : ` Typical error ${Math.round(gaze.errorPx)} px.`}${rough ? ' Tracking is rough: face the camera in even light, then recalibrate.' : ''}`
+              : gaze.message}
             {gaze.state === 'on' && (
-              <button onClick={gaze.recentre} className="ml-2 underline underline-offset-4 hover:text-white">
-                Recentre
+              <button
+                onClick={gaze.recalibrate}
+                className="ml-2 underline underline-offset-4 hover:text-white"
+              >
+                Recalibrate
               </button>
             )}
           </p>
@@ -364,28 +371,62 @@ export default function ArVisor({
         )}
       </div>
 
-      {/* Where the eyes point, with the ring that fills while a button is held under the gaze. */}
-      {gaze.state === 'centre' && (
-        <span
-          aria-hidden="true"
-          className="pointer-events-none fixed top-1/2 left-1/2 z-[6] h-5 w-5 -translate-x-1/2 -translate-y-1/2 animate-pulse rounded-full border-2 border-white bg-holo/70"
-        />
-      )}
-      {gaze.state === 'on' && gaze.cursor && (
-        <span
-          aria-hidden="true"
-          className="pointer-events-none fixed z-[6] h-9 w-9 -translate-x-1/2 -translate-y-1/2 rounded-full"
-          style={{
-            left: `${gaze.cursor.x * 100}%`,
-            top: `${gaze.cursor.y * 100}%`,
-            background: `conic-gradient(${HOLO} ${gaze.hover.progress * 360}deg, rgb(111 208 236 / 0.18) 0)`,
-            WebkitMask: 'radial-gradient(circle, transparent 52%, black 56%)',
-            mask: 'radial-gradient(circle, transparent 52%, black 56%)',
-          }}
-        />
-      )}
-
       <Helmet />
+
+      {/* Calibration: nine dots, one after the other, each with a ring that closes on it. */}
+      <AnimatePresence>
+        {gaze.state === 'calibrating' && (
+          <motion.div
+            key="calibration"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="fixed inset-0 z-[7] bg-[#02070b]/75"
+          >
+            <div
+              className="absolute inset-x-0 top-[57%] mx-auto max-w-md px-4 text-center"
+              aria-live="polite"
+            >
+              <p className="ar-glow font-cond text-[12px] tracking-[0.24em] text-holo uppercase">
+                Eye control · calibration
+              </p>
+              <p className="mt-2 text-[16px] leading-snug text-white">
+                Look at each dot until its ring closes.
+              </p>
+              <p className="mt-1 font-cond text-[13px] tracking-wide text-white/60">
+                {gaze.lost
+                  ? 'Paused: the camera cannot see your face.'
+                  : `Dot ${(gaze.dot?.index ?? 0) + 1} of 9`}
+              </p>
+              <button
+                onClick={gaze.stop}
+                className="press mt-4 font-cond text-[13px] tracking-wide text-holo/90 underline underline-offset-4 hover:text-white"
+              >
+                Use the mouse instead
+              </button>
+            </div>
+            {gaze.dot && (
+              <span
+                key={gaze.dot.index}
+                aria-hidden="true"
+                className="gaze-dot"
+                data-paused={gaze.lost || undefined}
+                style={
+                  {
+                    left: `${gaze.dot.point.x * 100}%`,
+                    top: `${gaze.dot.point.y * 100}%`,
+                    '--dot-ms': `${gaze.dot.ms}ms`,
+                  } as CSSProperties
+                }
+              />
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Where the eyes point. It shrinks on a button, which lights up and fills while the gaze holds. */}
+      <div ref={gaze.cursorRef} aria-hidden="true" className="gaze-cursor" />
     </motion.div>
   )
 }

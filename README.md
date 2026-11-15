@@ -75,7 +75,7 @@ Each test shows why it is due today, what NASA does and how this version differs
 
 **Lab.** At the foot of **Tests**, the Lab keeps the camera tools behind the tests, all processed on your computer. **Face fitting studio** frames your face, shows it live on the 3D head and lays the captured portrait on the body ([how the fit works](docs/FACE_FITTING.md)). **Pulse camera** estimates your pulse from small colour changes in the skin of your face; you can download the numbers as a CSV file and compare them with a finger pulse oximeter, as in [the validation protocol](docs/VALIDATION.md). **Avatar comparison** is described above.
 
-**AR view.** **AR view** in the top bar shows what a crew member could see inside the helmet visor on a spacewalk: the Earth from outside the station, deep space from Orion, the Moon or Mars, with only the health readings over it. The spacewalk readings (pulse, breathing, core temperature, effort, suit CO2) are a demonstration built from the person's resting pulse, at the levels NASA reports for suited work. **Hide info** clears the view, the mission buttons change the destination, and **Eye control** lets you press them by looking at them for a second, with a rough gaze from the webcam.
+**AR view.** **AR view** in the top bar shows what a crew member could see inside the helmet visor on a spacewalk: the Earth from outside the station, deep space from Orion, the Moon or Mars, with only the health readings over it. The spacewalk readings (pulse, breathing, core temperature, effort, suit CO2) are a demonstration built from the person's resting pulse, at the levels NASA reports for suited work. **Hide info** clears the view and the mission buttons change the destination. Eye control starts with the view: after nine calibration dots, look at a button for a second to press it, with the webcam and no eye tracker. A ring follows the gaze, the button under it lights up, and each mouse click refines the calibration. [How eye control works](docs/EYE_CONTROL.md)
 
 ### Destination and habitat
 
@@ -85,7 +85,7 @@ The **destination** sets what the body lives with: gravity and radiation dose ra
 
 ## Privacy
 
-- The camera starts only when you ask, never records sound, and stops when you leave the page or press stop. Frames stay in memory just long enough to be used, then are dropped.
+- The camera starts only when you open a test, a camera tool or the AR view, whose eye control can be turned off. It never records sound, and it stops when you leave the page, close the view or press stop. Frames stay in memory just long enough to be used, then are dropped.
 - **Next** in avatar setup or **Use this face** in the face fitting studio saves the cropped portrait images, landmarks and fit settings for that crew member in this browser. Pulsar does not upload or sync portraits. To erase yours, choose **Remove portrait** in the studio, or **Use reference head** followed by **Next** in avatar setup. Deleting an added crew member also erases their portrait. Clearing the site's data erases all local portraits.
 - People you add, the state of their check-up and their self-test results are kept in your browser only. **Clear** at the foot of **Tests** erases one person's results.
 - The voice that guides the tests is one of this device's own: voices that would send the words to a server are not used.
@@ -124,10 +124,10 @@ src/
   ui/         shared interface components
 scripts/      setup, the anatomy build (BodyParts3D bones and vessels), the fake webcam, pulse comparison
 public/       anatomy models, habitat pictures and the face-tracking model, served locally
-docs/         architecture, research notes, physiology model, face fitting, validation
+docs/         architecture, research notes, physiology model, face fitting, eye control, validation
 ```
 
-Further reading: [architecture](docs/ARCHITECTURE.md), [NASA reference](docs/NASA_REFERENCE.md), [research and rule sources](docs/RESEARCH.md), [physiology model](docs/PHYSIOLOGY.md), [pulse validation](docs/VALIDATION.md), [third-party components and licences](docs/CREDITS.md).
+Further reading: [architecture](docs/ARCHITECTURE.md), [NASA reference](docs/NASA_REFERENCE.md), [research and rule sources](docs/RESEARCH.md), [physiology model](docs/PHYSIOLOGY.md), [pulse validation](docs/VALIDATION.md), [eye control](docs/EYE_CONTROL.md), [third-party components and licences](docs/CREDITS.md).
 
 ## Credits
 

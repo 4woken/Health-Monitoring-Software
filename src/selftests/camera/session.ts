@@ -15,6 +15,10 @@ export interface Face {
   points: Landmark[]
   /** Eye closure scores, 0 (open) to 1 (closed), from the face model's blendshapes. */
   blink: { left: number; right: number } | null
+  /** Every blendshape score of the face model, by name. */
+  shapes: Record<string, number>
+  /** The head pose, a 4×4 matrix in column order with the position in centimetres, when asked for. */
+  matrix: number[] | null
 }
 
 export interface CameraFrame {
@@ -36,6 +40,10 @@ export interface SessionOptions {
   wide?: boolean
   /** Frames a second to analyse. */
   fps?: number
+  /** The shortest time between two readings of the face, ms: ten a second unless asked otherwise. */
+  faceEveryMs?: number
+  /** Also read the pose of the head, for the gaze. */
+  headPose?: boolean
 }
 
 export interface SessionEvents {
@@ -47,7 +55,7 @@ export interface SessionEvents {
 
 /** Starts the camera and the models; returns the function that stops everything. */
 export function startCamera(options: SessionOptions, events: SessionEvents): () => void {
-  const { needs, video, wide = false, fps = 15 } = options
+  const { needs, video, wide = false, fps = 15, faceEveryMs = 100, headPose = false } = options
   let disposed = false
   let ownStream: MediaStream | undefined
   let raf = 0
@@ -147,6 +155,7 @@ export function startCamera(options: SessionOptions, events: SessionEvents): () 
           runningMode: 'VIDEO',
           numFaces: 1,
           outputFaceBlendshapes: true,
+          outputFacialTransformationMatrixes: headPose,
         })
       if (disposed) return release()
       events.onStatus('')
@@ -179,9 +188,9 @@ export function startCamera(options: SessionOptions, events: SessionEvents): () 
               handList.push({ points: points as Landmark[], side: r.handedness[i]?.[0]?.categoryName ?? '' }),
             )
           }
-          // The face model runs at most ten times a second. With a body in view, it reads a close
-          // crop around the head, so the eyes can be seen from a few metres away.
-          if (face && now - lastFace >= 100) {
+          // The face model runs ten times a second unless asked for more. With a body in view, it
+          // reads a close crop around the head, so the eyes can be seen from a few metres away.
+          if (face && now - lastFace >= faceEveryMs) {
             lastFace = now
             faceResult = body
               ? faceFromCrop(face, video, body, now)
@@ -248,15 +257,19 @@ function readFace(
 ): Face | null {
   const points = r.faceLandmarks[0]
   if (!points) return null
-  const bands = r.faceBlendshapes[0]?.categories ?? []
-  const score = (name: string) => bands.find((c) => c.categoryName === name)?.score
-  const left = score('eyeBlinkLeft')
-  const right = score('eyeBlinkRight')
+  const shapes: Record<string, number> = {}
+  for (const c of r.faceBlendshapes[0]?.categories ?? []) shapes[c.categoryName] = c.score
+  const left = shapes.eyeBlinkLeft
+  const right = shapes.eyeBlinkRight
+  const pose = r.facialTransformationMatrixes?.[0]?.data
   return {
     points: box
       ? points.map((p) => ({ x: box.x0 + p.x * box.sx, y: box.y0 + p.y * box.sy, z: p.z }))
       : points,
     blink: left === undefined || right === undefined ? null : { left, right },
+    shapes,
+    // The pose found in a crop would place the head wrongly in the whole image.
+    matrix: !box && pose && pose.length === 16 ? Array.from(pose) : null,
   }
 }
 

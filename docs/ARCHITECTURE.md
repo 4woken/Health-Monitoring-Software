@@ -55,7 +55,7 @@ The camera starts only when someone asks for it, and never uses the microphone. 
 - `camera/pulse/` measures the pulse (POS method, see [VALIDATION.md](VALIDATION.md)) in one session shared by the whole app, so the 3D heart keeps beating with the measured pulse. The session stops on request (the camera button in the top bar, **Stop camera** on the heart-rate card, **Stop the camera** on the Pulse view), on an error, and when the page is hidden. Its tracks and the MediaPipe model are released when it stops.
 - `camera/face/` frames the face and prepares the portrait, which `body/portrait/` lays on the reference head ([FACE_FITTING.md](FACE_FITTING.md)). Its camera stops when the portrait is captured, when the face view closes and when the page is hidden.
 
-The two never film at the same time: the face view stops the pulse session before it starts its own camera or the sample. The self-tests do the same, except the pulse recovery test, which counts the squats on the pulse session's own stream. The AR view's eye control starts its own camera only while it is on.
+The two never film at the same time: the face view stops the pulse session before it starts its own camera or the sample. The self-tests do the same, except the pulse recovery test, which counts the squats on the pulse session's own stream. The AR view's eye control starts its own camera when the view opens and stops it when the view closes or eye control is turned off. Its features, calibration regression, filter and button choice are pure functions in `app/gaze.ts`; `app/useGaze.ts` runs the camera and the calibration and draws the cursor outside React ([Eye control](EYE_CONTROL.md)).
 
 ## Changing or adding a signal
 
