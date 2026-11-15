@@ -16,7 +16,7 @@ import type { MissionId } from '../../mission/missions'
 import { Button, Chip, LEVEL_LINE, Sparkline } from '../../ui'
 import { CONDITIONS } from '../balance/balance'
 import { probeMotion } from '../balance/phone'
-import { SELF_TESTS, USE_LABEL } from '../catalog'
+import { SELF_TESTS, testDuration, USE_LABEL } from '../catalog'
 import type { DueTest } from '../due'
 import { connectStrap, disconnectStrap, useStrap } from '../heart/strap'
 import type { SelfTestId } from '../ids'
@@ -164,6 +164,8 @@ function resultLines(r: TestResult): string[] {
         `Ruffier-Dickson index ${d('dickson')}`,
         `${d('squats')} squats counted, pulse read with ${r.details.source === 'strap' ? 'the strap' : 'the camera'}`,
       ]
+    case 'breathingRate':
+      return Number.isFinite(d('seconds')) ? [`Chest motion tracked for ${d('seconds')} s`] : []
     case 'restingPulse':
       return [`Read with ${r.details.source === 'strap' ? 'the strap' : 'the camera'} over ${d('seconds')} s`]
     case 'squats':
@@ -303,7 +305,7 @@ export default function TestRunner({
           <div className="min-w-0">
             {/* The facts of the run, value first, the way a workout preview shows them. */}
             <dl className="mt-7 flex flex-wrap gap-x-12 gap-y-5">
-              <Fact value={`${test.minutes} min`} label="to do" />
+              <Fact value={testDuration(test).replace(/^About /, '')} label="to do" />
               <div className="max-w-[26rem]">
                 <dd className="space-y-0.5 text-[15.5px] leading-snug font-medium">
                   {test.uses.map((u) => (

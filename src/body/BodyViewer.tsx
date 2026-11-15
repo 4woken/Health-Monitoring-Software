@@ -14,9 +14,13 @@ import { hasSize, mannequinScale, type BodyDimensions } from '../crew/bodyDimens
 import { fitTorso } from '../crew/torsoFit'
 import { ORGAN_SIGNALS, loadBody, type Body } from './anatomy/loadAnatomy'
 import { createExercisePose } from '../exercises/exercisePose'
+import { createRowingDevice } from '../exercises/rowingDevice'
 import { demoVitals } from '../exercises/demoVitals'
 import type { ExerciseMotion } from '../exercises/environmentExercise'
 import { createBodyGroom } from './groom/bodyGroom'
+import { createFittedModel } from './appearance/fittedModel'
+import { crewCoverage } from './appearance/crewCoverage'
+import { effectiveDepth } from './appearance/crewView'
 import { createSpacesuit, SUITS, type SuitStatus } from './appearance/spacesuit'
 import { createRestingEye } from './portrait/restingEye'
 import { createPersonalFace } from './portrait/skinPortrait'
@@ -24,6 +28,7 @@ import type { Build, Vec3 } from './anatomy/bodyShape'
 import type { Level } from '../health/signals'
 import type { AvatarCapture, FaceCalibration } from '../camera/face/portrait'
 import {
+  CREW_DEPTH,
   DEPTH_STOPS,
   FIRST_DEPTH,
   LAST_DEPTH,
@@ -88,6 +93,7 @@ interface Props {
   /** Organ to keep isolated; null shows the whole body. */
   organ?: string | null
   physiology: BodyPhysiology
+  gravityG?: number
   /** Simulated resting heart rate, used when the webcam pulse is not measuring. */
   restingBpm: number
   breathingRate?: number
@@ -95,6 +101,7 @@ interface Props {
   exerciseStartedAt?: number
   /** The page's own controls, under the depth and view controls down the left side. */
   controls?: ReactNode
+  exercisePausedSeconds?: number
   layer: Layer
   onLayer: (l: Layer) => void
   /** The person's portrait, laid on this body's face. */
@@ -225,7 +232,7 @@ interface Stage {
   setHotspots: (h: Hotspot[]) => void
   setActive: (id: string | null) => void
   setFocus: (id: string | null) => void
-  /** Depth from -2 (EVA) and -1 (IVA) through skin at 0 down to skeleton at 3. */
+  /** Exterior clothing stops precede skin at 0 and anatomy down to skeleton at 3. */
   setDepth: (d: number, fly: boolean) => void
   retrySuit: () => void
   setOrgan: (name: string | null) => void
@@ -233,9 +240,10 @@ interface Stage {
   zoomBy: (factor: number) => void
   setLayer: (l: Layer) => void
   setPhysiology: (p: BodyPhysiology) => void
+  setGravity: (g: number) => void
   setHeart: (h: Heart) => void
   setBreathingRate: (rate: number | undefined) => void
-  setExerciseMotion: (mode: ExerciseMotion | null, startedAt?: number) => void
+  setExerciseMotion: (mode: ExerciseMotion | null, startedAt?: number, pausedSeconds?: number) => void
   setAvatar: (a: AvatarCapture | null) => void
   setFaceOptions: (live: RefObject<LiveFaceFrame | null> | null, calibration?: FaceCalibration) => void
   setPins: (pins: { id: string; at: string; side?: 'left' | 'right' }[]) => void
@@ -256,6 +264,7 @@ function createStage(
   onCredit: (text: string) => void,
   onInventory: (names: string[]) => void,
   onSuitStatus: (status: SuitStatus) => void,
+  onWearStatus: (status: SuitStatus) => void,
   onBodyPick: (id: string) => void,
   onOrganPick: (name: string | null) => void,
   allowLens: boolean,
@@ -287,14 +296,28 @@ function createStage(
   const camera = new THREE.PerspectiveCamera(24, 1, 0.1, 50)
   const group = new THREE.Group()
   const body = new THREE.Group()
+  const crewPose = new THREE.Group()
+  crewPose.name = 'Crew in local gravity'
   scene.add(group)
-  group.add(body)
+  group.add(crewPose)
+  crewPose.add(body)
   const suit = createSpacesuit(onSuitStatus)
-  group.add(suit.root)
+  crewPose.add(suit.root)
 
   const demoPose = createExercisePose()
+  let rower: ReturnType<typeof createRowingDevice> | undefined
+  let heldExerciseSeconds: number | undefined
+  const posedSurfaces = new Set<THREE.Mesh>()
+  const includePosedSurface = (part: THREE.Object3D) => {
+    if (part instanceof THREE.Mesh && part.frustumCulled) {
+      part.frustumCulled = false
+      posedSurfaces.add(part)
+    }
+  }
   let exercise: ExerciseMotion | null = null
   let exerciseStarted = 0
+  let gravityG = 1
+  let drift = 0
   let demoSecond = -1
   let demoRates = demoVitals('ankle', 0)
   let demoBeatPhase = 0
@@ -354,13 +377,22 @@ function createStage(
   floor.rotation.x = -Math.PI / 2
   floor.scale.y = 0.65
   floor.position.y = 0.003
-  body.add(floor)
+  group.add(floor)
 
   let reference: Body | null = null
   let current: Body | null = null
   let fitted: ReturnType<typeof fitTorso> | undefined
   let requestedBuild: Build | null = null
   let requestRevision = 0
+  const patchAccessory = (shader: THREE.WebGLProgramParametersWithUniforms) => patch(shader, false, false)
+  const hairstyle = createFittedModel('hair', patchAccessory)
+  const crewWear = createFittedModel('crew-wear', patchAccessory, onWearStatus)
+  body.add(crewWear.root)
+  let coverSkin: ReturnType<typeof crewCoverage> | undefined
+  let crewRequested = false
+  const surfaceHair = new THREE.Group()
+  surfaceHair.add(hairstyle.root)
+  body.add(surfaceHair)
   let groom: ReturnType<typeof createBodyGroom> | null = null
   const restingEyes: ReturnType<typeof createRestingEye>[] = []
   let dimensions: BodyDimensions = {}
@@ -397,7 +429,7 @@ function createStage(
   }[] = []
   let skinOpacity = 1
   const flow = { value: 0 }
-  let depth = 0
+  let depth = CREW_DEPTH
   let isolated: string | null = null
   let hovered: string | null = null
   let layer: Layer = 'signals'
@@ -464,8 +496,11 @@ function createStage(
     const physiologyView = layer === 'physiology'
     // Keep a chosen layer for movement, but switch an isolated organ back to the whole mannequin.
     const selection = exercise ? null : isolated
-    const d = physiologyView || (exercise && isolated) ? 0 : Math.max(0, depth)
-    const exterior = DEPTH_STOPS[Math.round(depth) - FIRST_DEPTH]
+    const viewDepth = effectiveDepth(depth, physiologyView, exercise, !!isolated)
+    const d = Math.max(0, viewDepth)
+    const exterior = DEPTH_STOPS[Math.round(viewDepth) - FIRST_DEPTH]
+    crewRequested = exterior === 'Crew wear' && !selection
+    crewWear.show(crewRequested && current ? current.build : null)
     suit.show(
       !physiologyView && !exercise && !isolated && (exterior === 'IVA' || exterior === 'EVA')
         ? exterior
@@ -531,6 +566,7 @@ function createStage(
   }
 
   const clearSurfaceDetails = () => {
+    coverSkin = undefined
     groom?.dispose()
     groom = null
     for (const eye of restingEyes.splice(0)) {
@@ -638,10 +674,15 @@ function createStage(
     skin.material = skinMaterial = face.material
     skin.visible = true
     groom = createBodyGroom(current, face.geometry, (shader) => patch(shader, false))
-    body.add(groom.object)
+    surfaceHair.add(groom.object)
+    coverSkin = current.referenceHead ? crewCoverage(face.geometry) : undefined
+    crewWear.setFit(fitted?.factor)
+    hairstyle.setFit(fitted?.factor)
+    hairstyle.show(current.referenceHead ? current.build : null)
     shared.uHeight.value = current.height
-    demoPose.setBody(current.height, current.build)
+    demoPose.setBody(current.height, current.build, fitted?.factor)
     body.position.y = -current.height / 2
+    floor.position.y = body.position.y + 0.003
     fitDimensions()
     if (portraitOnly) {
       clampView()
@@ -699,11 +740,15 @@ function createStage(
   }
   /** Pick only surfaces exposed at this pointer, including the reference eyes. */
   const pickAt = (cssX: number, cssY: number) => {
-    if (!current) return null
+    if (!current || (!body.visible && !suit.root.visible)) return null
     const w = host.clientWidth || 1
     const h = host.clientHeight || 1
     ndc.set((cssX / w) * 2 - 1, -(cssY / h) * 2 + 1)
     raycaster.setFromCamera(ndc, camera)
+    if (exercise === 'row' && rower?.root.visible) {
+      const hit = raycaster.intersectObject(rower.root, true)[0]
+      return hit ? { what: 'rower', point: hit.point } : null
+    }
     if (suit.root.visible) {
       const hit = raycaster.intersectObject(suit.root, true)[0]
       return hit ? { what: 'suit', point: hit.point } : null
@@ -712,8 +757,11 @@ function createStage(
     const targets: THREE.Object3D[] = organs
       .filter((o) => o.mesh.visible && o.mat.opacity >= 0.5 && (inside || o.eye))
       .map((o) => o.mesh)
-    if (!inside && skin.visible) targets.push(skin, ...restingEyes.filter((eye) => eye.visible))
-    const hit = raycaster.intersectObjects(targets, false)[0]
+    if (!inside && skin.visible) {
+      targets.push(skin, ...restingEyes.filter((eye) => eye.visible))
+      if (crewWear.root.visible) targets.push(crewWear.root)
+    }
+    const hit = raycaster.intersectObjects(targets, true)[0]
     if (!hit) return null
     return { what: hit.object === skin ? 'skin' : (hit.object.userData.organ as string), point: hit.point }
   }
@@ -865,8 +913,41 @@ function createStage(
     lastTime = now
     const t = (now - startedAt) / 1000
     shared.uTime.value = t
-    const exerciseSeconds = (now - exerciseStarted) / 1000
-    demoPose.update(exercise, exerciseSeconds, reduce)
+    const exerciseSeconds = heldExerciseSeconds ?? (now - exerciseStarted) / 1000
+    const atRest =
+      allowLens && !portraitOnly && !exercise && !isolated && (depth < 0.5 || layer === 'physiology')
+    // Body, outfit, suit and marker anchors share one transform. Floor contact is
+    // restored on a surface; the rower's seat and footplates restrain the crew.
+    const free = atRest ? 1 - THREE.MathUtils.smoothstep(gravityG, 0.001, 0.04) : 0
+    drift = !atRest || reduce ? free : THREE.MathUtils.damp(drift, free, 7, dt)
+    const sway = reduce ? 0 : t
+    const lift = drift * (current?.height ?? 1.75)
+    crewPose.position.set(
+      lift * 0.016 * Math.sin(sway * 0.61),
+      lift * (0.052 + 0.012 * Math.sin(sway * 0.88)),
+      0,
+    )
+    crewPose.rotation.set(
+      drift * (0.045 + 0.022 * Math.sin(sway * 0.49)),
+      0,
+      drift * (0.048 + 0.025 * Math.sin(sway * 0.68)),
+    )
+    const rowing = demoPose.update(
+      exercise,
+      exercise ? exerciseSeconds : t,
+      reduce,
+      atRest || exercise === 'row' ? gravityG : 1,
+    )
+    if (rowing && current) {
+      if (!rower) {
+        rower = createRowingDevice()
+        body.add(rower.root)
+      }
+      rower.update(rowing, gravityG, exerciseSeconds, reduce)
+    }
+    if (rower) rower.root.visible = !!rowing && !!current
+    floor.visible = !rowing && !suit.root.visible && drift < 0.999
+    floor.material.opacity = 0.22 * (1 - drift)
     if (exercise) {
       if (Math.floor(exerciseSeconds) !== demoSecond) {
         demoSecond = Math.floor(exerciseSeconds)
@@ -887,23 +968,63 @@ function createStage(
     // The camera and orbit targets use the same reference frame as the meshes.
     // A generous eye distance on narrow screens also accommodates broader builds.
     const viewScale = Math.max(group.scale.y, group.scale.x * Math.min(1, 0.6 / camera.aspect))
-    const cameraZ = (baseDist * viewScale) / zoom
+    const yaw = userRot + (rowing ? 1.06 : exercise ? 0.55 : 0)
+    group.rotation.y = yaw
+    let cameraZ = (baseDist * viewScale) / zoom
+    let rowCentreZ = 0
+    let rowCentreY = 0
+    if (rowing && current) {
+      // Frame the rail, the feet and the athlete together, including the far end
+      // of the stroke on a narrow viewport. Keep the framing fixed through a cycle.
+      const height = current.height
+      const tanHalfFov = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))
+      const horizontal = height * group.scale.x
+      const vertical = height * group.scale.y
+      cameraZ =
+        (Math.max(0.46 * vertical, (0.56 * horizontal) / camera.aspect) / tanHalfFov + 0.24 * horizontal) /
+        zoom
+      rowCentreY = -height * 0.13 * group.scale.y
+      rowCentreZ = height * 0.145 * group.scale.z
+    }
     // A panel on the right covers part of the scene: move the camera so the body stays centred in
     // what is left.
     const visibleWidth = 2 * cameraZ * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect
     const shiftX = (sideShift / 2 / (host.clientWidth || 1)) * visibleWidth
+    const tilt = rowing ? 0.09 : 0
+    camera.rotation.x = -tilt
+    // In a close-up the camera follows the selected part of the drifting body.
+    // The full-body view keeps the cabin stationary so the drift stays visible.
+    const follow = v.set(0, 0, 0)
+    if (drift && zoom > 1) {
+      follow.set(0, focusY, 0).applyQuaternion(crewPose.quaternion)
+      follow.y -= focusY
+      follow.add(crewPose.position).multiply(group.scale).applyQuaternion(group.quaternion)
+      follow.multiplyScalar(THREE.MathUtils.smoothstep(zoom, 1, 3))
+    }
+    const cameraOffsetX = shiftX + rowCentreZ * Math.sin(yaw) + follow.x
+    const cameraOffsetY = rowCentreY + cameraZ * Math.sin(tilt) + follow.y
+    const nextCameraZ = cameraZ * Math.cos(tilt) + rowCentreZ * Math.cos(yaw) + follow.z
     if (zoomAnchor) {
-      // Solve perspective projection for the camera position at this frame's
-      // depth. Undo the panel offset and body scale when storing the new focus.
-      // Only the height under the pointer stays put: the body keeps to its axis across the screen.
+      // Intersect the pointer ray with the anchor's depth to keep the same
+      // grip, footplate or body point under the cursor as the camera moves.
+      // Outside a rowing session only the height stays put: the body keeps to its axis.
       const { world, screen } = zoomAnchor
-      const halfHeight = (cameraZ - world.z) * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))
-      focusY = focusTo = (world.y - screen.y * halfHeight) / group.scale.y
-      focusXTo = 0
+      const tan = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))
+      const direction = v
+        .set(screen.x * tan * camera.aspect, screen.y * tan, -1)
+        .applyQuaternion(camera.quaternion)
+      const distance = (world.z - nextCameraZ) / direction.z
+      if (rowing) focusX = focusXTo = (world.x - direction.x * distance - cameraOffsetX) / group.scale.x
+      else focusXTo = 0
+      focusY = focusTo = (world.y - direction.y * distance - cameraOffsetY) / group.scale.y
       if (pinch === 0 && Math.abs(zoomTo - zoom) < 1e-6 && Math.abs(sideInset + pinInset - sideShift) < 0.01)
         zoomAnchor = null
     }
-    camera.position.set(focusX * group.scale.x + shiftX, focusY * group.scale.y, cameraZ)
+    camera.position.set(
+      focusX * group.scale.x + cameraOffsetX,
+      focusY * group.scale.y + cameraOffsetY,
+      nextCameraZ,
+    )
     if (hasSize(dimensions)) {
       const metresVisible = 2 * camera.position.z * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))
       const ruler = ((0.1 * host.clientHeight) / metresVisible).toFixed(1) + 'px'
@@ -912,7 +1033,6 @@ function createStage(
         lastRuler = ruler
       }
     }
-    group.rotation.y = userRot + (exercise ? 0.55 : 0)
 
     // X-ray lens: only through solid skin. Eased strength and a short trail.
     lensAt.strength += (lensAt.target - lensAt.strength) * Math.min(1, dt * 9)
@@ -966,10 +1086,9 @@ function createStage(
     const portraitVisible = face?.portraitVisible ?? false
     const surfaceVisible = !!current && !skinSeeThrough
     for (const eye of restingEyes) eye.visible = surfaceVisible && !portraitVisible
-    if (groom) {
-      groom.object.visible = surfaceVisible
-      groom.sync(portraitVisible)
-    }
+    surfaceHair.visible = surfaceVisible
+    const outfit = current?.referenceHead ? crewWear.root.children[0] : undefined
+    if (surfaceVisible) groom?.sync(portraitVisible, hairstyle.root.visible, outfit)
     for (const o of organs) {
       if (o.name === 'heart') o.holder.scale.setScalar(1 + 0.07 * beat)
       if (o.level !== 'ok' && !reduce) o.mat.emissiveIntensity = 0.35 + 0.35 * Math.sin(t * 3.2)
@@ -987,7 +1106,19 @@ function createStage(
       o.mat.opacity = opacity
     }
 
-    body.visible = !suit.root.visible
+    coverSkin?.(outfit)
+    // Hair, shoes and eyes move far beyond their standing mesh bounds while
+    // rowing. Keep them in close-ups, including assets that finish loading mid-stroke.
+    if (rowing) {
+      includePosedSurface(skin)
+      restingEyes.forEach(includePosedSurface)
+      surfaceHair.traverseVisible(includePosedSurface)
+      crewWear.root.traverseVisible(includePosedSurface)
+    } else if (posedSurfaces.size) {
+      for (const mesh of posedSurfaces) mesh.frustumCulled = true
+      posedSurfaces.clear()
+    }
+    body.visible = !suit.root.visible && (!crewRequested || crewWear.root.visible)
     renderer.render(scene, camera)
 
     // Naming the organ under the pointer, at most once a frame and only when organs show.
@@ -1054,7 +1185,7 @@ function createStage(
       const node = dom.pinOf(p.id)
       if (!node) continue
       const spot = hot.find((x) => x.id === p.at)
-      if (!spot || layer !== 'signals' || isolated || Math.round(depth) !== 0) {
+      if (!spot || layer !== 'signals' || isolated || ![CREW_DEPTH, 0].includes(Math.round(depth))) {
         node.style.visibility = 'hidden'
         continue
       }
@@ -1124,6 +1255,8 @@ function createStage(
       zoomAnchor = null
       requestedBuild = build
       const revision = ++requestRevision
+      crewWear.show(null)
+      hairstyle.show(null)
       current = reference = null
       skin.visible = organGroup.visible = false
       clearSurfaceDetails()
@@ -1186,7 +1319,7 @@ function createStage(
         flyTo(stop.zoom, (stop.at - 0.5) * current.height)
       }
     },
-    retrySuit: suit.retry,
+    retrySuit: () => (crewRequested ? crewWear : suit).retry(),
     setView: (view, yaw = 0) => {
       flyTo(VIEWS[view].zoom, (VIEWS[view].at - 0.5) * (current?.height ?? 1.75))
       userRot = yaw
@@ -1216,21 +1349,32 @@ function createStage(
     setHeart: (value) => {
       heart = value
     },
+    setGravity: (g) => {
+      gravityG = Number.isFinite(g) ? THREE.MathUtils.clamp(g, 0, 1) : 1
+    },
     setBreathingRate: (rate) => {
       breathingRate = rate
     },
-    setExerciseMotion: (value, startedAt) => {
-      if (exercise === value && (startedAt === undefined || startedAt === exerciseStarted)) return
+    setExerciseMotion: (value, startedAt, pausedSeconds) => {
+      const changedMotion = exercise !== value
+      if (
+        !changedMotion &&
+        (startedAt === undefined || startedAt === exerciseStarted) &&
+        heldExerciseSeconds === pausedSeconds
+      )
+        return
       if (!exercise && value) {
         viewBeforeDemo = { zoom: zoomTo, x: focusXTo, y: focusTo, yaw: userRot }
         leave()
         lensAt.strength = lensAt.target = 0
       }
       exercise = value
+      heldExerciseSeconds = pausedSeconds
       exerciseStarted = startedAt ?? performance.now()
       demoSecond = -1
       demoBeatPhase = demoBreathPhase = 0
       refresh()
+      if (!changedMotion) return
       if (value) flyTo(1, 0)
       else if (viewBeforeDemo) {
         flyTo(viewBeforeDemo.zoom, viewBeforeDemo.y, viewBeforeDemo.x)
@@ -1261,7 +1405,10 @@ function createStage(
     },
     dispose: () => {
       disposed = true
+      rower?.dispose()
       suit.dispose()
+      hairstyle.dispose()
+      crewWear.dispose()
       cancelAnimationFrame(raf)
       observer.disconnect()
       el.removeEventListener('pointerdown', down)
@@ -1300,9 +1447,11 @@ export default function BodyScan({
   physiology,
   restingBpm,
   breathingRate,
+  gravityG = 1,
   exerciseMotion = null,
   exerciseStartedAt,
   controls,
+  exercisePausedSeconds,
   layer,
   onLayer,
   avatar = null,
@@ -1335,7 +1484,9 @@ export default function BodyScan({
   const [credit, setCredit] = useState('')
   const [inventory, setInventory] = useState<string[]>([])
   useEffect(() => onInventory?.(inventory), [onInventory, inventory])
-  const [depth, setDepth] = useState(0)
+  const [depth, setDepth] = useState(CREW_DEPTH)
+  const selectedDepth = useRef(CREW_DEPTH)
+  const [wearStatus, setWearStatus] = useState<SuitStatus>('idle')
   const [suitStatus, setSuitStatus] = useState<SuitStatus>('idle')
 
   // The heart beats with the webcam pulse when it is measuring, otherwise with the wearable feed.
@@ -1365,6 +1516,7 @@ export default function BodyScan({
         setCredit,
         setInventory,
         setSuitStatus,
+        setWearStatus,
         (id) => pickRef.current(id),
         (name) => organRef.current?.(name),
         !studio,
@@ -1375,6 +1527,7 @@ export default function BodyScan({
       return // No 3D support: the rest of the screen remains available.
     }
     stage.current = s
+    s.setDepth(selectedDepth.current, false)
     return () => {
       s.dispose()
       stage.current = null
@@ -1388,12 +1541,13 @@ export default function BodyScan({
   useEffect(() => stage.current?.setFocus(focusId), [focusId, studio, portraitOnly])
   useEffect(() => stage.current?.setOrgan(organ), [organ, studio, portraitOnly])
   useEffect(() => stage.current?.setLayer(layer), [layer, studio, portraitOnly])
+  useEffect(() => stage.current?.setGravity(gravityG), [gravityG, studio, portraitOnly])
   useEffect(() => stage.current?.setPhysiology(physiology), [physiology, studio, portraitOnly])
   useEffect(() => stage.current?.setHeart(heart), [heart, studio, portraitOnly])
   useEffect(() => stage.current?.setBreathingRate(breathingRate), [breathingRate, studio, portraitOnly])
   useEffect(
-    () => stage.current?.setExerciseMotion(exerciseMotion, exerciseStartedAt),
-    [exerciseMotion, exerciseStartedAt, studio, portraitOnly],
+    () => stage.current?.setExerciseMotion(exerciseMotion, exerciseStartedAt, exercisePausedSeconds),
+    [exerciseMotion, exerciseStartedAt, exercisePausedSeconds, studio, portraitOnly],
   )
   useEffect(() => stage.current?.setAvatar(avatar), [avatar, studio, portraitOnly])
   useEffect(
@@ -1438,28 +1592,34 @@ export default function BodyScan({
 
   const goDepth = (d: number, fly: boolean) => {
     if (layer !== 'signals') onLayer('signals')
+    selectedDepth.current = d
     setDepth(d)
     stage.current?.setDepth(d, fly)
   }
   const stopAt = Math.round(depth)
   const depthLabel = DEPTH_STOPS[stopAt - FIRST_DEPTH]
   const suitInfo = depthLabel === 'IVA' || depthLabel === 'EVA' ? SUITS[depthLabel] : null
-  const fullDepthLabel = suitInfo?.title ?? depthLabel
-  const isSuit = !!suitInfo && layer === 'signals'
-  const suitNotice = isSuit && (suitStatus === 'loading' || suitStatus === 'failed') && (
-    <p role="status" className="rounded-lg bg-black/70 px-2.5 py-1.5 text-xs text-white">
-      {suitStatus === 'loading' ? (
-        `Loading ${fullDepthLabel}…`
-      ) : (
-        <>
-          Spacesuit unavailable.{' '}
-          <button type="button" className="underline" onClick={() => stage.current?.retrySuit()}>
-            Retry
-          </button>
-        </>
-      )}
-    </p>
-  )
+  const fullDepthLabel =
+    depthLabel === 'Crew wear' ? 'Onboard crew clothing' : (suitInfo?.title ?? depthLabel)
+  const isSuit = !!suitInfo && layer === 'signals' && !exerciseMotion && !organ
+  const displayedDepth = effectiveDepth(depth, layer === 'physiology', exerciseMotion ?? null, !!organ)
+  const wearingCrew = Math.round(displayedDepth) === CREW_DEPTH && (!organ || !!exerciseMotion)
+  const garmentStatus = wearingCrew ? wearStatus : suitStatus
+  const suitNotice = (isSuit || wearingCrew) &&
+    (garmentStatus === 'loading' || garmentStatus === 'failed') && (
+      <p role="status" className="rounded-lg bg-black/70 px-2.5 py-1.5 text-xs text-white">
+        {garmentStatus === 'loading' ? (
+          `Loading ${wearingCrew ? 'crew wear' : fullDepthLabel}…`
+        ) : (
+          <>
+            {wearingCrew ? 'Crew clothing unavailable.' : 'Spacesuit unavailable.'}{' '}
+            <button type="button" className="underline" onClick={() => stage.current?.retrySuit()}>
+              Retry
+            </button>
+          </>
+        )}
+      </p>
+    )
   const shortcuts = layer === 'signals' && stopAt === 2 && onOrgan && (
     <>
       {inventory.some((name) => name.includes('lung')) && (
@@ -1602,7 +1762,7 @@ export default function BodyScan({
       />
 
       {layer === 'signals' &&
-        depth === 0 &&
+        (depthLabel === 'Crew wear' || depthLabel === 'Skin') &&
         !organ &&
         hotspots.map((h) => {
           const flag = h.level !== 'ok'
@@ -1702,11 +1862,14 @@ export default function BodyScan({
         </p>
       )}
 
+      {(exerciseMotion || studio) && suitNotice && (
+        <div className="absolute left-1/2 top-1/2 z-[7] -translate-x-1/2">{suitNotice}</div>
+      )}
       {/* The controls down the left side: how deep to look, the view, then the page's own. */}
       {showControls && (
         <div
           ref={leftColumn}
-          className="no-scrollbar absolute top-20 left-4 z-[7] hidden w-[344px] flex-col gap-2.5 overflow-y-auto sm:flex lg:top-24 lg:left-8"
+          className="no-scrollbar absolute top-20 left-4 z-[7] hidden w-[372px] flex-col gap-2.5 overflow-y-auto sm:flex lg:top-24 lg:left-8"
           style={{ maxHeight: `calc(100% - ${insetBottom + 96}px)` }}
         >
           {!exerciseMotion && (
@@ -1746,10 +1909,16 @@ export default function BodyScan({
                 {DEPTH_STOPS.map((label, i) => (
                   <button
                     key={label}
-                    title={label === 'EVA' || label === 'IVA' ? SUITS[label].title : undefined}
+                    title={
+                      label === 'Crew wear'
+                        ? 'Onboard crew clothing'
+                        : label === 'EVA' || label === 'IVA'
+                          ? SUITS[label].title
+                          : undefined
+                    }
                     onClick={() => goDepth(i + FIRST_DEPTH, true)}
                     aria-pressed={stopAt === i + FIRST_DEPTH && layer === 'signals'}
-                    className={`press min-h-9 flex-1 rounded-full px-1.5 text-[13px] ${stopAt === i + FIRST_DEPTH && layer === 'signals' ? 'bg-white text-[#0d0f12]' : 'text-white/65 hover:text-white'}`}
+                    className={`press min-h-9 flex-1 whitespace-nowrap rounded-full px-1 text-[13px] ${stopAt === i + FIRST_DEPTH && layer === 'signals' ? 'bg-white text-[#0d0f12]' : 'text-white/65 hover:text-white'}`}
                   >
                     {label}
                   </button>
@@ -1792,7 +1961,13 @@ export default function BodyScan({
             {DEPTH_STOPS.map((label, i) => (
               <button
                 key={label}
-                title={label === 'EVA' || label === 'IVA' ? SUITS[label].title : undefined}
+                title={
+                  label === 'Crew wear'
+                    ? 'Onboard crew clothing'
+                    : label === 'EVA' || label === 'IVA'
+                      ? SUITS[label].title
+                      : undefined
+                }
                 onClick={() => goDepth(i + FIRST_DEPTH, true)}
                 aria-pressed={stopAt === i + FIRST_DEPTH && layer === 'signals'}
                 className={`press shrink-0 rounded-full px-2 py-1.5 text-[13px] font-medium ${stopAt === i + FIRST_DEPTH && layer === 'signals' ? 'bg-white text-[#0d0f12]' : 'bg-black/45 text-white backdrop-blur-md'}`}

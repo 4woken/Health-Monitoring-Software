@@ -29,6 +29,14 @@ The active male surface includes the external pelvic skin of **BodyParts3D, © T
 
 Each compact binary contains Float32 positions, smooth normals, Float32 UVs and Uint16 triangles. Offsets in the corresponding JSON are bytes. The original texture orientation follows OBJ conventions (v increases upwards).
 
+## Hairstyles and crew clothing
+
+The male profile wears **Short04**, a short brushed-back cut. The female profile wears **Long01**, with loose hair down the back. Both meshes, their hm08 vertex bindings and their strand textures come from the MakeHuman Community CC0 system assets. [Asset catalogue and licence](https://static.makehumancommunity.org/assets/assetpacks/makehuman_system_assets.html) · [Source archive](https://files.makehumancommunity.org/asset_packs/makehuman_system_assets/makehuman_system_assets_cc0.zip).
+
+The onboard outfit uses a blue crew shirt, trousers and shoes, fitted separately to each body. It is an original Pulsar design inspired by clothing worn inside the spacecraft. The garment and shoe proxies come from `male_casualsuit06`, `female_casualsuit01` and `shoes05` in the same CC0 pack. Pulsar projects the NASA insignia onto the left chest and shortens the socks to fit under the trousers. The insignia has separate usage conditions from the CC0 clothing. [NASA insignia artwork](https://www.nasa.gov/wp-content/themes/nasa/assets/images/nasa-logo.svg) · [NASA Brand Center](https://www.nasa.gov/nasa-brand-center/brand-guidelines/). [NASA, Space Hygiene](https://www.nasa.gov/podcasts/houston-we-have-a-podcast/space-hygiene/) · [Smithsonian, in-flight crew shirt](https://airandspace.si.edu/collection-objects/crew-shirt-flight-suit-sts-8-truly/nasm_A19830336002).
+
+To rebuild the local GLBs, install Python's `trimesh` alongside the skin build dependencies. Extract the CC0 pack, then run `python3 scripts/realism/fit-crew-appearance.py /path/to/skin-sources /path/to/extracted-pack`. Each GLB contains its fitted geometry and textures. The crew outfits also carry arm weights for exercise and a map of the skin covered by the fabric.
+
 ## Internal anatomy
 
 Run `python3 scripts/realism/register-anatomy.py` with NumPy and SciPy after building the skin meshes. It reads the committed atlas and female reference pelvis. A thin-plate spline registers organ centres, spine and limb landmarks to the new surface. The build checks the quantised internal vertices against an eroded 2.5 mm skin voxel grid. The eyeballs are fitted separately to the sockets. The output contains measured chest and waist circumferences for the sizing controls. Each body has its own package.

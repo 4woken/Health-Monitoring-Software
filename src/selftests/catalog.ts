@@ -16,6 +16,7 @@ export type Use =
   | 'camera'
   | 'face'
   | 'body'
+  | 'chest'
   | 'hand'
   | 'headphones'
   | 'chair'
@@ -29,6 +30,7 @@ export const USE_LABEL: Record<Use, string> = {
   camera: 'Camera',
   face: 'Camera on your face',
   body: 'Camera on your whole body',
+  chest: 'Camera on your face and chest',
   hand: 'Camera on one hand',
   headphones: 'Headphones',
   chair: 'A sturdy chair',
@@ -541,18 +543,24 @@ const restingPulse: SelfTest = {
   describe: (r) => `camera pulse ${Math.round(r.score)} bpm`,
 }
 
+export const BREATH_TEST_SECONDS = 25
+
+export function testDuration(test: SelfTest) {
+  return test.id === 'breathingRate' ? `Up to ${BREATH_TEST_SECONDS} s` : `About ${test.minutes} min`
+}
+
 const breathingRate: SelfTest = {
   id: 'breathingRate',
   family: 'test',
   title: 'Breathing rate',
   action: 'Measure my breathing',
-  summary: 'About 40 seconds sitting still, your face and chest in view.',
-  minutes: 1,
-  uses: ['face'],
+  summary: 'Breathe normally with your face and upper chest in view.',
+  minutes: BREATH_TEST_SECONDS / 60,
+  uses: ['chest'],
   measures: 'Breaths a minute, from the rise and fall of your chest.',
   steps: [
     'Rest the computer on a table and sit facing it, your face and upper chest in view.',
-    'Keep still and breathe normally for about 40 seconds.',
+    'Keep your shoulders relaxed and breathe at your usual pace. The test finishes when the camera picks up a repeating rhythm.',
   ],
   signal: 'oxygen',
   nasa: {

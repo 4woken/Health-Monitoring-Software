@@ -11,10 +11,12 @@ const RISE: Record<ExerciseMotion, [pulse: number, breathing: number]> = {
 
 export interface DemoPlayback {
   mode: ExerciseMotion
+  gravityG: number
   startedAt: number
+  pausedSeconds?: number
 }
 
-export type OnExerciseDemo = (mode: ExerciseMotion | null, elapsedSeconds?: number) => void
+export type OnExerciseDemo = (playback: DemoPlayback | null) => void
 
 export function demoVitals(mode: ExerciseMotion, elapsedSeconds: number) {
   const elapsed = Math.max(0, Math.min(30, elapsedSeconds))

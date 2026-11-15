@@ -6,7 +6,7 @@ import type { SignalId } from '../../health/signals'
 import { useDayReport } from '../../health/useDayReport'
 import type { MissionId } from '../../mission/missions'
 import { Button, LEVEL_LINE, Sparkline } from '../../ui'
-import { SELF_TESTS } from '../catalog'
+import { SELF_TESTS, testDuration } from '../catalog'
 import { TEST_GROUPS } from '../groups'
 import { CAUSE_LABEL, dueTests, type DueTest } from '../due'
 import type { SelfTestId } from '../ids'
@@ -216,6 +216,9 @@ export default function SelfTestsScreen({
   )
 }
 
+/** "3 min", or "Up to 40 s" for the breathing rate. */
+const shortDuration = (t: (typeof SELF_TESTS)[SelfTestId]) => testDuration(t).replace(/^About /, '')
+
 /** A test due today, ticked once done; the next one to do carries the main button. */
 function TodayItem({ due, first, onOpen }: { due: DueTest; first: boolean; onOpen: () => void }) {
   const t = SELF_TESTS[due.test]
@@ -233,7 +236,7 @@ function TodayItem({ due, first, onOpen }: { due: DueTest; first: boolean; onOpe
             {due.cause === 'repeat' ? `${t.title}, again` : t.title}
           </span>
           <span className="shrink-0 font-cond text-[13px] text-white/50">
-            {due.done ? 'Done' : `${t.minutes} min`}
+            {due.done ? 'Done' : shortDuration(t)}
           </span>
         </p>
         {!due.done && (
@@ -320,7 +323,7 @@ function TestRow({
           )}
         </span>
         <span className="hidden text-right font-cond text-[13px] text-white/45 sm:block">
-          {t.minutes} min
+          {shortDuration(t)}
         </span>
         <CaretRight
           size={14}

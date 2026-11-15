@@ -14,8 +14,8 @@ afterEach(() => {
   parse.mockReset()
 })
 
-it('keeps skin at zero with two independently selectable exterior stops', () => {
-  expect(DEPTH_STOPS).toEqual(['EVA', 'IVA', 'Skin', 'Vessels', 'Organs', 'Skeleton'])
+it('keeps skin at zero with three independently selectable exterior stops', () => {
+  expect(DEPTH_STOPS).toEqual(['EVA', 'IVA', 'Crew wear', 'Skin', 'Vessels', 'Organs', 'Skeleton'])
   expect(DEPTH_STOPS[-FIRST_DEPTH]).toBe('Skin')
 })
 

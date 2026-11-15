@@ -16,7 +16,7 @@ import { CrewProvider, useCrew } from '../crew/CrewProvider'
 import CrewMenu from '../crew/CrewMenu'
 import CrewPicker from '../crew/CrewPicker'
 import type { Member } from '../crew/roster'
-import type { DemoPlayback, OnExerciseDemo } from '../exercises/demoVitals'
+import type { DemoPlayback } from '../exercises/demoVitals'
 import type { SignalId } from '../health/signals'
 import { useDayReport } from '../health/useDayReport'
 import { DEFAULT_HABITAT, type HabitatId } from '../mission/habitats'
@@ -78,9 +78,6 @@ function Shell() {
     setDays((previous) => ({ ...previous, [mission]: missionDay(mission, next) }))
   const [habitat, setHabitat] = useState<HabitatId>(DEFAULT_HABITAT.cruise)
   const [playback, setPlayback] = useState<DemoPlayback | null>(null)
-  const onDemo = useCallback<OnExerciseDemo>((mode, elapsedSeconds = 0) => {
-    setPlayback(mode ? { mode, startedAt: performance.now() - elapsedSeconds * 1000 } : null)
-  }, [])
   const playing = panel === 'checkup' ? playback : null
   const [toast, setToast] = useState<string | null>(null)
   const [request, setRequest] = useState<{ signal: SignalId; at: number } | null>(null)
@@ -284,7 +281,7 @@ function Shell() {
                 <CheckupContent
                   habitat={habitat}
                   gravity={MISSIONS[mission].gravity}
-                  onDemo={onDemo}
+                  onDemo={setPlayback}
                   member={member}
                   mission={mission}
                   day={day}

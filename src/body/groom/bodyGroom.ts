@@ -9,6 +9,7 @@ import {
   Mesh,
   MeshStandardMaterial,
   Vector3,
+  type Object3D,
   type WebGLProgramParametersWithUniforms,
 } from 'three'
 import type { Build } from '../anatomy/bodyShape'
@@ -16,6 +17,7 @@ import type { Body } from '../anatomy/loadAnatomy'
 import type { HeadFrame } from '../portrait/headFit'
 import { registeredHeadTemplate } from '../portrait/headFit'
 import referenceHeads from '../portrait/referenceHeads.json'
+import { crewCoverage } from '../appearance/crewCoverage'
 import { attachStrandShader, type GroomKind } from './strandShader'
 
 type Weights = { indices: [number, number, number]; weights: [number, number, number] }
@@ -295,6 +297,7 @@ export function createBodyGroom(body: Body, skin: BufferGeometry, patch?: Patch)
     body: 0x88684f,
   }
   const bindings: { roots: Vertex[]; positions: BufferAttribute; normals: BufferAttribute }[] = []
+  let coverBodyHair: ReturnType<typeof crewCoverage> | undefined
   for (const r of Object.values(regions)) {
     if (!r.triangles.length) continue
     const geometry = new InstancedBufferGeometry()
@@ -339,6 +342,11 @@ export function createBodyGroom(body: Body, skin: BufferGeometry, patch?: Patch)
     }
     geometry.setAttribute('shellHeight', new InstancedBufferAttribute(shellHeights, 1))
     geometry.setIndex(r.triangles)
+    if (r.kind === 'body')
+      coverBodyHair = crewCoverage(
+        geometry,
+        r.vertices.map((v) => v.source.indices[0]),
+      )
     geometry.instanceCount = SHELLS
     geometry.computeBoundingSphere()
     geometry.boundingSphere!.radius += 0.025
@@ -354,11 +362,14 @@ export function createBodyGroom(body: Body, skin: BufferGeometry, patch?: Patch)
     mesh.renderOrder = 3
     object.add(mesh)
   }
+  const scalp = object.getObjectByName('scalp')
   let lastVersion = (positions as BufferAttribute).version
   return {
     object,
-    sync(portraitActive: boolean) {
+    sync(portraitActive: boolean, haircutReady = false, outfit?: Object3D) {
       if (!object.visible) return
+      coverBodyHair?.(outfit)
+      if (scalp) scalp.visible = !haircutReady
       detail.value = portraitActive ? 0 : 1
       const version = (positions as BufferAttribute).version
       if (version === lastVersion) return

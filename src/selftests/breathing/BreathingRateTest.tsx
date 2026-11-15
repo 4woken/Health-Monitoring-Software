@@ -1,60 +1,109 @@
 import { useEffect, useRef, useState } from 'react'
+import { ChestMotionTrace } from '../../camera/respiration/ChestMotionTrace'
 import { stopPulse } from '../../camera/pulse/pulseSession'
-import { MIN_SECONDS } from '../../camera/respiration/breathRate'
 import {
   BREATH_STATUS,
   EMPTY_PREVIEW,
   startBreathingSession,
   type BreathPreview,
+  type CameraState,
 } from '../../camera/respiration/breathingSession'
 import { Button } from '../../ui'
-import { median } from '../results'
-import { Big, Cue, Progress, type RunProps } from '../ui/parts'
+import { BREATH_TEST_SECONDS } from '../catalog'
+import { Cue, Progress, type RunProps } from '../ui/parts'
 import { say } from '../voice'
 
-/** Seconds of steady estimates that make the result, after the first one. */
-const STEADY_S = 6
+function retryHint(state: CameraState) {
+  switch (state) {
+    case 'frame':
+      return 'Move back until your face and upper chest fit together in the picture.'
+    case 'texture':
+      return 'Light your chest from the front. A collar, seam or pattern gives the camera a detail to follow.'
+    case 'motion':
+      return 'Rest the camera on a stable surface and let your shoulders relax.'
+    default:
+      return 'Keep your upper chest in the outline, with a collar or seam visible, and breathe at your usual pace.'
+  }
+}
 
-/** Breaths a minute from the rise and fall of the chest, seen by the camera. */
-export default function BreathingRateTest({ onDone, onCancel, onBreath, onBreathGone }: RunProps) {
+export default function BreathingRateTest(props: RunProps) {
+  const [attempt, setAttempt] = useState(0)
+  return <BreathingAttempt key={attempt} {...props} onRetry={() => setAttempt((n) => n + 1)} />
+}
+
+function BreathingAttempt({
+  onDone,
+  onCancel,
+  onBreath,
+  onBreathGone,
+  onRetry,
+}: RunProps & { onRetry: () => void }) {
   const video = useRef<HTMLVideoElement>(null)
   const [preview, setPreview] = useState<BreathPreview>(EMPTY_PREVIEW)
-  const rates = useRef<number[]>([])
-  const finished = useRef(false)
+  const [remaining, setRemaining] = useState<number | null>(null)
+  const [timedOut, setTimedOut] = useState(false)
+  const callbacks = useRef({ onDone, onBreath, onBreathGone })
+
+  useEffect(() => {
+    callbacks.current = { onDone, onBreath, onBreathGone }
+  }, [onDone, onBreath, onBreathGone])
 
   useEffect(() => {
     if (!video.current) return
     stopPulse()
-    void say('Sit still with your face and upper chest in view, and breathe normally.')
-    let lastAt = 0
-    const stop = startBreathingSession(video.current, (next) => {
+    void say('Sit with your face and upper chest in view, and breathe normally.')
+    let ended = false
+    let saved = false
+    let deadline: number | undefined
+    let timer: number | undefined
+    let stop: (() => void) | undefined
+
+    function updateClock() {
+      if (deadline === undefined || ended) return
+      const left = Math.max(0, Math.ceil((deadline - performance.now()) / 1000))
+      setRemaining(left)
+      if (left === 0) {
+        ended = true
+        window.clearInterval(timer)
+        stop?.()
+        setTimedOut(true)
+      }
+    }
+
+    stop = startBreathingSession(video.current, (next) => {
+      if (ended) return
       setPreview(next)
-      if (finished.current) return
-      if (next.rate === null) {
-        rates.current = []
+      if (next.state === 'error') {
+        ended = true
+        window.clearInterval(timer)
         return
       }
-      const now = performance.now()
-      if (now - lastAt < 1000) return
-      lastAt = now
-      rates.current.push(next.rate)
-      if (rates.current.length >= STEADY_S) {
-        finished.current = true
-        const rate = Math.round(median(rates.current))
-        stop()
-        onBreath?.({ breathsPerMinute: rate, measuredAt: Date.now() })
-        void say(`${rate} breaths a minute.`)
-        onDone({ score: rate, details: { seconds: Math.round(next.seconds) } })
+      if (next.state === 'permission' || next.state === 'loading' || next.state === 'off') return
+      if (deadline === undefined) {
+        deadline = performance.now() + BREATH_TEST_SECONDS * 1000
+        timer = window.setInterval(updateClock, 200)
       }
+      updateClock()
+      if (ended || next.rate === null) return
+      // The estimator has already verified repeated bilateral chest motion.
+      ended = true
+      saved = true
+      window.clearInterval(timer)
+      stop?.()
+      callbacks.current.onBreath?.({ breathsPerMinute: next.rate, measuredAt: Date.now() })
+      void say(`${next.rate} breaths a minute.`)
+      callbacks.current.onDone({ score: next.rate, details: { seconds: Math.round(next.seconds) } })
     })
     return () => {
-      stop()
-      if (!finished.current) onBreathGone?.()
+      ended = true
+      window.clearInterval(timer)
+      stop?.()
+      if (!saved) callbacks.current.onBreathGone?.()
     }
-    // Starts once when the test opens.
   }, [])
 
   const box = preview.box
+  const failed = timedOut || preview.state === 'error'
   return (
     <section
       aria-label="Breathing rate"
@@ -66,9 +115,9 @@ export default function BreathingRateTest({ onDone, onCancel, onBreath, onBreath
           playsInline
           muted
           aria-label="Mirrored breathing camera"
-          className="block h-auto w-full -scale-x-100"
+          className={failed ? 'hidden' : 'block h-auto w-full -scale-x-100'}
         />
-        {box && (
+        {box && !failed && (
           <div
             aria-hidden="true"
             className="pointer-events-none absolute border-2 border-holo/90"
@@ -80,15 +129,31 @@ export default function BreathingRateTest({ onDone, onCancel, onBreath, onBreath
             }}
           />
         )}
+        {failed && (
+          <div className="flex min-h-32 items-center justify-center px-5 text-sm text-white/65">
+            Camera off
+          </div>
+        )}
       </div>
       <aside className="space-y-4">
-        <Cue>{preview.error || BREATH_STATUS[preview.state]}</Cue>
-        <Big value={preview.rate ?? '—'} unit="breaths/min" />
-        <Progress value={Math.min(1, preview.seconds / (MIN_SECONDS + STEADY_S))} label="Reading" />
-        <p className="text-[14px] text-muted">
-          {Math.floor(preview.seconds)} s of steady tracking. About {MIN_SECONDS + STEADY_S} s are needed. An
-          experimental estimate: talking or swaying can look like breathing.
-        </p>
+        <Cue>
+          {timedOut ? 'No clear breathing rate this time.' : preview.error || BREATH_STATUS[preview.state]}
+        </Cue>
+        {timedOut && <p className="text-[14px] text-muted">{retryHint(preview.state)}</p>}
+        {!failed && remaining !== null && (
+          <>
+            <ChestMotionTrace wave={preview.wave} />
+            <Progress value={1 - remaining / BREATH_TEST_SECONDS} label="Capture time elapsed" />
+            <p className="text-[14px] tabular-nums text-muted">
+              Up to {remaining} s left · {Math.floor(preview.seconds)} s of usable chest motion
+            </p>
+          </>
+        )}
+        {failed && (
+          <Button kind="primary" onClick={onRetry}>
+            Try again
+          </Button>
+        )}
         <Button size="sm" kind="ghost" onClick={onCancel}>
           Leave the test
         </Button>
