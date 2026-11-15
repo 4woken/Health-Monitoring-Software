@@ -37,12 +37,12 @@ NASA’s astronaut health surveillance tracks spaceflight exposure over time, in
 
 ## What you can do
 
-**One dashboard.** Select Skin, Vessels, Organs or Skeleton. Other tissues stay faint below the skin. Use **Explore anatomy** to select deeper structures or **Show lungs** to see both lungs. Wheel and pinch zoom follow the pointer or the midpoint of the gesture. The check-up, the self-tests, the AR view and every detail open over it and close back to it.
+**One dashboard.** The dashboard opens at Skin. The Depth control runs from EVA and IVA through Skin, Vessels and Organs to Skeleton. Other tissues stay faint below the skin. Use **Explore anatomy** to select deeper structures or **Show lungs** to see both lungs. Wheel and pinch zoom follow the pointer or the midpoint of the gesture. The check-up, the self-tests, the AR view and every detail open over it and close back to it.
 
 - **What to do today**, at the top left, lists the recommendations of the day: exercise, stretching in the first weeks of weightlessness, the heart, fatigue, stress, hydration, the eyes, the air, radiation, food and infection. The three most urgent also point at the body, red to act now and amber for today.
 - Click a recommendation or a place on the body. The camera moves there and a pop-up shows the value, its trend over 30 days, what to do and why, and the exam NASA does in flight on the same question. **Details** opens everything about it beside the body.
 - Markers on the body are white, amber or red. Point at the body to look under the skin.
-- Choose **Skin**, **Vessels**, **Organs** or **Skeleton** to show that layer alone. Dragging the **Depth** slider blends adjacent layers. Vessels moves the camera to the heart and shows the blood pulsing through the vessels.
+- Choose **EVA** for NASA’s EMU spacewalk suit or **IVA** for the orange ACES launch and entry suit. Both rotate and zoom with the avatar. Dragging the **Depth** slider between anatomical layers blends them. Vessels moves the camera to the heart and shows the blood pulsing through the vessels.
 - Click an organ to see it on its own: what it does, what spaceflight changes, and the signals followed there.
 - The details of a signal give the value, what it is, what it means here, how it is taken, what to do, its trend since launch, what NASA examines on the same question and the sources behind the rule. A vital sign along the bottom opens them directly. **Add to today's check-up** puts the follow-up on the person's list.
 - **See all signals** lists the 15 signals, with **Trends** for every value since launch.

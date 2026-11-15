@@ -48,3 +48,13 @@ Run `blender -b --factory-startup --python-exit-code 1 --python scripts/bake-ski
 ## Portrait calibration
 
 With the Vite development server running, open `/scripts/reference-heads.html` in a WebGL browser. It renders each textured head and its resting eyes, runs the packaged MediaPipe face landmarker locally, and fits 48 skin-edge samples around each eye. Save the two generated JSON files in this directory. Each records 468 reference landmarks, their eye-centred calibration, the orthographic projection and the measured eye openings. These references support webcam personalisation on the two meshes.
+
+
+## Spacesuits
+
+Both suit meshes are credited to NASA / Michael D. Carbajal. The outer EVA layer shows the Extravehicular Mobility Unit used for spacewalks. The IVA layer shows the orange Advanced Crew Escape Suit used inside the Space Shuttle during launch and entry. The depth control uses them as alternative outfits.
+
+- [Extravehicular Mobility Unit, NASA 3D Resources](https://science.nasa.gov/3d-resources/extravehicular-mobility-unit/)
+- [Advanced Crew Escape Suit, NASA 3D Resources](https://science.nasa.gov/3d-resources/advanced-crew-escape-suit/)
+
+The original GLBs are the inputs for `scripts/realism/prepare-spacesuit.py`. Blender places the boots at ground level, orients the visor towards the viewer, adjusts the materials for real-time lighting and reduces the mesh density. Three.js scales the exported models for the crew profile.

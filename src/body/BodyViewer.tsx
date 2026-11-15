@@ -17,6 +17,7 @@ import { createExercisePose } from '../exercises/exercisePose'
 import { demoVitals } from '../exercises/demoVitals'
 import type { ExerciseMotion } from '../exercises/environmentExercise'
 import { createBodyGroom } from './groom/bodyGroom'
+import { createSpacesuit, SUITS, type SuitStatus } from './appearance/spacesuit'
 import { createRestingEye } from './portrait/restingEye'
 import { createPersonalFace } from './portrait/skinPortrait'
 import type { Build, Vec3 } from './anatomy/bodyShape'
@@ -24,6 +25,8 @@ import type { Level } from '../health/signals'
 import type { AvatarCapture, FaceCalibration } from '../camera/face/portrait'
 import {
   DEPTH_STOPS,
+  FIRST_DEPTH,
+  LAST_DEPTH,
   organNote,
   depthOpacity,
   matchesAnatomySelection,
@@ -228,8 +231,9 @@ interface Stage {
   setHotspots: (h: Hotspot[]) => void
   setActive: (id: string | null) => void
   setFocus: (id: string | null) => void
-  /** Depth from 0 (skin) to 3 (skeleton). `fly` also moves the camera to that stop. */
+  /** Depth from -2 (EVA) and -1 (IVA) through skin at 0 down to skeleton at 3. */
   setDepth: (d: number, fly: boolean) => void
+  retrySuit: () => void
   setOrgan: (name: string | null) => void
   setView: (v: View, yaw?: number) => void
   zoomBy: (factor: number) => void
@@ -258,6 +262,7 @@ function createStage(
   },
   onCredit: (text: string) => void,
   onInventory: (names: string[]) => void,
+  onSuitStatus: (status: SuitStatus) => void,
   onBodyPick: (id: string) => void,
   onOrganPick: (name: string | null) => void,
   allowLens: boolean,
@@ -291,6 +296,8 @@ function createStage(
   const body = new THREE.Group()
   scene.add(group)
   group.add(body)
+  const suit = createSpacesuit(onSuitStatus)
+  group.add(suit.root)
 
   const demoPose = createExercisePose()
   let exercise: ExerciseMotion | null = null
@@ -364,6 +371,8 @@ function createStage(
     if (!current) return
     const scale = mannequinScale(current.build, current.height, dimensions)
     group.scale.set(scale.horizontal, scale.vertical, scale.horizontal)
+    suit.root.position.y = -current.height / 2
+    suit.root.scale.setScalar(current.height)
   }
   let hot: Hotspot[] = []
   let pins: { id: string; at: string; side?: 'left' | 'right' }[] = []
@@ -457,7 +466,13 @@ function createStage(
     const physiologyView = layer === 'physiology'
     // Keep a chosen layer for movement, but switch an isolated organ back to the whole mannequin.
     const selection = exercise ? null : isolated
-    const d = physiologyView || (exercise && isolated) ? 0 : depth
+    const d = physiologyView || (exercise && isolated) ? 0 : Math.max(0, depth)
+    const exterior = DEPTH_STOPS[Math.round(depth) - FIRST_DEPTH]
+    suit.show(
+      !physiologyView && !exercise && !isolated && (exterior === 'IVA' || exterior === 'EVA')
+        ? exterior
+        : null,
+    )
     skinOpacity = selection ? 0.095 : depthOpacity('skin', d)
     face?.setVisible(skinOpacity > 0.9)
     shared.uFluid.value = physiologyView ? physio.fluidShiftShare : 0
@@ -683,6 +698,10 @@ function createStage(
     const h = host.clientHeight || 1
     ndc.set((cssX / w) * 2 - 1, -(cssY / h) * 2 + 1)
     raycaster.setFromCamera(ndc, camera)
+    if (suit.root.visible) {
+      const hit = raycaster.intersectObject(suit.root, true)[0]
+      return hit ? { what: 'suit', point: hit.point } : null
+    }
     const inside = pointerSeesInside(cssX, cssY)
     const targets: THREE.Object3D[] = organs
       .filter((o) => o.mesh.visible && o.mat.opacity >= 0.5 && (inside || o.eye))
@@ -765,6 +784,7 @@ function createStage(
       current &&
       allowLens &&
       !exercise &&
+      !suit.root.visible &&
       layer === 'signals'
     ) {
       const hit = pickAt(pointerCss.x, pointerCss.y)
@@ -894,7 +914,7 @@ function createStage(
       lensAt.x,
       lensAt.y,
       LENS_CSS_PX * pr,
-      allowLens && skinOpacity === 1 ? lensAt.strength : 0,
+      allowLens && !suit.root.visible && skinOpacity === 1 ? lensAt.strength : 0,
     )
     const trail = shared.uTrail.value
     for (const p of trail) p.z *= Math.pow(0.04, dt)
@@ -962,6 +982,7 @@ function createStage(
       o.mat.opacity = opacity
     }
 
+    body.visible = !suit.root.visible
     renderer.render(scene, camera)
 
     // Naming the organ under the pointer, at most once a frame and only when organs show.
@@ -1021,7 +1042,7 @@ function createStage(
       const node = dom.pinOf(p.id)
       if (!node) continue
       const spot = hot.find((x) => x.id === p.at)
-      if (!spot || layer !== 'signals' || isolated || depth > 0) {
+      if (!spot || layer !== 'signals' || isolated || Math.round(depth) !== 0) {
         node.style.visibility = 'hidden'
         continue
       }
@@ -1124,7 +1145,7 @@ function createStage(
       else if (!isolated) flyTo(1, 0)
     },
     setDepth: (d, fly) => {
-      depth = Math.min(3, Math.max(0, d))
+      depth = Math.min(LAST_DEPTH, Math.max(FIRST_DEPTH, d))
       pointerMoved = true
       if (isolated) {
         isolated = null
@@ -1132,7 +1153,7 @@ function createStage(
       }
       refresh()
       if (fly && current) {
-        const stop = STOP_VIEW[Math.round(depth)]
+        const stop = STOP_VIEW[Math.max(0, Math.round(depth))]
         flyTo(stop.zoom, (stop.at - 0.5) * current.height)
       }
     },
@@ -1140,10 +1161,11 @@ function createStage(
       if (name === isolated) return
       isolate(name)
       if (!name && current) {
-        const stop = STOP_VIEW[Math.round(depth)]
+        const stop = STOP_VIEW[Math.max(0, Math.round(depth))]
         flyTo(stop.zoom, (stop.at - 0.5) * current.height)
       }
     },
+    retrySuit: suit.retry,
     setView: (view, yaw = 0) => {
       flyTo(VIEWS[view].zoom, (VIEWS[view].at - 0.5) * (current?.height ?? 1.75))
       userRot = yaw
@@ -1213,6 +1235,7 @@ function createStage(
     },
     dispose: () => {
       disposed = true
+      suit.dispose()
       cancelAnimationFrame(raf)
       observer.disconnect()
       el.removeEventListener('pointerdown', down)
@@ -1284,6 +1307,7 @@ export default function BodyScan({
   const [inventory, setInventory] = useState<string[]>([])
   useEffect(() => onInventory?.(inventory), [onInventory, inventory])
   const [depth, setDepth] = useState(0)
+  const [suitStatus, setSuitStatus] = useState<SuitStatus>('idle')
   const [motion, setMotion] = useState<Motion>(breathingRate ? 'breathing' : 'heart')
 
   // The heart beats with the webcam pulse when it is measuring, otherwise with the wearable feed.
@@ -1312,6 +1336,7 @@ export default function BodyScan({
         },
         setCredit,
         setInventory,
+        setSuitStatus,
         (id) => pickRef.current(id),
         (name) => organRef.current?.(name),
         !studio,
@@ -1371,7 +1396,24 @@ export default function BodyScan({
     stage.current?.setDepth(d, fly)
   }
   const stopAt = Math.round(depth)
-  const maxDepth = DEPTH_STOPS.length - 1
+  const depthLabel = DEPTH_STOPS[stopAt - FIRST_DEPTH]
+  const suitInfo = depthLabel === 'IVA' || depthLabel === 'EVA' ? SUITS[depthLabel] : null
+  const fullDepthLabel = suitInfo?.title ?? depthLabel
+  const isSuit = !!suitInfo && layer === 'signals'
+  const suitNotice = isSuit && (suitStatus === 'loading' || suitStatus === 'failed') && (
+    <p role="status" className="rounded-lg bg-black/70 px-2.5 py-1.5 text-xs text-white">
+      {suitStatus === 'loading' ? (
+        `Loading ${fullDepthLabel}…`
+      ) : (
+        <>
+          Spacesuit unavailable.{' '}
+          <button type="button" className="underline" onClick={() => stage.current?.retrySuit()}>
+            Retry
+          </button>
+        </>
+      )}
+    </p>
+  )
   const shortcuts = layer === 'signals' && stopAt === 2 && onOrgan && (
     <>
       {inventory.some((name) => name.includes('lung')) && (
@@ -1395,7 +1437,7 @@ export default function BodyScan({
     </>
   )
   const system = (['skin', 'vessels', 'organs', 'skeleton'] as const)[stopAt]
-  const choices = system === 'skin' ? [] : anatomyChoices(inventory, system)
+  const choices = !system || system === 'skin' ? [] : anatomyChoices(inventory, system)
   const explorer = choices.length > 0 && layer === 'signals' && onOrgan && (
     <select
       aria-label="Explore anatomy"
@@ -1403,7 +1445,7 @@ export default function BodyScan({
       onChange={(event) => onOrgan(event.target.value || null)}
       className="mt-1 max-w-full rounded-md bg-[#202226] px-2 py-1.5 text-[13px] text-white"
     >
-      <option value="">Explore {DEPTH_STOPS[stopAt].toLowerCase()}…</option>
+      <option value="">Explore {depthLabel.toLowerCase()}…</option>
       {choices.map((name) => (
         <option key={name} value={name}>
           {organNote(name).name}
@@ -1577,20 +1619,33 @@ export default function BodyScan({
 
       {/* Keep layer controls clear of the crew information on the left of the scene. */}
       {!studio && !exerciseMotion && (
-        <div className="absolute top-24 right-4 z-[7] hidden w-[310px] rounded-2xl bg-black/45 p-3 text-white backdrop-blur-md sm:block lg:right-8">
+        <div className="absolute top-24 right-4 z-[7] hidden w-[344px] rounded-2xl bg-black/45 p-3 text-white backdrop-blur-md sm:block lg:right-8">
           <div className="flex items-center justify-between text-[13px] text-white/75">
-            Depth <span>{DEPTH_STOPS[stopAt]}</span>
+            Depth <span>{fullDepthLabel}</span>
           </div>
           <input
             className="range mt-1 w-full"
             type="range"
             aria-label="Depth"
-            min={0}
-            max={maxDepth}
+            min={FIRST_DEPTH}
+            max={LAST_DEPTH}
             step={0.1}
             value={depth}
-            style={{ '--fill': `${(depth / maxDepth) * 100}%` } as CSSProperties}
-            aria-valuetext={DEPTH_STOPS[stopAt]}
+            style={
+              { '--fill': `${((depth - FIRST_DEPTH) / (LAST_DEPTH - FIRST_DEPTH)) * 100}%` } as CSSProperties
+            }
+            aria-valuetext={fullDepthLabel}
+            onKeyDown={(e) => {
+              const increment = ['ArrowRight', 'ArrowUp'].includes(e.key)
+                ? 1
+                : ['ArrowLeft', 'ArrowDown'].includes(e.key)
+                  ? -1
+                  : 0
+              if (increment) {
+                e.preventDefault()
+                goDepth(Math.min(LAST_DEPTH, Math.max(FIRST_DEPTH, stopAt + increment)), true)
+              }
+            }}
             onChange={(e) => goDepth(Number(e.target.value), false)}
             onPointerUp={() => goDepth(Math.round(depth), true)}
           />
@@ -1598,19 +1653,25 @@ export default function BodyScan({
             {DEPTH_STOPS.map((label, i) => (
               <button
                 key={label}
-                onClick={() => goDepth(i, true)}
-                aria-pressed={stopAt === i && layer === 'signals'}
-                className={`press min-h-9 flex-1 rounded-full px-2 text-[13px] ${stopAt === i && layer === 'signals' ? 'bg-white text-[#0d0f12]' : 'text-white/65 hover:text-white'}`}
+                title={label === 'EVA' || label === 'IVA' ? SUITS[label].title : undefined}
+                onClick={() => goDepth(i + FIRST_DEPTH, true)}
+                aria-pressed={stopAt === i + FIRST_DEPTH && layer === 'signals'}
+                className={`press min-h-9 flex-1 rounded-full px-1.5 text-[13px] ${stopAt === i + FIRST_DEPTH && layer === 'signals' ? 'bg-white text-[#0d0f12]' : 'text-white/65 hover:text-white'}`}
               >
                 {label}
               </button>
             ))}
           </div>
           {explorer}
+          {suitNotice}
           <div className="mt-2 flex flex-wrap items-center justify-between gap-1 border-t border-white/10 pt-2">
             {shortcuts || (
               <p className="text-[12px] text-white/65">
-                {depth < 0.5 ? 'Point at the body to look inside.' : 'Select a structure to look closer.'}
+                {isSuit
+                  ? suitInfo.name
+                  : depth < 0.5
+                    ? 'Point at the body to look inside.'
+                    : 'Select a structure to look closer.'}
               </p>
             )}
             <button
@@ -1634,15 +1695,18 @@ export default function BodyScan({
             {DEPTH_STOPS.map((label, i) => (
               <button
                 key={label}
-                onClick={() => goDepth(i, true)}
-                aria-pressed={stopAt === i && layer === 'signals'}
-                className={`press shrink-0 rounded-full px-2 py-1.5 text-[13px] font-medium ${stopAt === i && layer === 'signals' ? 'bg-white text-[#0d0f12]' : 'bg-black/45 text-white backdrop-blur-md'}`}
+                title={label === 'EVA' || label === 'IVA' ? SUITS[label].title : undefined}
+                onClick={() => goDepth(i + FIRST_DEPTH, true)}
+                aria-pressed={stopAt === i + FIRST_DEPTH && layer === 'signals'}
+                className={`press shrink-0 rounded-full px-2 py-1.5 text-[13px] font-medium ${stopAt === i + FIRST_DEPTH && layer === 'signals' ? 'bg-white text-[#0d0f12]' : 'bg-black/45 text-white backdrop-blur-md'}`}
               >
                 {label}
               </button>
             ))}
+            {isSuit && <span className="on-photo basis-full px-2 text-xs">{fullDepthLabel}</span>}
             {shortcuts}
             {explorer}
+            {suitNotice}
           </div>
         </div>
       )}

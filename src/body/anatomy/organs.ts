@@ -234,8 +234,10 @@ export function organNote(meshName: string): OrganNote {
   )
 }
 
-/** Depth stops from the outside in, as in anatomy atlases. */
-export const DEPTH_STOPS = ['Skin', 'Vessels', 'Organs', 'Skeleton'] as const
+/** Skin remains anatomical depth zero. The two exterior stops are independently selectable suits. */
+export const DEPTH_STOPS = ['EVA', 'IVA', 'Skin', 'Vessels', 'Organs', 'Skeleton'] as const
+export const FIRST_DEPTH = -2
+export const LAST_DEPTH = FIRST_DEPTH + DEPTH_STOPS.length - 1
 
 /** The selected system is opaque. Faint surrounding tissue gives it a location within the body. */
 export function depthOpacity(layer: 'skin' | DepthLayer, depth: number): number {
