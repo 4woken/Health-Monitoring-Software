@@ -5,33 +5,26 @@ import {
   useRef,
   useState,
   type ComponentType,
+  type CSSProperties,
   type LazyExoticComponent,
 } from 'react'
-import {
-  ArrowCounterClockwise,
-  ArrowLeft,
-  ArrowRight,
-  ArrowUpRight,
-  Bluetooth,
-  Warning,
-} from '@phosphor-icons/react'
+import { ArrowCounterClockwise, ArrowLeft, Bluetooth, Warning } from '@phosphor-icons/react'
 import type { BreathReading } from '../../camera/breathReading'
 import type { Member } from '../../crew/roster'
-import { GUIDE } from '../../health/guide'
 import type { SignalId } from '../../health/signals'
 import type { MissionId } from '../../mission/missions'
 import { Button, Chip, LEVEL_LINE, Sparkline } from '../../ui'
 import { CONDITIONS } from '../balance/balance'
 import { probeMotion } from '../balance/phone'
 import { SELF_TESTS, USE_LABEL } from '../catalog'
-import { CAUSE_LABEL, type DueTest } from '../due'
+import type { DueTest } from '../due'
 import { connectStrap, disconnectStrap, useStrap } from '../heart/strap'
 import type { SelfTestId } from '../ids'
 import { detail, type RunValues } from '../judge'
 import { BASELINE_RUNS, baselineOf, saveResult, useResults, type TestResult } from '../results'
 import { snellen } from '../vision/acuity'
 import { hush } from '../voice'
-import { ICON, Label, VoiceToggle, type RunProps } from './parts'
+import { VoiceToggle, type RunProps } from './parts'
 
 const RUNS: Record<SelfTestId, LazyExoticComponent<ComponentType<RunProps>>> = {
   reaction: lazy(() => import('../reaction/ReactionTest')),
@@ -270,7 +263,6 @@ export default function TestRunner({
     setStep('result')
   }
 
-  const Icon = ICON[id]
   const { runs, usual } = baselineOf(earlier)
   const history = earlier.slice(-12).map((r) => r.score)
 
@@ -286,71 +278,83 @@ export default function TestRunner({
         <ArrowLeft size={14} />
         All self-tests
       </button>
-      <header className="mt-3 flex items-start gap-3">
-        <span className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/[0.08]">
-          <Icon size={22} />
-        </span>
-        <div className="min-w-0">
-          <p className="font-cond text-[13px] text-white/60">
-            {test.family === 'test' ? 'Self-test' : 'Exercise'} · about {test.minutes} min · {member.short},
-            day {day}
+      <header className="mt-4">
+        {step !== 'prepare' && (
+          <p className="font-cond text-[14px] text-white/55">
+            {step === 'result' ? `Result for ${member.short}, day ${day}` : `${member.short}, day ${day}`}
           </p>
-          <h1
-            ref={heading}
-            tabIndex={-1}
-            className="text-[28px] leading-tight font-semibold focus:outline-none"
-          >
-            {step === 'result' ? `${test.title}: result` : test.title}
-          </h1>
-          {step === 'prepare' && (
-            <p className="mt-1 max-w-2xl text-[15px] leading-relaxed text-muted">{test.summary}</p>
-          )}
-        </div>
+        )}
+        <h1
+          ref={heading}
+          tabIndex={-1}
+          className={`font-semibold tracking-[-0.01em] focus:outline-none ${step === 'prepare' ? 'text-[34px] leading-[1.1] sm:text-[44px]' : 'text-[28px] leading-tight'}`}
+        >
+          {test.title}
+        </h1>
+        {step === 'prepare' && (
+          <p className="mt-2 max-w-[60ch] text-[17px] leading-snug text-white/70">{test.summary}</p>
+        )}
       </header>
 
       {step === 'prepare' && (
-        <div className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_400px]">
-          <div className="space-y-6">
-            {due && (
-              <div className="rounded-2xl bg-white/[0.06] px-4 py-3">
-                <p className="font-cond text-[13px] text-white/60">Why today · {CAUSE_LABEL[due.cause]}</p>
-                <p className="mt-0.5 text-[15px] leading-snug">{due.reason}</p>
+        <div
+          className={`grid items-start gap-x-14 gap-y-10 ${test.coach ? 'lg:grid-cols-[minmax(0,1fr)_340px]' : ''}`}
+        >
+          <div className="min-w-0">
+            {/* The facts of the run, value first, the way a workout preview shows them. */}
+            <dl className="mt-7 flex flex-wrap gap-x-12 gap-y-5">
+              <Fact value={`${test.minutes} min`} label="to do" />
+              <div className="max-w-[26rem]">
+                <dd className="space-y-0.5 text-[15.5px] leading-snug font-medium">
+                  {test.uses.map((u) => (
+                    <span key={u} className="block">
+                      {USE_LABEL[u]}
+                    </span>
+                  ))}
+                </dd>
+                <dt className="mt-1 text-[13px] text-white/50">what you need</dt>
               </div>
+              {test.family === 'test' && (
+                <Fact
+                  value={usual !== undefined ? test.score.format(usual) : `${runs} of ${BASELINE_RUNS}`}
+                  label={usual !== undefined ? 'your usual result' : 'first runs, to set your usual'}
+                />
+              )}
+              {test.family === 'exercise' && (
+                <Fact
+                  value={String(earlier.length)}
+                  label={earlier.length === 1 ? 'session so far' : 'sessions so far'}
+                />
+              )}
+            </dl>
+
+            {due && (
+              <p className="mt-7 max-w-[64ch] border-l-2 border-white/60 pl-4 text-[15px] leading-snug text-white/85">
+                <span className="font-semibold text-white">Due today.</span> {due.reason}
+              </p>
             )}
-            <div>
-              <Label>What it measures</Label>
-              <p className="mt-1 max-w-2xl text-[15px] leading-relaxed">{test.measures}</p>
-            </div>
-            <div>
-              <Label>How it goes</Label>
-              <ol className="mt-1 max-w-2xl list-decimal space-y-1.5 pl-5 text-[15px] leading-relaxed">
-                {test.steps.map((s) => (
-                  <li key={s}>{s}</li>
-                ))}
-              </ol>
-            </div>
-            <div>
-              <Label>You need</Label>
-              <p className="mt-1 text-[15px] text-muted">{test.uses.map((u) => USE_LABEL[u]).join(' · ')}</p>
-            </div>
+
             {test.safety && (
-              <p className="flex max-w-2xl items-start gap-2.5 rounded-2xl border border-line-strong px-4 py-3 text-[14px] leading-relaxed">
-                <Warning size={18} className="mt-0.5 shrink-0" aria-hidden="true" />
+              <p className="mt-5 flex max-w-[64ch] items-start gap-2.5 text-[14.5px] leading-relaxed text-white/80">
+                <Warning size={18} className="mt-0.5 shrink-0 text-check" aria-hidden="true" />
                 {test.safety}
               </p>
             )}
+
             {choices && (
-              <ChoiceRow
-                choice={choices}
-                value={mode}
-                onChange={(value) => {
-                  modeChosen.current = true
-                  setMode(value)
-                }}
-              />
+              <div className="mt-7">
+                <ChoiceRow
+                  choice={choices}
+                  value={mode}
+                  onChange={(value) => {
+                    modeChosen.current = true
+                    setMode(value)
+                  }}
+                />
+              </div>
             )}
             {mode === 'strap' && (
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="mt-4 flex flex-wrap items-center gap-3">
                 {strap.status === 'connected' ? (
                   <>
                     <p className="text-[14px]">
@@ -374,7 +378,8 @@ export default function TestRunner({
                 {strap.message && <p className="text-[13px] text-muted">{strap.message}</p>}
               </div>
             )}
-            <div className="flex flex-wrap items-center gap-3 pt-1">
+
+            <div className="mt-7 flex flex-wrap items-center gap-4">
               <Button
                 kind="primary"
                 size="lg"
@@ -384,80 +389,100 @@ export default function TestRunner({
                 }}
                 disabled={mode === 'strap' && strap.status !== 'connected'}
               >
-                Start
-                <ArrowRight size={16} />
+                {test.family === 'test' ? 'Start the test' : 'Start'}
               </Button>
               <VoiceToggle />
             </div>
-          </div>
 
-          <aside className="space-y-5">
-            {test.coach && (
-              <Suspense fallback={<div className="aspect-[3/4] w-full rounded-2xl bg-white/[0.04]" />}>
-                <Coach move={test.coach} label={`A figure showing the ${test.title.toLowerCase()}`} />
-              </Suspense>
-            )}
-            <div className="rounded-2xl bg-white/[0.04] p-4">
-              <Label>What NASA does{test.nasa.codes.length ? ` · ${test.nasa.codes.join(', ')}` : ''}</Label>
-              <p className="mt-1 text-[14px] leading-relaxed">{test.nasa.says}</p>
-              <p className="mt-3 font-cond text-[13px] text-white/60">This version</p>
-              <p className="mt-1 text-[14px] leading-relaxed text-white/80">{test.adaptation}</p>
-            </div>
-            <div className="px-1">
-              <Label>Your usual result</Label>
-              {test.family === 'exercise' ? (
-                <p className="mt-1 text-[14px] text-white/80">
-                  {earlier.length
-                    ? `Done ${earlier.length} time${earlier.length === 1 ? '' : 's'}, last on day ${earlier[earlier.length - 1].day}.`
-                    : 'Not done yet.'}
-                </p>
-              ) : usual !== undefined ? (
-                <div className="mt-1 flex items-end justify-between gap-3">
-                  <p className="text-[14px] text-white/80">
-                    {test.score.format(usual)}, from your first {BASELINE_RUNS} runs.
-                  </p>
-                  {history.length > 1 && (
+            {/* The run as a strip of steps, in the order they come. */}
+            <section aria-label="How it goes" className="mt-12">
+              <h2 className="text-[17px] font-semibold">How it goes</h2>
+              <ol
+                className="mt-4 grid gap-x-6 gap-y-6 sm:grid-cols-2 xl:grid-cols-[repeat(var(--steps),minmax(0,1fr))]"
+                style={{ '--steps': test.steps.length } as CSSProperties}
+              >
+                {test.steps.map((s, i) => (
+                  <li key={s} className="border-t border-white/15 pt-3">
+                    <span className="font-cond text-[15px] font-semibold text-white/45 tabular-nums">
+                      {i + 1}
+                    </span>
+                    <p className="mt-1.5 text-[14.5px] leading-snug text-white/85">{s}</p>
+                  </li>
+                ))}
+              </ol>
+            </section>
+
+            <section
+              aria-label="About this test"
+              className="mt-12 max-w-[68ch] space-y-5 text-[15px] leading-relaxed"
+            >
+              <div>
+                <h2 className="text-[17px] font-semibold">What it measures</h2>
+                <p className="mt-1.5 text-white/80">{test.measures}</p>
+              </div>
+              <div>
+                <h2 className="text-[17px] font-semibold">
+                  What NASA does
+                  {test.nasa.codes.length > 0 && (
+                    <span className="ml-2 font-cond text-[14px] font-normal text-white/50">
+                      {test.nasa.codes.join(', ')}
+                    </span>
+                  )}
+                </h2>
+                <p className="mt-1.5 text-white/80">{test.nasa.says}</p>
+                <p className="mt-2 text-white/65">{test.adaptation}</p>
+              </div>
+              {test.family === 'test' && history.length > 1 && (
+                <div>
+                  <h2 className="text-[17px] font-semibold">Your runs so far</h2>
+                  <div className="mt-2 flex items-end gap-5">
                     <Sparkline
                       values={history}
                       baseline={usual}
                       color={LEVEL_LINE.ok}
-                      width={110}
-                      height={28}
+                      width={220}
+                      height={40}
                     />
-                  )}
+                    <p className="font-cond text-[14px] text-white/55">
+                      {earlier.length} run{earlier.length === 1 ? '' : 's'}, last on day{' '}
+                      {earlier[earlier.length - 1].day}
+                    </p>
+                  </div>
                 </div>
-              ) : (
-                <p className="mt-1 text-[14px] text-white/80">
-                  Set by your first {BASELINE_RUNS} runs: {runs} done. NASA records baseline sessions before
-                  flight the same way.
-                </p>
               )}
-            </div>
-            {test.sources.length > 0 && (
-              <div className="px-1 text-[13px] leading-relaxed text-muted">
-                <Label>Sources</Label>
-                <ul className="mt-1 space-y-1">
-                  {test.sources.map((s) => (
-                    <li key={s.title}>
+              {test.sources.length > 0 && (
+                <p className="text-[13.5px] text-white/55">
+                  Sources:{' '}
+                  {test.sources.map((s, i) => (
+                    <span key={s.title}>
+                      {i > 0 && '; '}
                       {s.url ? (
                         <a
                           href={s.url}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex items-start gap-1 hover:text-ink hover:underline"
+                          className="underline decoration-white/30 underline-offset-2 hover:text-white"
                         >
                           {s.title}
-                          <ArrowUpRight size={12} className="mt-1 shrink-0" />
                         </a>
                       ) : (
                         s.title
                       )}
-                    </li>
+                    </span>
                   ))}
-                </ul>
-              </div>
-            )}
-          </aside>
+                  .
+                </p>
+              )}
+            </section>
+          </div>
+
+          {test.coach && (
+            <aside className="lg:sticky lg:top-6 lg:mt-7">
+              <Suspense fallback={<div className="aspect-[3/4] w-full rounded-2xl bg-white/[0.04]" />}>
+                <Coach move={test.coach} label={`A figure showing the ${test.title.toLowerCase()}`} />
+              </Suspense>
+            </aside>
+          )}
         </div>
       )}
 
@@ -503,6 +528,16 @@ export default function TestRunner({
   )
 }
 
+/** A fact of the run: the value large, what it is under it. */
+function Fact({ value, label }: { value: string; label: string }) {
+  return (
+    <div>
+      <dd className="font-cond text-[24px] leading-tight font-medium tabular-nums">{value}</dd>
+      <dt className="mt-1 text-[13px] text-white/50">{label}</dt>
+    </div>
+  )
+}
+
 function ChoiceRow({
   choice,
   value,
@@ -539,6 +574,24 @@ function ChoiceRow({
   )
 }
 
+/** Decimals worth showing for a difference in each unit. */
+const DELTA_DECIMALS: Record<string, number> = { s: 1, logMAR: 2, dB: 1, min: 1, '': 1 }
+
+/** How a run compares with a reference: the gap in the test's unit, and whether it is the better way. */
+function versus(result: TestResult, reference: number) {
+  const { unit, better } = SELF_TESTS[result.test].score
+  const gap = result.score - reference
+  const decimals = DELTA_DECIMALS[unit] ?? 0
+  const size = Math.abs(gap).toFixed(decimals)
+  if (Number(size) === 0) return 'The same'
+  const improved = better === 'lower' ? gap < 0 : gap > 0
+  return `${size}${unit ? ` ${unit}` : ''} ${improved ? 'better' : 'worse'}`
+}
+
+/**
+ * The recap of a run, read from the top: the number and whether it is usual for this person, how it
+ * compares with the usual result and the last run, what the run recorded, and where it goes.
+ */
 function ResultView({
   result,
   earlier,
@@ -553,86 +606,114 @@ function ResultView({
   onShowSignal: (signal: SignalId) => void
 }) {
   const test = SELF_TESTS[result.test]
+  const isTest = test.family === 'test'
   const last = earlier[earlier.length - 1]
-  const scores = [...earlier.slice(-11), result].map((r) => r.score)
-  const usual = result.usual ?? baselineOf([...earlier, result]).usual
+  const runs = [...earlier, result]
+  const usual = result.usual ?? baselineOf(runs).usual
   const signal = test.signal
+  const flagged = isTest && result.level !== 'ok'
+  const lines = resultLines(result)
+  const rows: [string, string, string?][] = []
+  if (isTest)
+    rows.push(
+      usual !== undefined
+        ? ['Your usual result', test.score.format(usual), versus(result, usual)]
+        : [
+            'Your usual result',
+            `Set after ${BASELINE_RUNS} runs`,
+            `${Math.min(runs.length, BASELINE_RUNS)} of ${BASELINE_RUNS} done`,
+          ],
+    )
+  if (last)
+    rows.push([`Last time, day ${last.day}`, test.score.format(last.score), versus(result, last.score)])
+  if (!isTest) rows.push(['Sessions so far', String(runs.length)])
+
   return (
-    <div className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_400px]">
-      <div className="space-y-5">
+    <div className="mt-8 max-w-[44rem]">
+      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
         <div>
-          <p className="font-cond text-[13px] text-white/60">{test.score.label}</p>
-          <p className="mt-1 font-cond text-[44px] leading-tight font-semibold tabular-nums sm:text-[56px]">
+          <p className="font-cond text-[14px] text-white/60">{test.score.label}</p>
+          <p
+            className="mt-1 font-cond text-[56px] leading-none font-semibold tabular-nums sm:text-[76px]"
+            style={{ color: flagged ? LEVEL_LINE[result.level] : undefined }}
+          >
             {test.score.format(result.score)}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          {test.family === 'test' && <Chip level={result.level} />}
-          <p className="max-w-2xl text-[16px] leading-snug">{result.note}</p>
-        </div>
-        <ul className="max-w-2xl space-y-1 text-[15px] text-white/80">
-          {resultLines(result).map((l) => (
-            <li key={l}>{l}</li>
-          ))}
-        </ul>
-        {result.level !== 'ok' && (
-          <p className="max-w-2xl rounded-2xl border border-check/30 bg-check-bg px-4 py-3 text-[14px] leading-relaxed text-check">
-            Repeat this test within 24 hours: it is on your check-up. If the next run is worse than usual
-            again, tell the flight surgeon, as NASA does with a second red cognitive test.
-          </p>
-        )}
-        <div className="flex flex-wrap gap-2 pt-1">
-          <Button kind="primary" onClick={onBack}>
-            Back to the self-tests
-          </Button>
-          <Button onClick={onAgain}>
-            <ArrowCounterClockwise size={15} />
-            Do it again
-          </Button>
-          {signal && (
-            <Button kind="ghost" onClick={() => onShowSignal(signal)}>
-              See it on the body
-            </Button>
-          )}
-        </div>
+        {isTest && <Chip level={result.level} />}
       </div>
-      <aside className="space-y-4">
-        <div className="rounded-2xl bg-white/[0.04] p-4">
-          <p className="font-cond text-[13px] text-white/60">Compared with</p>
-          <p className="mt-1 text-[14px] leading-relaxed">
-            {test.family === 'exercise'
-              ? `Completed ${earlier.length + 1} time${earlier.length === 0 ? '' : 's'}.`
-              : usual !== undefined
-                ? `Your usual result: ${test.score.format(usual)}.`
-                : `Your usual result is not set yet: ${earlier.length + 1} of ${BASELINE_RUNS} runs.`}
-            {last ? ` Last time, day ${last.day}: ${test.score.format(last.score)}.` : ''}
-          </p>
-          {scores.length > 1 && (
-            <div className="mt-3">
-              <Sparkline
-                values={scores}
-                baseline={test.family === 'test' ? usual : undefined}
-                color={LEVEL_LINE[result.level]}
-                width={300}
-                height={44}
-                fill
-              />
+      <p className="mt-5 max-w-[60ch] text-[17px] leading-snug">{result.note}</p>
+
+      {rows.length > 0 && (
+        <dl className="mt-7 divide-y divide-white/[0.08] border-y border-white/[0.08]">
+          {rows.map(([label, value, gap]) => (
+            <div key={label} className="grid grid-cols-[minmax(0,1fr)_auto_7.5rem] items-baseline gap-4 py-3">
+              <dt className="text-[14.5px] text-white/65">{label}</dt>
+              <dd className="font-cond text-[16px] tabular-nums">{value}</dd>
+              <dd className="text-right font-cond text-[14px] text-white/55">{gap}</dd>
             </div>
-          )}
+          ))}
+        </dl>
+      )}
+
+      {runs.length > 1 && (
+        <div className="mt-6 [&_svg]:h-auto [&_svg]:w-full" aria-hidden="true">
+          <Sparkline
+            values={runs.slice(-12).map((r) => r.score)}
+            baseline={isTest ? usual : undefined}
+            color={LEVEL_LINE[isTest ? result.level : 'ok']}
+            width={704}
+            height={72}
+            fill
+          />
+          <p className="mt-1.5 font-cond text-[12.5px] text-white/45">
+            The last {Math.min(runs.length, 12)} runs
+            {isTest && usual !== undefined ? ', the line is your usual' : ''}
+          </p>
         </div>
-        {signal && (
-          <div className="px-1 text-[14px] leading-relaxed text-white/80">
-            <p className="font-cond text-[13px] text-white/60">Where it goes</p>
-            <p className="mt-1">
-              Added to <span className="text-ink">{signalName(signal)}</span> on the body, for day{' '}
-              {result.day}. {GUIDE[signal].what.split('. ')[0]}.
-            </p>
-          </div>
-        )}
-        <p className="px-1 text-[12.5px] leading-relaxed text-dim">
-          Kept in this browser only. An educational prototype, not a medical device.
+      )}
+
+      {lines.length > 0 && (
+        <section className="mt-8">
+          <h2 className="text-[15px] font-semibold">What the run recorded</h2>
+          <ul className="mt-2 space-y-1.5 text-[15px] leading-snug text-white/80">
+            {lines.map((l) => (
+              <li key={l}>{l}</li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {flagged && (
+        <p className="mt-7 max-w-[60ch] text-[14.5px] leading-relaxed text-check">
+          Repeat this test within 24 hours: it is on your check-up. If the next run is also worse than usual,
+          tell the flight surgeon, as NASA does after a second red cognitive test.
         </p>
-      </aside>
+      )}
+
+      {signal && (
+        <p className="mt-7 max-w-[60ch] text-[14.5px] leading-relaxed text-white/70">
+          Sent to <span className="text-white">{signalName(signal)}</span> on the body, for day {result.day}.
+        </p>
+      )}
+
+      <div className="mt-7 flex flex-wrap gap-2">
+        <Button kind="primary" onClick={onBack}>
+          Back to the self-tests
+        </Button>
+        <Button onClick={onAgain}>
+          <ArrowCounterClockwise size={15} />
+          Do it again
+        </Button>
+        {signal && (
+          <Button kind="ghost" onClick={() => onShowSignal(signal)}>
+            See it on the body
+          </Button>
+        )}
+      </div>
+      <p className="mt-8 text-[12.5px] leading-relaxed text-dim">
+        Kept in this browser only. An educational prototype, not a medical device.
+      </p>
     </div>
   )
 }

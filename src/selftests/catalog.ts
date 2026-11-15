@@ -157,7 +157,7 @@ const cognition: SelfTest = {
   family: 'test',
   title: 'Thinking test',
   action: 'Take the thinking test',
-  summary: 'Match symbols to digits for 90 seconds, then a memory task. About 4 minutes.',
+  summary: 'Match symbols to digits for 90 seconds, then a short memory task.',
   minutes: 4,
   uses: ['keyboard'],
   measures:
@@ -214,7 +214,7 @@ const vision: SelfTest = {
   family: 'test',
   title: 'Vision test',
   action: 'Test my vision',
-  summary: 'Sharpness up close with each eye, then the Amsler grid. About 6 minutes.',
+  summary: 'Sharpness up close with each eye, then the Amsler grid.',
   minutes: 6,
   uses: ['face', 'keyboard', 'card'],
   measures:
@@ -283,7 +283,7 @@ const hearing: SelfTest = {
   family: 'test',
   title: 'Hearing test',
   action: 'Test my hearing',
-  summary: 'Three digits in noise, 24 times. Headphones, about 4 minutes.',
+  summary: 'Three digits in noise, 24 times, with headphones.',
   minutes: 4,
   uses: ['headphones', 'keyboard'],
   measures:
@@ -507,7 +507,7 @@ const restingPulse: SelfTest = {
   family: 'test',
   title: 'Resting pulse',
   action: 'Measure my pulse',
-  summary: 'About a minute sitting still, facing the camera.',
+  summary: 'A minute sitting still, facing the camera.',
   minutes: 1,
   uses: ['face', 'strap'],
   measures: 'Your pulse at rest, from small colour changes in the skin of your face.',

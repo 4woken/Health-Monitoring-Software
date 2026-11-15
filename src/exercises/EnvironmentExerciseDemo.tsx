@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Pause, Play } from '@phosphor-icons/react'
 import type { HabitatId } from '../mission/habitats'
 import { HABITATS } from '../mission/habitats'
 import { Button } from '../ui'
@@ -63,59 +64,56 @@ export default function EnvironmentExerciseDemo({
     setPhase('running')
   }
 
+  const live = phase === 'running' || phase === 'paused'
   return (
-    <section
-      aria-label="Environment exercise demo"
-      className="my-5 rounded-2xl border border-white/15 bg-white/[0.04] p-4"
-    >
-      <p className="font-cond text-sm text-white/65">
-        {HABITATS[habitat].name} · {Number(gravity.toFixed(2))} g · Avatar demo
-      </p>
-      <h3 className="mt-1 text-xl font-medium">{activity.title}</h3>
-      <p className="mt-2 text-sm leading-relaxed text-muted">{activity.movement}</p>
-      <p className="mt-2 text-sm text-muted">
-        A 30-second animation, with the pulse and breathing it would bring.
-      </p>
+    <section aria-label="Exercise here" className="mt-9">
+      <h3 className="flex items-baseline justify-between gap-3 text-[15px] font-semibold">
+        Exercise here
+        <span className="font-cond text-[13px] font-normal text-white/45">
+          {HABITATS[habitat].name}, {Number(gravity.toFixed(2))} g
+        </span>
+      </h3>
+      <p className="mt-2 text-[15.5px] font-medium">{activity.title}</p>
+      <p className="mt-0.5 text-[13.5px] leading-snug text-white/55">{activity.movement}</p>
       <div data-exercise-controls className="mt-3 flex flex-wrap items-center gap-2">
         {phase === 'running' ? (
           <Button size="sm" onClick={() => setPhase('paused')}>
-            Pause demo
+            <Pause size={14} weight="fill" />
+            Pause
           </Button>
         ) : (
-          <Button size="sm" onClick={start}>
-            {phase === 'paused' ? 'Resume demo' : phase === 'finished' ? 'Replay demo' : 'Start avatar demo'}
+          <Button size="sm" kind="primary" onClick={start}>
+            <Play size={14} weight="fill" />
+            {phase === 'paused' ? 'Resume' : phase === 'finished' ? 'Watch again' : 'Watch it on the body'}
           </Button>
         )}
-        {(phase === 'running' || phase === 'paused') && (
-          <>
-            <Button size="sm" kind="ghost" onClick={() => setPhase('finished')}>
-              End demo
-            </Button>
-            <span className="text-sm tabular-nums text-muted">{Math.ceil(remaining / 1000)} s left</span>
-          </>
+        {live && (
+          <Button size="sm" kind="ghost" onClick={() => setPhase('finished')}>
+            End
+          </Button>
         )}
-        {phase === 'finished' && (
-          <span className="text-sm text-muted" role="status">
-            Demo finished
-          </span>
-        )}
+        <span
+          className="font-cond text-[13px] text-white/50 tabular-nums"
+          role={phase === 'finished' ? 'status' : undefined}
+        >
+          {live
+            ? `${Math.ceil(remaining / 1000)} s left`
+            : phase === 'finished'
+              ? 'Done'
+              : '30 s, with the pulse and breathing it brings'}
+        </span>
       </div>
-      <details className="mt-3 text-sm text-muted">
-        <summary className="w-fit cursor-pointer">Research behind this demo</summary>
-        <p className="mt-2">
-          {mode === 'cycle' || mode === 'row'
-            ? 'Equipment background'
-            : 'Research on exercise at different gravity levels'}
-        </p>
+      <p className="mt-2.5 text-[12.5px] leading-snug text-white/45">
+        {mode === 'cycle' || mode === 'row' ? 'The equipment' : 'Exercise at this gravity'}:{' '}
         <a
-          className="underline underline-offset-4"
+          className="underline decoration-white/30 underline-offset-2 hover:text-white"
           href={activity.source.url}
           target="_blank"
           rel="noreferrer"
         >
           {activity.source.label}
         </a>
-      </details>
+      </p>
     </section>
   )
 }
