@@ -1,6 +1,16 @@
-# Pulsar
+<p align="center">
+  <img src="public/brand/pulsar-mark.svg" alt="" width="96" height="96" />
+</p>
 
-[Open the live Pulsar demo on Vercel](https://pulsar-crew-health.vercel.app/) or [watch the one-minute film](docs/video/pulsar-film.mp4): a day on board, from the morning's to-do list to a solar storm and the report sent to Earth, with the squats and the AR visor filmed for real.
+<h1 align="center">Pulsar</h1>
+
+<p align="center"><strong>Health monitoring for astronauts</strong><br />NASA Space Apps Challenge 2026</p>
+
+<p align="center">
+  <a href="https://pulsar-crew-health.vercel.app/"><strong>Open the live demo</strong></a>
+  &nbsp;&nbsp;·&nbsp;&nbsp;
+  <a href="docs/video/pulsar-film.mp4"><strong>Watch the one-minute film</strong></a>
+</p>
 
 ![Day 97 of the cruise to Mars: the controls on the left, three things to do today on the right, the markers on the body](docs/screenshots/dashboard.jpg)
 
