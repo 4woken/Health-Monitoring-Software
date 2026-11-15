@@ -77,7 +77,6 @@ function Shell() {
   const setDay = (next: number) =>
     setDays((previous) => ({ ...previous, [mission]: missionDay(mission, next) }))
   const [habitat, setHabitat] = useState<HabitatId>(DEFAULT_HABITAT.cruise)
-  const [gravity, setGravity] = useState(MISSIONS.cruise.gravity)
   const [playback, setPlayback] = useState<DemoPlayback | null>(null)
   const onDemo = useCallback<OnExerciseDemo>((mode, elapsedSeconds = 0) => {
     setPlayback(mode ? { mode, startedAt: performance.now() - elapsedSeconds * 1000 } : null)
@@ -251,9 +250,7 @@ function Shell() {
               face={crew.faceOf(member.id)}
               mission={mission}
               day={day}
-              setDay={setDay}
               habitat={habitat}
-              onGravity={setGravity}
               exerciseDemo={playing}
               onOpenTest={openTest}
               breath={recentBreath(breath, member.id, Date.now())}
@@ -286,7 +283,7 @@ function Shell() {
               <Suspense fallback={<Loading />}>
                 <CheckupContent
                   habitat={habitat}
-                  gravity={gravity}
+                  gravity={MISSIONS[mission].gravity}
                   onDemo={onDemo}
                   member={member}
                   mission={mission}

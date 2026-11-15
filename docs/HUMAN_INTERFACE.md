@@ -36,7 +36,7 @@ The portrait is projected on the geometry of the head and its eyes, so the head 
 - The anatomy models keep their attributions, listed in the README and `docs/CREDITS.md`. Triangles whose orientation contradicts their normals are corrected on loading, to avoid lighting artefacts.
 - The two bodies are textured MakeHuman bodies (CC0) with the anatomy registered inside them. If they cannot load, the BodyParts3D reference bodies take their place. Skin is the default depth. From there you can move outward to the IVA and EVA suits or inward to the vessels, organs and skeleton. The active system stays opaque and the surrounding anatomy remains faint. The selector lists the meshes supplied by the active atlas, including organs occluded in the current view. The female pelvis and major leg bones come from the female HRA. The reference vessels include the named lower-limb veins from Z-Anatomy. [Model credits](../THIRD_PARTY_NOTICES.md).
 - The heart always beats and the chest always breathes. The heart follows the person's resting pulse, the camera pulse while the camera measures it, or the minute of the mission simulation. The chest follows the latest breathing rate measured with the camera (**Tests → Breathing rate**), the simulated one, or 14 breaths a minute otherwise. Only the rate can be measured: the depth and phase of the movement are illustrative.
-- With **Mission effects** on, the change of the face and the legs from the fluid shift is exaggerated about tenfold, so that it can be seen.
+- With **Mission effects** on, a slight change in cheek fullness and calf contour illustrates the projected fluid shift.
 
 ## Still missing
 

@@ -79,9 +79,7 @@ interface Props {
   face: PersonalAvatar | null
   mission: MissionId
   day: number
-  setDay: (day: number) => void
   habitat: HabitatId
-  onGravity: (value: number) => void
   exerciseDemo: DemoPlayback | null
   /** Opens the self-tests, on one test when given. */
   onOpenTest: (test?: SelfTestId) => void
@@ -107,9 +105,7 @@ export default function BodyScreen({
   face,
   mission,
   day,
-  setDay,
   habitat,
-  onGravity,
   exerciseDemo,
   onOpenTest,
   breath,
@@ -256,7 +252,12 @@ export default function BodyScreen({
   const [override, setOverride] = useState<SimInput | null>(null)
   const [profile, setProfile] = useState<ProfileId>('setting')
   const [localCursor, setLocalCursor] = useState<number | null>(null)
-  useEffect(() => setOverride(null), [mission, member.id])
+  useEffect(() => {
+    setOverride(null)
+    setProfile('setting')
+    setLocalCursor(null)
+  }, [mission, member.id])
+  useEffect(() => setLocalCursor(null), [day])
   const input = override ?? defaults
   const phases = useMemo<MissionPhase[]>(
     () =>
@@ -273,11 +274,9 @@ export default function BodyScreen({
     [profile, m, input.gravity, input.doseRateMSvDay],
   )
   const points = useMemo(() => simulateProfile(phases, input.exercise), [phases, input.exercise])
-  const cursor = profile === 'setting' ? day : Math.min(points.length - 1, localCursor ?? points.length - 1)
-  const physiology = points[Math.min(points.length - 1, cursor)]
-
-  const activeGravity = phases[physiology.phase].gravity
-  useEffect(() => onGravity(activeGravity), [activeGravity, onGravity])
+  const lastDay = points.length - 1
+  const cursor = Math.min(lastDay, localCursor ?? (profile === 'setting' ? day : lastDay))
+  const physiology = points[cursor]
 
   /** Open the pop-up of one part: the camera moves to it. */
   const select = (id: SignalId) => {
@@ -553,16 +552,17 @@ export default function BodyScreen({
                     }}
                     input={input}
                     onInput={setOverride}
-                    linked={override === null}
-                    onReset={() => setOverride(null)}
+                    linked={profile === 'setting' && override === null && localCursor === null}
+                    onReset={() => {
+                      setOverride(null)
+                      setProfile('setting')
+                      setLocalCursor(null)
+                    }}
                     person={member.short}
                     phases={phases}
                     points={points}
                     cursor={cursor}
-                    onCursor={(d) => {
-                      if (profile === 'setting') setDay(Math.max(1, d))
-                      else setLocalCursor(d)
-                    }}
+                    onCursor={setLocalCursor}
                   />
                 </div>
               ) : note ? (
