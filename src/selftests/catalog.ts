@@ -39,7 +39,8 @@ export const USE_LABEL: Record<Use, string> = {
 }
 
 /** A 3D demonstration of the movement, played by the coach. */
-export type Move = 'squat' | 'heelRaise' | 'sitToStand' | 'together' | 'tandem' | 'oneLeg' | 'nod'
+export type Move =
+  'squat' | 'pacedSquat' | 'heelRaise' | 'sitToStand' | 'together' | 'tandem' | 'leftLeg' | 'rightLeg' | 'nod'
 
 export interface Source {
   title: string
@@ -286,7 +287,7 @@ const hearing: SelfTest = {
   minutes: 4,
   uses: ['headphones', 'keyboard'],
   measures:
-    'How much noise you can still hear speech through: the speech reception threshold, in dB. Lower is better.',
+    'How quietly this device can play a voice in noise while you still recognise the digits. A lower relative level means you recognised quieter speech.',
   steps: [
     'Put on headphones and set a comfortable volume with the sample. Then leave the volume alone.',
     'A voice says three digits in a steady noise. Type the three digits you heard, guessing if you must.',
@@ -298,7 +299,7 @@ const hearing: SelfTest = {
     says: 'Crews test their hearing on a station laptop with headphones by flight day 21, then about mid-mission, and within 24 hours of noise measurements. The station is loud, so hearing protection is part of the plan.',
   },
   adaptation:
-    'NASA measures the softest tone each ear hears. This is a digits-in-noise test, which compares a voice with a noise and so needs no calibrated headphones. Use the same headphones and volume each time. The voice is this device’s own.',
+    'NASA measures the softest tone each ear hears. Pulsar reports the browser’s voice level relative to its starting setting, in dB. The sound at your ears depends on the device, voice, headphones and volume. Keep those the same to compare runs.',
   sources: [
     MRID,
     {
@@ -308,7 +309,7 @@ const hearing: SelfTest = {
     },
   ],
   score: {
-    label: 'Speech reception threshold',
+    label: 'Relative voice level',
     unit: 'dB',
     better: 'lower',
     format: (v) => `${v.toFixed(1)} dB`,
@@ -498,7 +499,7 @@ const pulseRecovery: SelfTest = {
     }),
   describe: (r) =>
     `pulse recovery ${r.score.toFixed(1)} (${detail(r, 'p0')}, ${detail(r, 'p1')}, ${detail(r, 'p2')} bpm)`,
-  coach: 'squat',
+  coach: 'pacedSquat',
 }
 
 const restingPulse: SelfTest = {

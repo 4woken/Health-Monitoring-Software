@@ -18,7 +18,7 @@ export function ScreenScale({ onDone }: { onDone: (cssPxPerMm: number) => void }
       <div className="flex min-h-56 items-center justify-center overflow-hidden rounded-2xl bg-white/[0.03] py-6">
         <div
           aria-label="Card outline"
-          className="flex items-center justify-center rounded-[3mm] border-2 border-white/90 text-white/40"
+          className="flex shrink-0 items-center justify-center rounded-[3mm] border-2 border-white/90 text-white/40"
           style={{ width, height: width * (53.98 / 85.6) }}
         >
           <CreditCard size={40} weight="thin" aria-hidden="true" />
@@ -112,37 +112,54 @@ export function Amsler({
   onToggle: (cell: number) => void
 }) {
   const square = amslerSquareMm(distanceMm) * cssPxPerMm
-  const fit = Math.floor(Math.min((window.innerHeight - 260) / square, (window.innerWidth - 48) / square))
+  const container = useRef<HTMLDivElement>(null)
+  const [width, setWidth] = useState(0)
+  useEffect(() => {
+    const el = container.current
+    if (!el) return
+    const resize = new ResizeObserver(() => setWidth(el.clientWidth))
+    resize.observe(el)
+    return () => resize.disconnect()
+  }, [])
+  const fit = Math.floor(Math.min(Math.max(window.innerHeight - 260, square * 8), width) / square)
   // An even count keeps the dot on a crossing.
-  const n = Math.max(8, Math.min(20, fit - (fit % 2)))
+  const n = Math.max(2, Math.min(20, fit - (fit % 2)))
   return (
-    <div
-      role="grid"
-      aria-label={`Amsler grid, ${n} by ${n} squares of 1 degree`}
-      className="relative mx-auto bg-white"
-      style={{ width: n * square, height: n * square }}
-    >
-      {Array.from({ length: n * n }, (_, i) => (
-        <button
-          key={i}
-          type="button"
-          aria-label={`Square ${Math.floor(i / n) + 1}, ${(i % n) + 1}${marked.has(i) ? ', marked' : ''}`}
-          onClick={() => onToggle(i)}
-          className="absolute border-[0.5px] border-black/80"
-          style={{
-            left: (i % n) * square,
-            top: Math.floor(i / n) * square,
-            width: square,
-            height: square,
-            background: marked.has(i) ? 'rgb(242 171 60 / 0.75)' : 'transparent',
-          }}
+    <div ref={container} className="w-full">
+      <div
+        role="grid"
+        aria-label={`Amsler grid, ${n} by ${n} squares of 1 degree`}
+        className="relative mx-auto bg-white"
+        style={{ width: n * square, height: n * square }}
+      >
+        {Array.from({ length: n * n }, (_, i) => {
+          const row = Math.floor(i / n)
+          const col = i % n
+          const cell = (row + (20 - n) / 2) * 20 + col + (20 - n) / 2
+          return (
+            <button
+              key={i}
+              type="button"
+              aria-label={`Square ${row + 1}, ${col + 1}`}
+              aria-pressed={marked.has(cell)}
+              onClick={() => onToggle(cell)}
+              className="absolute border-[0.5px] border-black/80"
+              style={{
+                left: (i % n) * square,
+                top: Math.floor(i / n) * square,
+                width: square,
+                height: square,
+                background: marked.has(cell) ? 'rgb(242 171 60 / 0.75)' : 'transparent',
+              }}
+            />
+          )
+        })}
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute rounded-full bg-black"
+          style={{ width: 8, height: 8, left: (n * square) / 2 - 4, top: (n * square) / 2 - 4 }}
         />
-      ))}
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute rounded-full bg-black"
-        style={{ width: 8, height: 8, left: (n * square) / 2 - 4, top: (n * square) / 2 - 4 }}
-      />
+      </div>
     </div>
   )
 }

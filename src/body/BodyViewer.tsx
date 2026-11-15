@@ -407,6 +407,7 @@ function createStage(
   let focusTo = 0
   let focusX = 0
   let focusXTo = 0
+  let viewBeforeDemo: { zoom: number; x: number; y: number; yaw: number } | null = null
   let baseDist = 4.75
   let userRot = 0
   let velocity = 0
@@ -454,8 +455,10 @@ function createStage(
 
   const refresh = () => {
     const physiologyView = layer === 'physiology'
-    const d = physiologyView ? 0 : depth
-    skinOpacity = isolated ? 0.095 : depthOpacity('skin', d)
+    // Keep a chosen layer for movement, but switch an isolated organ back to the whole mannequin.
+    const selection = exercise ? null : isolated
+    const d = physiologyView || (exercise && isolated) ? 0 : depth
+    skinOpacity = selection ? 0.095 : depthOpacity('skin', d)
     face?.setVisible(skinOpacity > 0.9)
     shared.uFluid.value = physiologyView ? physio.fluidShiftShare : 0
     for (const o of organs) {
@@ -466,9 +469,9 @@ function createStage(
       const isActive =
         (active !== null && ids.includes(active)) ||
         hovered === o.name ||
-        (isolated !== null && matchesAnatomySelection(o.name, isolated))
-      o.opacity = isolated
-        ? matchesAnatomySelection(o.name, isolated)
+        (selection !== null && matchesAnatomySelection(o.name, selection))
+      o.opacity = selection
+        ? matchesAnatomySelection(o.name, selection)
           ? 1
           : 0.035
         : depthOpacity(o.layer, d)
@@ -487,7 +490,7 @@ function createStage(
     isolated = name
     pointerMoved = true
     refresh()
-    if (!name || !current) return
+    if (!name || !current || exercise) return
     const bounds = new THREE.Box3()
     for (const part of organs) {
       if (!matchesAnatomySelection(part.name, name)) continue
@@ -659,7 +662,7 @@ function createStage(
     pointerCss.y = e.clientY - rect.top
     lensAt.x = pointerCss.x * pr
     lensAt.y = (rect.height - pointerCss.y) * pr
-    lensAt.target = 1
+    lensAt.target = exercise ? 0 : 1
     pointerMoved = true
   }
   // At the lens centre a strength of 0.88 clears even the last dithered skin pixel.
@@ -761,6 +764,7 @@ function createStage(
       Math.hypot(e.clientX - gestureX, e.clientY - gestureY) < 5 &&
       current &&
       allowLens &&
+      !exercise &&
       layer === 'signals'
     ) {
       const hit = pickAt(pointerCss.x, pointerCss.y)
@@ -962,7 +966,7 @@ function createStage(
 
     // Naming the organ under the pointer, at most once a frame and only when organs show.
     const seesInside = pointerSeesInside()
-    if (allowLens && !dragging && (pointerMoved || seesInside !== wasLookingInside)) {
+    if (allowLens && !exercise && !dragging && (pointerMoved || seesInside !== wasLookingInside)) {
       pointerMoved = false
       const hit = lensAt.target && seesInside ? pickAt(pointerCss.x, pointerCss.y) : null
       const name = hit && hit.what !== 'skin' ? hit.what : null
@@ -1166,11 +1170,22 @@ function createStage(
     },
     setExerciseMotion: (value, startedAt) => {
       if (exercise === value && (startedAt === undefined || startedAt === exerciseStarted)) return
+      if (!exercise && value) {
+        viewBeforeDemo = { zoom: zoomTo, x: focusXTo, y: focusTo, yaw: userRot }
+        leave()
+        lensAt.strength = lensAt.target = 0
+      }
       exercise = value
       exerciseStarted = startedAt ?? performance.now()
       demoSecond = -1
       demoBeatPhase = demoBreathPhase = 0
+      refresh()
       if (value) flyTo(1, 0)
+      else if (viewBeforeDemo) {
+        flyTo(viewBeforeDemo.zoom, viewBeforeDemo.y, viewBeforeDemo.x)
+        userRot = viewBeforeDemo.yaw
+        viewBeforeDemo = null
+      }
     },
     setMotion: (m) => {
       motion = m
@@ -1434,7 +1449,9 @@ export default function BodyScan({
           ? '3D head preview'
           : studio
             ? 'Connected face and body preview. Drag to turn; use Head or Whole body to check the fit.'
-            : 'Body view. Use the depth control to go under the skin, then click an organ to highlight it.'
+            : exerciseMotion
+              ? 'Exercise demonstration. Drag to turn the body.'
+              : 'Body view. Use the depth control to go under the skin, then click an organ to highlight it.'
       }
     >
       {backdrop && (

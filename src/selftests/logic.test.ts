@@ -114,6 +114,15 @@ describe('hearing test', () => {
     expect(srt(all)).toBeCloseTo(-1, 0)
   })
 
+  it('scores only playable speech levels and gets quieter immediately after a correct response at the ceiling', () => {
+    let state = startDin()
+    for (let i = 0; i < DIN.trials; i++) state = answer(state, false)
+    const peak = state.snrs.at(-1)!
+    expect(peak).toBeCloseTo(20 * Math.log10(1 / 0.3))
+    expect(srt(state)).toBeLessThanOrEqual(Number(peak.toFixed(1)))
+    expect(voiceVolume(answer(state, true).snrs.at(-1)!)).toBeLessThan(1)
+  })
+
   it('keeps the voice between silent and full volume', () => {
     expect(voiceVolume(0)).toBeCloseTo(0.3)
     expect(voiceVolume(30)).toBe(1)

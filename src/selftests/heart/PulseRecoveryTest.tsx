@@ -3,14 +3,14 @@ import { getPulse, getPulseVideo, startPulse, stopPulse } from '../../camera/pul
 import { Button } from '../../ui'
 import { CameraStage, useCameraTest } from '../camera/CameraStage'
 import type { CameraFrame } from '../camera/session'
-import { squatTracker } from '../movement/movement'
+import { bestLeg, squatTracker } from '../movement/movement'
 import { Big, Cue, Progress, type RunProps } from '../ui/parts'
-import { beep, countdown, say } from '../voice'
+import { beep, say } from '../voice'
 import { PulsePreview } from './PulsePreview'
 import { BEAT_MS, dicksonIndex, PulseTrace, ruffierIndex, SQUAT_SECONDS, SQUATS } from './ruffier'
 import { freshStrapBpm, useStrap } from './strap'
 
-type Phase = 'rest' | 'squats' | 'recover' | 'failed'
+type Phase = 'rest' | 'frame' | 'countdown' | 'squats' | 'recover' | 'failed'
 
 /** Seconds of steady readings that make the resting pulse. */
 const REST_S = 20
@@ -35,154 +35,185 @@ export default function PulseRecoveryTest({ mode, onDone, onCancel }: RunProps) 
   const [problem, setProblem] = useState('')
   const trace = useRef(new PulseTrace())
   const tracker = useRef(squatTracker())
-  const endAt = useRef(0)
-  const values = useRef({ p0: 0, squats: 0 })
-  const cancelled = useRef(false)
+  const work = useRef({ start: 0, end: 0, squats: 0, p0: 0 })
+  const active = phase !== 'failed'
+  const movement = phase === 'frame' || phase === 'countdown' || phase === 'squats'
+  const latestPhase = useRef(phase)
+  latestPhase.current = phase
+  const finish = useRef(onDone)
+  finish.current = onDone
 
-  const read = () =>
-    usesStrap ? freshStrapBpm(strapRef.current) : getPulse().phase === 'measuring' ? getPulse().bpm : null
+  function fail(message: string) {
+    setProblem(message)
+    setPhase('failed')
+  }
 
-  // The pulse source runs through the whole test.
   useEffect(() => {
-    cancelled.current = false
+    if (!active) return
     if (!usesStrap) void startPulse()
-    void say('Sit facing the camera and keep still while I read your resting pulse.')
+    void say('Sit still while I read your resting pulse.')
+    const hide = () => {
+      if (document.hidden)
+        fail('The test was interrupted when you left this tab. Start a new test when ready.')
+    }
+    document.addEventListener('visibilitychange', hide)
     const id = window.setInterval(() => {
-      const bpm = read()
+      const pulse = getPulse()
+      if (!usesStrap && (pulse.phase === 'error' || pulse.phase === 'off')) return fail(pulse.message)
+      if (usesStrap && strapRef.current.status !== 'connected')
+        return fail('The strap disconnected. Reconnect it before starting a new test.')
+      const bpm = usesStrap ? freshStrapBpm(strapRef.current) : pulse.phase === 'measuring' ? pulse.bpm : null
       if (bpm !== null) trace.current.push(performance.now(), bpm)
     }, 500)
     return () => {
-      cancelled.current = true
+      document.removeEventListener('visibilitychange', hide)
       clearInterval(id)
-      camera.stop()
       if (!usesStrap) stopPulse()
     }
-    // Runs once for the chosen source.
-  }, [usesStrap])
+  }, [active, usesStrap])
 
-  // Rest: wait for steady readings, then start the squats.
   useEffect(() => {
     if (phase !== 'rest') return
-    const startedAt = performance.now()
+    const started = performance.now()
     const id = window.setInterval(() => {
       const now = performance.now()
+      const first = trace.current.firstAfter(started)
       const p0 = trace.current.between(now - REST_S * 1000, now, REST_S * 1.5)
-      const first = trace.current.firstAfter(startedAt + 3000)
       setProgress(first === null ? 0 : Math.min(1, (now - first) / (REST_S * 1000)))
-      if (p0 === null) {
-        if (now - startedAt > 90_000) {
-          setPhase('failed')
-          setProblem(
-            'No steady pulse reading in 90 seconds. Try again in even light, without light behind you, or use a strap.',
-          )
-        }
-        return
+      if (first !== null && now - first >= REST_S * 1000 && p0 !== null) {
+        work.current.p0 = p0
+        setPhase('frame')
+        setCue('Stand side-on with your hip, knee and ankle in view.')
+        void say('Stand side-on with your whole leg in view. The countdown starts when you are standing.')
+      } else if (now - started > 90_000) {
+        fail('Could not obtain a steady resting pulse. Check the sensor and start a new test.')
       }
-      clearInterval(id)
-      values.current.p0 = p0
-      void beginSquats()
     }, 500)
     return () => clearInterval(id)
   }, [phase])
 
-  async function beginSquats() {
-    setCue(`Resting pulse ${values.current.p0} bpm. Stand up and step back: your whole body in view.`)
-    await say('Now stand up and step back, so your whole body is in view. Thirty squats, one on each beep.', {
-      force: true,
-    })
-    if (cancelled.current) return
-    setPhase('squats')
-    await new Promise((r) => setTimeout(r, 3000))
-    if (
-      !(await countdown(
-        3,
-        (n) => setCue(n ? String(n) : 'Squat on each beep.'),
-        () => cancelled.current,
-      ))
-    )
-      return
-    const start = performance.now()
-    endAt.current = start + SQUAT_SECONDS * 1000
-    let beats = 0
-    const metronome = window.setInterval(() => {
-      if (cancelled.current) return clearInterval(metronome)
-      beats++
-      beep(beats % 10 === 0 ? 990 : 760, 90, 0.2, true)
-      setSeconds(Math.min(SQUAT_SECONDS, Math.round((performance.now() - start) / 1000)))
-      if (beats >= SQUATS) {
-        clearInterval(metronome)
-        window.setTimeout(endSquats, BEAT_MS / 2)
-      }
-    }, BEAT_MS)
-  }
-
-  // The squats are counted on the same camera stream as the pulse, or on the camera with a strap.
+  const { start: startCamera, stop: stopCamera } = camera
   useEffect(() => {
-    if (phase !== 'squats') return
-    const stream = usesStrap ? undefined : ((getPulseVideo()?.srcObject as MediaStream | null) ?? undefined)
-    camera.start(onFrame, stream)
-    return () => camera.stop()
+    if (!movement) return
+    const stream = usesStrap ? undefined : getPulseVideo()?.srcObject
+    if (!usesStrap && !(stream instanceof MediaStream)) {
+      fail('The pulse camera stopped. Start a new test.')
+      return
+    }
+    startCamera(
+      (frame: CameraFrame) => {
+        if (latestPhase.current !== 'squats') {
+          const standing = (bestLeg(frame.body, frame.aspect)?.angle ?? 0) > 160
+          if (latestPhase.current === 'frame' && standing) setPhase('countdown')
+          if (latestPhase.current === 'countdown' && !standing) setPhase('frame')
+          return
+        }
+        if (performance.now() > work.current.end) return
+        const { reps } = tracker.current.update(frame.body, frame.aspect)
+        work.current.squats = reps
+        setSquats(reps)
+      },
+      stream as MediaStream | undefined,
+    )
+    return stopCamera
+  }, [movement, startCamera, stopCamera, usesStrap])
+
+  useEffect(() => {
+    if (movement && camera.stopped) fail(camera.stopped)
+  }, [movement, camera.stopped])
+
+  useEffect(() => {
+    if (phase === 'frame') {
+      setCue('Stand side-on with your hip, knee and ankle in view.')
+      return
+    }
+    if (phase !== 'countdown') return
+    let remaining = 3
+    setCue(String(remaining))
+    const timer = window.setInterval(() => {
+      if (--remaining > 0) setCue(String(remaining))
+      else {
+        clearInterval(timer)
+        work.current.start = performance.now()
+        work.current.end = work.current.start + SQUAT_SECONDS * 1000
+        setPhase('squats')
+        setCue('Squat on each beep.')
+      }
+    }, 1000)
+    return () => clearInterval(timer)
   }, [phase])
 
-  function onFrame(frame: CameraFrame) {
-    const v = tracker.current.update(frame.body, frame.aspect)
-    if (v.reps !== values.current.squats) {
-      values.current.squats = v.reps
-      setSquats(v.reps)
-    }
-  }
-
-  function endSquats() {
-    if (cancelled.current) return
-    camera.stop()
-    const end = performance.now()
-    setPhase('recover')
-    setCue('Sit straight back down, facing the camera, and keep still.')
-    void say('Stop. Sit straight back down facing the camera, and keep still.', { force: true })
-    const id = window.setInterval(() => {
+  useEffect(() => {
+    if (phase !== 'squats') return
+    let lastBeat = -1
+    const tick = () => {
       const now = performance.now()
-      const t = (now - end) / 1000
-      setSeconds(Math.round(t))
+      if (document.hidden) return
+      if (now >= work.current.end) {
+        if (work.current.squats !== SQUATS) {
+          fail(
+            `Counted ${work.current.squats} of ${SQUATS} squats in ${SQUAT_SECONDS} seconds. No recovery score was saved.`,
+          )
+        } else {
+          setSeconds(0)
+          setProgress(0)
+          setPhase('recover')
+          setCue('Sit straight back down and keep still.')
+          void say('Stop. Sit straight back down and keep still.')
+        }
+        return
+      }
+      const elapsed = now - work.current.start
+      const beat = Math.floor(elapsed / BEAT_MS)
+      if (lastBeat !== beat) {
+        lastBeat = beat
+        beep(beat % 10 === 0 ? 990 : 760, 90, 0.2, true)
+      }
+      setSeconds(Math.floor(elapsed / 1000))
+    }
+    tick()
+    const timer = window.setInterval(tick, 75)
+    return () => clearInterval(timer)
+  }, [phase])
+
+  useEffect(() => {
+    if (phase !== 'recover') return
+    const { end, p0, squats } = work.current
+    const id = window.setInterval(() => {
+      if (document.hidden) return
+      const t = (performance.now() - end) / 1000
+      setSeconds(Math.floor(t))
       setProgress(Math.min(1, t / RECOVER_S))
       if (t < RECOVER_S) return
       clearInterval(id)
-      // P1: the first steady readings after the effort; a strap reads within the first 15 s.
       const first = trace.current.firstAfter(end)
       const p1 = usesStrap
         ? trace.current.between(end, end + 15_000, 2)
         : first !== null && first - end <= 45_000
           ? trace.current.between(first, first + 10_000, 3)
           : null
-      // P2: the second quarter-minute after the first minute of rest.
       const p2 =
         trace.current.between(end + 60_000, end + 75_000, 3) ??
         trace.current.between(end + 55_000, end + RECOVER_S * 1000, 3)
-      const p0 = values.current.p0
       if (p1 === null || p2 === null) {
-        setPhase('failed')
-        setProblem(
-          p1 === null
-            ? 'The camera could not read your pulse straight after the squats. Sit still in even light, or use a heart-rate strap.'
-            : 'The camera lost your pulse during the minute of rest. Try again, keeping still, or use a strap.',
-        )
+        fail('A pulse reading was missing during recovery. No score was saved.')
         return
       }
-      if (!usesStrap) stopPulse()
-      void say('Done.', { force: true })
-      onDone({
+      finish.current({
         score: ruffierIndex(p0, p1, p2),
         details: {
           p0,
           p1,
           p2,
           dickson: dicksonIndex(p0, p1, p2),
-          squats: values.current.squats,
+          squats,
           source: usesStrap ? 'strap' : 'camera',
           p1AfterS: first === null ? null : Math.round((first - end) / 1000),
         },
       })
     }, 500)
-  }
+    return () => clearInterval(id)
+  }, [phase, usesStrap])
 
   return (
     <section
@@ -190,7 +221,7 @@ export default function PulseRecoveryTest({ mode, onDone, onCancel }: RunProps) 
       className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px]"
     >
       <div>
-        {phase === 'squats' ? (
+        {movement ? (
           <CameraStage
             camera={camera}
             idle={usesStrap ? 'Starting the camera for the count…' : 'Starting…'}
@@ -207,7 +238,7 @@ export default function PulseRecoveryTest({ mode, onDone, onCancel }: RunProps) 
         <p className="font-cond text-[14px] text-white/60">
           {phase === 'rest'
             ? '1 of 3 · Resting pulse'
-            : phase === 'squats'
+            : movement
               ? '2 of 3 · Squats'
               : phase === 'recover'
                 ? '3 of 3 · Recovery'

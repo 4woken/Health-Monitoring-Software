@@ -9,7 +9,7 @@ import { Button, Chip } from '../../ui'
 import { EXERCISES, SELF_TESTS, TESTS, USE_LABEL } from '../catalog'
 import { CAUSE_LABEL, dueTests, type DueTest } from '../due'
 import type { SelfTestId } from '../ids'
-import { BASELINE_RUNS, clearResults, useResults, type TestResult } from '../results'
+import { BASELINE_RUNS, baselineOf, clearResults, useResults, type TestResult } from '../results'
 import { ICON, VoiceToggle } from './parts'
 import TestRunner from './TestRunner'
 
@@ -243,13 +243,14 @@ function TestCard({
   const t = SELF_TESTS[id]
   const Icon = ICON[id]
   const last = results[results.length - 1]
+  const usual = last?.usual ?? baselineOf(results).usual
   const status = !last
     ? 'Not done yet.'
     : t.family === 'exercise'
       ? `Last: ${t.score.format(last.score)}, day ${last.day}.`
-      : results.length < BASELINE_RUNS
+      : usual === undefined
         ? `Last: ${t.score.format(last.score)}. Usual result: ${results.length} of ${BASELINE_RUNS} runs.`
-        : `Last: ${t.score.format(last.score)}, day ${last.day}. Usual ${t.score.format(last.usual ?? last.score)}.`
+        : `Last: ${t.score.format(last.score)}, day ${last.day}. Usual ${t.score.format(usual)}.`
   return (
     <li>
       <button

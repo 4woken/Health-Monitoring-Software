@@ -31,12 +31,13 @@ export function armsCrossed(body: Landmark[] | null): boolean {
   const rs = body[BODY.rightShoulder]
   const lh = body[BODY.leftHip]
   const rh = body[BODY.rightHip]
+  if (![ls, rs, lh, rh].every((p) => p && (p.visibility ?? 1) >= 0.4)) return false
   const top = Math.min(ls.y, rs.y) - 0.05
   const bottom = (lh.y + rh.y) / 2
   const left = Math.min(ls.x, rs.x) - 0.06
   const right = Math.max(ls.x, rs.x) + 0.06
   return [body[BODY.leftWrist], body[BODY.rightWrist]].every(
-    (w) => w && w.y > top && w.y < bottom && w.x > left && w.x < right,
+    (w) => w && (w.visibility ?? 1) >= 0.4 && w.y > top && w.y < bottom && w.x > left && w.x < right,
   )
 }
 
@@ -57,7 +58,7 @@ const STANDING_ANGLE = 155
 export function sitToStandTracker(target = 5) {
   let phase: SitView['phase'] = 'seat'
   let seatedSince: number | null = null
-  let state: 'seated' | 'standing' = 'seated'
+  let state: 'seated' | 'standing' | 'unseen' = 'seated'
   let stands = 0
   let goAt = 0
   let timeS: number | undefined
@@ -70,30 +71,44 @@ export function sitToStandTracker(target = 5) {
       goAt = now
     },
     update(body: Landmark[] | null, aspect: number, now: number): SitView {
-      const elapsedS = phase === 'running' ? (now - goAt) / 1000 : 0
+      const elapsedS = timeS ?? (phase === 'running' ? (now - goAt) / 1000 : 0)
       const view = (message: string): SitView => ({ phase, stands, elapsedS, timeS, message })
       if (phase === 'done') return view('Done. You can sit back.')
       const l = bestLeg(body, aspect, side)
       if (!l) {
         seatedSince = null
+        if (phase === 'ready') phase = 'seat'
+        if (phase === 'running') state = 'unseen'
+        side = undefined
         return view('Sit side-on to the camera, with your hip, knee and ankle in view.')
       }
       const hipAboveKnee = (l.knee.y - l.hip.y) / l.thigh
       const seated = l.angle < SEATED_ANGLE && hipAboveKnee < 0.45
       const standing = l.angle > STANDING_ANGLE && hipAboveKnee > 0.7
+      if (phase === 'ready' && !seated) {
+        phase = 'seat'
+        seatedSince = null
+        side = undefined
+      }
       if (phase === 'seat') {
         if (seated) {
+          if (side !== l.side) seatedSince = null
+          side = l.side
           seatedSince ??= now
           if (now - seatedSince > 800) {
             phase = 'ready'
             side = l.side
           }
-        } else seatedSince = null
+        } else {
+          seatedSince = null
+          side = undefined
+        }
         return view(
           seated ? 'Hold still, seated, arms crossed on your chest.' : 'Sit down on the chair, arms crossed.',
         )
       }
       if (phase === 'ready') return view('Ready.')
+      side = l.side
       if (state === 'seated' && standing) {
         state = 'standing'
         stands++
@@ -102,8 +117,8 @@ export function sitToStandTracker(target = 5) {
           timeS = Number(((now - goAt) / 1000).toFixed(1))
           return view('Done. You can sit back.')
         }
-      } else if (state === 'standing' && seated) state = 'seated'
-      return view(state === 'standing' ? 'Sit back down.' : 'Stand up fully.')
+      } else if (seated) state = 'seated'
+      return view(state === 'seated' ? 'Stand up fully.' : 'Sit back down.')
     },
   }
 }
@@ -129,7 +144,12 @@ export function squatTracker() {
     update(body: Landmark[] | null, aspect: number): RepView {
       const view = (message: string): RepView => ({ reps, phase, message, shallow })
       const l = bestLeg(body, aspect, side)
-      if (!l) return view('Stand side-on to the camera, your whole leg in view.')
+      if (!l) {
+        phase = 'top'
+        topHip = null
+        side = undefined
+        return view('Stand side-on to the camera, your whole leg in view.')
+      }
       side = l.side
       const legLength = l.thigh + l.shin
       if (phase === 'top') {
@@ -164,9 +184,18 @@ export function heelRaiseTracker() {
     update(body: Landmark[] | null, aspect: number): RepView {
       const view = (message: string): RepView => ({ reps, phase, message, shallow: 0 })
       const l = bestLeg(body, aspect, side)
-      if (!l) return view('Stand side-on to the camera, your feet in view.')
+      if (!l) {
+        phase = 'bottom'
+        ground = null
+        side = undefined
+        return view('Stand side-on to the camera, your feet in view.')
+      }
       side = l.side
-      if (l.angle < 150) return view('Keep your knees straight.')
+      if (l.angle < 150) {
+        phase = 'bottom'
+        ground = null
+        return view('Keep your knees straight.')
+      }
       // Flat on the floor the ankle is at its lowest (largest y). Follow that height, slowly, only
       // while the heels are down, so a raise is measured against the floor it left.
       if (ground === null) ground = l.ankle.y

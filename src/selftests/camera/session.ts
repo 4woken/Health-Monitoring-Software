@@ -58,6 +58,7 @@ export function startCamera(options: SessionOptions, events: SessionEvents): () 
   const { needs, video, wide = false, fps = 15, faceEveryMs = 100, headPose = false } = options
   let disposed = false
   let ownStream: MediaStream | undefined
+  let attached: MediaStream | undefined
   let raf = 0
   let pose: PoseLandmarker | undefined
   let hands: HandLandmarker | undefined
@@ -70,13 +71,10 @@ export function startCamera(options: SessionOptions, events: SessionEvents): () 
     cancelAnimationFrame(raf)
     document.removeEventListener('visibilitychange', onVisibility)
     video.removeEventListener('error', onDisconnect)
-    if (ownStream) {
-      for (const t of ownStream.getTracks()) {
-        t.removeEventListener('ended', onDisconnect)
-        t.stop()
-      }
-      if (video.srcObject === ownStream) video.srcObject = null
-    }
+    attached?.getVideoTracks().forEach((track) => track.removeEventListener('ended', onDisconnect))
+    ownStream?.getTracks().forEach((track) => track.stop())
+    if (attached && video.srcObject === attached) video.srcObject = null
+    attached = ownStream = undefined
     pose?.close()
     hands?.close()
     face?.close()
@@ -93,7 +91,7 @@ export function startCamera(options: SessionOptions, events: SessionEvents): () 
     events.onStop(reason)
   }
   function onVisibility() {
-    if (document.hidden) end('Paused when you left this tab.')
+    if (document.hidden) end('The camera stopped when you left this tab.')
   }
   function onDisconnect() {
     end('The camera disconnected. Reconnect it, then start again.')
@@ -101,8 +99,9 @@ export function startCamera(options: SessionOptions, events: SessionEvents): () 
 
   async function open() {
     try {
+      if (disposed) return
       if (options.stream) {
-        video.srcObject = options.stream
+        attached = options.stream
       } else {
         if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia)
           throw new Error('Camera access needs localhost or HTTPS in a supported browser.')
@@ -122,9 +121,10 @@ export function startCamera(options: SessionOptions, events: SessionEvents): () 
           return
         }
         ownStream = camera
-        for (const t of camera.getVideoTracks()) t.addEventListener('ended', onDisconnect)
-        video.srcObject = camera
+        attached = camera
       }
+      video.srcObject = attached
+      for (const t of attached.getVideoTracks()) t.addEventListener('ended', onDisconnect)
       video.addEventListener('error', onDisconnect)
       video.muted = true
       video.playsInline = true
@@ -161,13 +161,17 @@ export function startCamera(options: SessionOptions, events: SessionEvents): () 
       events.onStatus('')
 
       let lastVideoTime = -1
-      let lastRun = 0
+      let lastRun = performance.now()
       let lastFace = 0
       let faceResult: Face | null = null
       const step = 1000 / fps
       const tick = (now: number) => {
         if (disposed) return
         raf = requestAnimationFrame(tick)
+        if (now - lastRun > 2500) {
+          end('The camera stopped providing frames. Check the camera, then start again.')
+          return
+        }
         if (video.readyState < 2 || !video.videoWidth || video.currentTime === lastVideoTime) return
         if (now - lastRun < step - 4) return
         lastRun = now
@@ -247,7 +251,8 @@ export function startCamera(options: SessionOptions, events: SessionEvents): () 
   }
 
   document.addEventListener('visibilitychange', onVisibility)
-  void open()
+  // Deliver even an unsupported-camera error after the owner has received the stop function.
+  void Promise.resolve().then(open)
   return stop
 }
 

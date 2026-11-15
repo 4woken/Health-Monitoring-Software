@@ -4,7 +4,7 @@ import { Progress, type RunProps } from '../ui/parts'
 import { say } from '../voice'
 import { nextWait, PVT, summarize } from './pvt'
 
-type Phase = 'ready' | 'wait' | 'lit' | 'feedback' | 'paused' | 'done'
+type Phase = 'ready' | 'wait' | 'lit' | 'feedback' | 'paused' | 'empty' | 'done'
 
 /**
  * The 3-minute reaction test. A counter starts after a random wait; the person presses as soon as
@@ -36,6 +36,12 @@ export default function ReactionTest({ onDone, onCancel }: RunProps) {
     if (finished.current) return
     finished.current = true
     clear()
+    since.current = null
+    setElapsed(PVT.durationMs)
+    if (!times.current.length) {
+      setPhase('empty')
+      return
+    }
     setPhase('done')
     void say('Done.')
     const s = summarize(times.current, falseStarts.current)
@@ -78,16 +84,17 @@ export default function ReactionTest({ onDone, onCancel }: RunProps) {
 
   // The whole test clock, shown as a progress bar.
   useEffect(() => {
-    if (phase === 'ready' || phase === 'paused' || phase === 'done') return
+    if (phase === 'ready' || phase === 'paused' || phase === 'empty' || phase === 'done') return
     const id = window.setInterval(() => {
-      setElapsed(clock())
-      if (clock() >= PVT.durationMs && phase !== 'lit') finish()
+      const elapsed = clock()
+      setElapsed(Math.min(elapsed, PVT.durationMs))
+      if (elapsed >= PVT.durationMs) finish()
     }, 250)
     return () => clearInterval(id)
   }, [phase, finish])
 
   const pause = useCallback(() => {
-    if (phase === 'ready' || phase === 'done' || phase === 'paused') return
+    if (phase === 'ready' || phase === 'done' || phase === 'empty' || phase === 'paused') return
     clear()
     if (since.current !== null) used.current += performance.now() - since.current
     since.current = null
@@ -107,7 +114,15 @@ export default function ReactionTest({ onDone, onCancel }: RunProps) {
   useEffect(() => clear, [])
 
   function press(timeStamp: number) {
-    if (phase === 'ready' || phase === 'paused') {
+    if (document.hidden) return
+    if (phase === 'empty') {
+      finished.current = false
+      times.current = []
+      falseStarts.current = 0
+      used.current = 0
+      setElapsed(0)
+    }
+    if (phase === 'ready' || phase === 'empty' || phase === 'paused') {
       since.current = performance.now()
       wait()
       return
@@ -143,6 +158,7 @@ export default function ReactionTest({ onDone, onCancel }: RunProps) {
     lit: '',
     feedback: shown,
     paused: 'Paused. Press to go on.',
+    empty: 'No timed responses were recorded. Press to try again.',
     done: 'Done',
   }
   return (
@@ -191,7 +207,7 @@ export default function ReactionTest({ onDone, onCancel }: RunProps) {
         the keys do nothing.
       </p>
       <div className="mt-3 flex flex-wrap gap-2">
-        {phase !== 'ready' && phase !== 'done' && phase !== 'paused' && (
+        {phase !== 'ready' && phase !== 'done' && phase !== 'empty' && phase !== 'paused' && (
           <Button size="sm" onClick={pause}>
             Pause
           </Button>

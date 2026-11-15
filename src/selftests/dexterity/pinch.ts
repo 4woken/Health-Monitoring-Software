@@ -15,6 +15,11 @@ export function layout(count: number) {
   return { from, to, radius: 0.085 }
 }
 
+/** Half-width and half-height in normalised video coordinates for one square target. */
+export function targetExtent(radius: number, aspect: number) {
+  return { x: radius * Math.min(1, 1 / aspect), y: radius * Math.min(1, aspect) }
+}
+
 export interface PinchView {
   count: number
   /** Fingertip position on the mirrored preview, 0 to 1. */
@@ -74,13 +79,18 @@ export function pinchTracker(target = TRANSFERS) {
       const size = Math.max(dist(wrist, middle, aspect), dist(baseIndex, basePinky, aspect))
       if (size < 0.06) return lost(now)
       const cursor = { x: 1 - index.x, y: index.y }
-      if ((last && dist(last, cursor, aspect) > 0.35) || (previousHand && label !== previousHand)) lost(now)
+      if (
+        (last && dist(last, cursor, aspect) > 0.35 * Math.max(1, aspect)) ||
+        (previousHand && label !== previousHand)
+      )
+        lost(now)
       last = cursor
       previousHand = label
       const gap = dist(thumb, index, aspect) / size
       const gesture = gap <= 0.32 ? 'closed' : gap >= 0.58 ? 'open' : null
       const { from, to, radius } = layout(count)
-      const near = (p: Point) => dist(cursor, p, aspect) <= radius * Math.min(1, aspect)
+      const extent = targetExtent(radius, aspect)
+      const near = (p: Point) => Math.abs(cursor.x - p.x) <= extent.x && Math.abs(cursor.y - p.y) <= extent.y
       if (gesture !== candidate) {
         candidate = gesture
         since = now

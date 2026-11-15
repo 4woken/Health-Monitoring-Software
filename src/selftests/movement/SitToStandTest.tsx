@@ -16,6 +16,7 @@ export default function SitToStandTest({ onDone, onCancel }: RunProps) {
   const [stands, setStands] = useState(0)
   const [elapsed, setElapsed] = useState(0)
   const crossed = useRef<boolean[]>([])
+  const countdownId = useRef(0)
   const counting = useRef(false)
   const finished = useRef(false)
   const lastStands = useRef(0)
@@ -27,13 +28,22 @@ export default function SitToStandTest({ onDone, onCancel }: RunProps) {
     camera.start(onFrame)
     return () => {
       cancelled.current = true
+      countdownId.current++
       camera.stop()
     }
     // Set once: the frame handler keeps its state in refs.
   }, [])
 
+  useEffect(() => {
+    if (camera.stopped) countdownId.current++
+  }, [camera.stopped])
+
   function onFrame(frame: CameraFrame) {
     const v = tracker.current.update(frame.body, frame.aspect, frame.now)
+    if (v.phase === 'seat' && counting.current) {
+      countdownId.current++
+      counting.current = false
+    }
     if (v.phase === 'running') crossed.current.push(armsCrossed(frame.body))
     setStands(v.stands)
     setElapsed(v.elapsedS)
@@ -43,11 +53,12 @@ export default function SitToStandTest({ onDone, onCancel }: RunProps) {
     }
     if (v.phase === 'ready' && !counting.current) {
       counting.current = true
+      const id = ++countdownId.current
       setCue('Ready.')
       void countdown(
         3,
         (n) => setCue(n ? String(n) : 'Go: stand up fully, five times.'),
-        () => cancelled.current,
+        () => cancelled.current || countdownId.current !== id || document.hidden,
       ).then((go) => go && tracker.current.go(performance.now()))
       return
     }
@@ -77,9 +88,8 @@ export default function SitToStandTest({ onDone, onCancel }: RunProps) {
             <Coach move="sitToStand" small label="A figure standing up from a chair" />
           </div>
         </Suspense>
-        {camera.stopped && <p className="text-[14px] text-check">{camera.stopped}</p>}
         <Button size="sm" kind="ghost" onClick={onCancel}>
-          Leave the test
+          {camera.stopped ? 'Try again' : 'Leave the test'}
         </Button>
       </aside>
     </section>
